@@ -1,0 +1,13 @@
+[project]
+name = 'ccmodels'
+version = '29.01.2024'
+description = "Package to run all the preprocessing, analysis and figures to build connectome constrained models with the MICrONS dataset."
+authors = [
+  {name = "Jacopo Biggiogera", email = "jacopo.biggiogera@yahoo.it"},
+  {name = "Alessandro Sanzeni"}, 
+  {name = "Camilla Bianco"}, 
+  {name = "Victor Buendia"},
+  ]
+
+[tool.setuptools]
+py-modules = ["ccmodels"]

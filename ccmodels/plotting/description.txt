@@ -1,0 +1,10 @@
+here you put all the py files that are utilised to generate the figures
+
+--> 'utils.py' module that contains  functions useful for all or specific plots 
+
+--> 'style.py' containing all of the styling parameters for the plots
+
+--> one folder with the pngs you have created yourself
+
+
+

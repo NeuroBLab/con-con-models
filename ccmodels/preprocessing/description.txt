@@ -1,0 +1,10 @@
+here you put all the modules that are utilised to interact with the database and to extract the 
+data that is required for generating the figures and the analyses
+
+--> 'helpers' folder with all of the modules of the functions you have developed to interact with the database and
+    estimate what you need.
+
+--> 'scripts' folder with with the scripts that you run to extract the data itself. One of these is the sampler.py file
+
+
+

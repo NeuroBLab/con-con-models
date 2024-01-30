@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: ccmodels
+Version: 29.1.2024
+Summary: Package to run all the preprocessing, analysis and figures to build connectome constrained models with the MICrONS dataset.
+Author: Alessandro Sanzeni, Camilla Bianco, Victor Buendia
+Author-email: Jacopo Biggiogera <jacopo.biggiogera@yahoo.it>

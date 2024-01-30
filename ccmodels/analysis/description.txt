@@ -1,0 +1,11 @@
+here you put all the py files that contain functions and processes utilised to analyses the pre processed 
+and extracted data
+
+--> module 'simulators.py' with all of the functions to do simulations based on bootstrap, etc etc
+
+--> module 'aggregators.py' with all of the utility functions to aggregate and segment data in different ways
+
+--> module 'utils.py' with more generalised exploratory functions to analyse the extracted V1 dataset
+
+
+
