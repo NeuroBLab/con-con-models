@@ -1,7 +1,9 @@
 # Files not to track
-
 __pycache__
 .DS_Store
 dev
 data_full
 todos.md
+
+#Virtual environment folders
+virtual/
