@@ -1,6 +1,0 @@
-README.md
-pyproject.toml
-ccmodels.egg-info/PKG-INFO
-ccmodels.egg-info/SOURCES.txt
-ccmodels.egg-info/dependency_links.txt
-ccmodels.egg-info/top_level.txt
