@@ -1,5 +1,5 @@
 # Introduction
-Welcome this repositroy contains the code to implement connectome constrained models and analyse orientation selectivity in mouse V1 as detailed in the paper:
+Welcome this repository contains the code to implement connectome constrained models and analyse orientation selectivity in mouse V1 as detailed in the paper:
 [paper title and link]
 
 Below you will find a breakdown of how the code is structured, tutorials on how to run the scripts to replicate the analsysis done in the paper and how to install our package so that you can use it on your machine locally. We hope everything is clear and we are open to comments and suggestions if you have any!
