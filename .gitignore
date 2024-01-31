@@ -4,7 +4,7 @@ __pycache__
 dev
 data_full
 todos.md
-ccmodels.egg-info
+ccmodels.egg-info/
 
 #Virtual environment folders
 virtual/
