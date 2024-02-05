@@ -2,6 +2,8 @@
 import numpy as np
 import pandas as pd 
 from tqdm.auto import tqdm
+from standard_transform import minnie_transform_vx
+
 
 
 def min_act(max_rad, model_type, dirs):
@@ -168,3 +170,94 @@ def func_pre_subsetter(client, to_keep, func_id):
     syn = client.materialize.synapse_query(post_ids=func_id)
     sub = syn[syn['pre_pt_root_id'].isin(to_keep)].loc[:, ['post_pt_root_id', 'pre_pt_root_id', 'size','post_pt_position', 'pre_pt_position']]
     return sub
+
+def unique_neuronal_inputs(pt_root_id, neurons, client):
+    '''function to extract all the unique neuronal inputs for a postsynaptic cell
+    neurons: set of ids  of cells that are neurons, utilise the nucleus_neuron_svm table from Minnie65 v343 '''
+
+    input_df = client.materialize.synapse_query(post_ids = pt_root_id)
+    input_df = input_df.drop_duplicates(subset = 'pre_pt_root_id')
+    neuronal_inputs = input_df[input_df['pre_pt_root_id'].isin(neurons)]
+
+    return pd.DataFrame(neuronal_inputs)
+
+def unique_neuronal_outputs(pt_root_id, neurons, client):
+    '''function to extract all the unique neuronal outputs for a postsynaptic cell
+     neurons: set of ids  of cells that are neurons, utilise the nucleus_neuron_svm table from Minnie65 v343'''
+
+    output_df = client.materialize.synapse_query(pre_ids = pt_root_id)
+    output_df = output_df.drop_duplicates(subset = 'post_pt_root_id')
+    neuronal_outputs = output_df[output_df['post_pt_root_id'].isin(neurons)]
+
+    return pd.DataFrame(neuronal_outputs)
+
+
+
+def layer_extractor(input_df, transform, column = 'pre_pt_position'):
+    input_df['pial_distances'] = transform.apply(input_df[column])
+
+    #Use the y axis value to assign the corresponding layer as per Ding et al. 2023
+    layers = []
+    for i in input_df['pial_distances'].iloc[:]:
+        if 0<i[1]<=98:
+            layers.append('L1')
+        elif 98<i[1]<=283:
+            layers.append('L2/3')
+        elif 283<i[1]<=371:
+            layers.append('L4')
+        elif 371<i[1]<=574:
+            layers.append('L5')
+        elif 574<i[1]<=713:
+            layers.append('L6')
+        else:
+            layers.append('unidentified')
+
+    input_df['cortex_layer'] = layers   
+    return input_df
+
+
+def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'con-con-models/data_full/v1_n.csv'):
+    '''This function takes a table of functionally matched neurons from the MICrONs connectomics database
+    and returns a subset only containing neurons belowning to L2/3/4 of V1
+    
+
+    Args:
+    client: CAVEclient needed to access MICrONS connectomics data
+    table_name: name of table in CAVEClient database with functionally matched neurons
+    area_df: DataFrame containing brain area of all neurons in functional database, uniquely identifiable
+    by their (session, scan_idx, unit_id) tuples.
+
+    Returns:
+    v1l234_neur: pd.DataFrame only containing neurons from L2/3/4 of V1
+
+    '''
+    funct_match = client.materialize.query_table(table_name)
+    funct_match_clean = funct_match[['pt_root_id', 'id', 'session', 'scan_idx', 'unit_id', 'pt_position']]
+    
+    v1_area = pd.read_csv(area_df)
+
+    v1_neurons = funct_match_clean.merge(v1_area, on = ['session', 'scan_idx', 'unit_id'], how = 'inner')
+
+    tform_vx = minnie_transform_vx()
+
+    v1_neurons_layers = layer_extractor(v1_neurons, tform_vx, column = 'pt_position')
+
+    v1l234_neur = v1_neurons_layers[v1_neurons_layers['cortex_layer'].isin(['L2/3', 'L4'])]
+
+    return v1l234_neur
+    
+
+#TO DO generalise the below function to merge a connectome subset with a feature matrix
+# add _pre and _post default identifier on variables when merging
+def cortex_layer_merger(connectome, neuron_features):
+    '''utility function to merge a connectome subset with a dataframe of neurons containing information on the cell layer and whether its excitatory or inhibitory'''
+
+    connectome_pre = connectome.merge(neuron_features, left_on = 'pre_pt_root_id', right_on = 'pt_root_id', how = 'left')
+    connectome_pre = connectome_pre.rename(columns = {'cortex_layer': 'pre_cortex_layer', 'cell_type': 'pre_cell_type'})
+    connectome_pre = connectome_pre[['pre_pt_root_id', 'post_pt_root_id', 'size','pre_cortex_layer','pre_cell_type']]
+
+    connectome_full = connectome_pre.merge(neuron_features, left_on = 'post_pt_root_id', right_on = 'pt_root_id', how = 'left')
+    connectome_full = connectome_full.rename(columns = {'cortex_layer': 'post_cortex_layer', 'cell_type': 'post_cell_type'})
+    connectome_full = connectome_full[['pre_pt_root_id', 'post_pt_root_id', 'size','pre_cortex_layer','pre_cell_type','post_cortex_layer','post_cell_type']]
+
+    return connectome_full
