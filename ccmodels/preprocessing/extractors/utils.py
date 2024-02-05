@@ -1,5 +1,7 @@
 #Imports
 import numpy as np
+import pandas as pd 
+from tqdm.auto import tqdm
 
 
 def min_act(max_rad, model_type, dirs):
@@ -113,3 +115,56 @@ def constrain_act_range(post_root_id, directions, pre_df, currents = True):
 
 
     return reordered_act, constrained_dirs
+
+
+def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500):
+    '''
+    Function to construct the connectome subset for the neurons specified in the presynaptic_set and postsynaptic_set.
+
+    Args:
+    client: CAVEclient needed to access MICrONS connectomics data
+    presynaptic_set: 1-d array of non repeated root_ids of presynaptic neurons for which to extract postsynaptoc connections in postynaptic_set
+    postynaptic_set: 1-d array of non repeated root_ids of postsynaptic neurons for which to extract presynaptic connections in presynaptic_set
+    neurs_per_steps: number of postsynaptic neurons for which to recover presynaptic connectivity per single call to the connectomics
+        database. Since the connectomics database has a limit on the number of connections you can query at once
+        this iterative method optimises querying multiple neurons at once, as opposed to each single neuron individually,
+        while also preventing the queries from crashing. I have tested that for a presynaptic set of around 8000 neurons
+        you can reliably extract the connectivity for around 500 postsynaptic neurons at a time.
+    '''
+    
+    if_thresh = (postsynaptic_set.shape[0]//neurs_per_steps)*neurs_per_steps
+    
+    syndfs = []
+    for i in tqdm(range(0, postsynaptic_set.shape[0], neurs_per_steps)):
+        
+        if i <if_thresh:
+            post_ids = postsynaptic_set[i:i+neurs_per_steps]
+
+        else:
+            post_ids = postsynaptic_set[i:]
+
+        sub_syn_df = client.materialize.query_table('synapses_pni_2',
+                                            filter_in_dict={'pre_pt_root_id': presynaptic_set,
+                                                            'post_pt_root_id':post_ids})
+            
+        syndfs.append(np.array(sub_syn_df[['pre_pt_root_id', 'post_pt_root_id', 'size']]))
+    
+    syn_df = pd.DataFrame({'pre_pt_root_id':np.vstack(syndfs)[:, 0], 'post_pt_root_id': np.vstack(syndfs)[:, 1], 'size': np.vstack(syndfs)[:, 2]})
+    return syn_df
+
+def func_pre_subsetter(client, to_keep, func_id):
+    '''This is a function to return all of the pre_synaptic neurons that are functionally matched for a given 
+    neuron id passed as func_id
+
+    Args: 
+    client: CAVEclient needed to access MICrONS connectomics data
+    to_keep: set of root ids of functionally matched neurons that we wish to subset synapse df of func_id by
+    func_id: root_id of neuorn for which we want to extract pre synaptic connections.
+
+    Returns: 
+    df containing connections between func_id neuron and all its functionally matched pre synaptic neurons
+    '''
+
+    syn = client.materialize.synapse_query(post_ids=func_id)
+    sub = syn[syn['pre_pt_root_id'].isin(to_keep)].loc[:, ['post_pt_root_id', 'pre_pt_root_id', 'size','post_pt_position', 'pre_pt_position']]
+    return sub
