@@ -1,3 +1,8 @@
+'''
+This script allows to extract and save a connectivity sample fro proofread and for non-proofread neurons
+on which to compute relevant statistics and required analyses.
+'''
+
 import numpy as np
 import pandas as pd
 import argparse
@@ -15,7 +20,7 @@ def client_version(version = 'minnie65_public_v343'):
 
 def neuron_identifier(client, table):
     '''Extract the root_ids of the cells that are nuerons
-    Params:
+    Args:
     client: CAVEclient
     table: str, name of cave table to query
     
@@ -35,7 +40,7 @@ def neuron_identifier(client, table):
 def proofread_neurons(client, table):
     '''
     Identify and extract fully proofread neurons
-    Params:
+    Args:
     client: CAVEclient
     table: str, name of cave table to query
     
@@ -53,7 +58,7 @@ def proofread_neurons(client, table):
 def nonproofread_neurons(neurons, proofread_neur, cell_table):
     '''
     Identify and extract non proofread neurons
-    Params:
+    Args:
     neurons: dict, with root_ids of neurons
     proofread_neur: DF with information on proofread neurons
     cell_table: DF, with information on all cells in the dataset
