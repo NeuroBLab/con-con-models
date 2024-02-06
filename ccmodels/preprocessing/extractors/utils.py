@@ -71,12 +71,13 @@ def constrainer(dirs, reversed = False):
 
     return all_truncated
 
-def constrain_act_range(post_root_id, directions, pre_df, currents = True):
+def constrain_act_range(post_root_col, post_root_id, directions, pre_df, currents = True):
     '''This function maps the discretized directions shown in the stimulus from the [-2pi, 2pi]
     range to the [-pi, pi] range and re-orders the activities of each pre-synaptic
     connections of a specified post-synaptic cell according to the new direction mapping
     
     Parameters:
+    post_root_col: str, column containing postsynaptic ids of neurons
     post_root_id: id of the post_synaptic cell
     directions: array of discretized directions in [-2pi, 2pi] range
     pre_df: data frame containing activities of pre-synaptic cell and key (post_root_id) specifiying which post_synaptic cell they connect to 
@@ -89,7 +90,7 @@ def constrain_act_range(post_root_id, directions, pre_df, currents = True):
     '''
 
     #select all pre synaptic cells
-    cell = pre_df[pre_df['post_id'] == post_root_id]
+    cell = pre_df[pre_df[post_root_col] == post_root_id]
     
     #differences with post max
     arr_diffs = directions-cell['post_po'].values[0]
@@ -137,7 +138,7 @@ def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_
     if_thresh = (postsynaptic_set.shape[0]//neurs_per_steps)*neurs_per_steps
     
     syndfs = []
-    for i in tqdm(range(0, postsynaptic_set.shape[0], neurs_per_steps)):
+    for i in tqdm(range(0, postsynaptic_set.shape[0], neurs_per_steps), desc = 'Extracting connectome subset'):
         
         if i <if_thresh:
             post_ids = postsynaptic_set[i:i+neurs_per_steps]
@@ -247,17 +248,45 @@ def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'co
     return v1l234_neur
     
 
-#TO DO generalise the below function to merge a connectome subset with a feature matrix
-# add _pre and _post default identifier on variables when merging
-def cortex_layer_merger(connectome, neuron_features):
-    '''utility function to merge a connectome subset with a dataframe of neurons containing information on the cell layer and whether its excitatory or inhibitory'''
+def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root_id', 
+                        post_id = 'post_pt_root_id', neuron_id ='pt_root_id', conn_str = 'size' ):
+    '''utility function to merge a connectome subset with a dataframe of neurons containing 
+    features describing each neurone in the connectome (ex. selectivity, layer they belong to...)
+    
+    Args:
+    connectome: df, subset of the connectome of interest, 
+    neuron_features: df, with the features of interest for the neurons in the connectome
+    pre_id: str, column name with the ids of the presynaptic neurons on which to match the features df on 
+    post_id: str,column name with the ids of the postsynaptic neurons on which to match the features df on  
+    neuron_id: str, column name in the features df identifying neuron on which to match on in the connectome
+    conn_str: str, column name containing connection strength in the connectome df
 
-    connectome_pre = connectome.merge(neuron_features, left_on = 'pre_pt_root_id', right_on = 'pt_root_id', how = 'left')
-    connectome_pre = connectome_pre.rename(columns = {'cortex_layer': 'pre_cortex_layer', 'cell_type': 'pre_cell_type'})
-    connectome_pre = connectome_pre[['pre_pt_root_id', 'post_pt_root_id', 'size','pre_cortex_layer','pre_cell_type']]
+    Returns:
+    connectome_full: df, with the connectome subset and features for the pre and post neurons
+    '''
 
-    connectome_full = connectome_pre.merge(neuron_features, left_on = 'post_pt_root_id', right_on = 'pt_root_id', how = 'left')
-    connectome_full = connectome_full.rename(columns = {'cortex_layer': 'post_cortex_layer', 'cell_type': 'post_cell_type'})
-    connectome_full = connectome_full[['pre_pt_root_id', 'post_pt_root_id', 'size','pre_cortex_layer','pre_cell_type','post_cortex_layer','post_cell_type']]
+    keep_same = [pre_id, post_id, conn_str, neuron_id]
 
+    #Merge presynaptic data
+    connectome_pre = connectome.merge(neuron_features, left_on = pre_id, 
+                                      right_on = neuron_id, how = 'left', 
+                                      suffixes = ('_pre', '_feat'))
+    connectome_pre = connectome_pre[connectome_pre.columns.drop(list(connectome_pre.filter(regex='_feat')))]
+
+    #remove repeated root id column
+    connectome_pre.drop(columns = neuron_id, inplace = True)
+    
+    #Rename columns to highlight they identify presynaptic information
+    connectome_pre.columns = ['{}{}'.format('' if c in keep_same else 'pre_', c) for c in connectome_pre.columns]
+
+    #Merge postsynaptic data
+    #Rename columns to highlight they identify postynaptic information
+    neuron_features.columns = ['{}{}'.format('' if c in keep_same else 'post_', c) for c in neuron_features.columns]
+
+    connectome_full = connectome_pre.merge(neuron_features, left_on = post_id, 
+                                           right_on = neuron_id, how = 'left')
+    
+    #remove repeated root id column
+    connectome_full.drop(columns = neuron_id, inplace = True)
+    
     return connectome_full
