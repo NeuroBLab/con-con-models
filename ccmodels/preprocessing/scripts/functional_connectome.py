@@ -1,16 +1,18 @@
 '''
-By running this script you can extract a pickle file containing a subset of teh connectome
-with the connnectivity amongst all functionally matched neurons from L2/3/4 of V1.
-In addition pre and post synpatic neurons also contain information on...
+By running this script you can extract a csv file containing a subset of the connectome
+with the connnectivity amongst all functionally matched neurons from the specified connectomics
+database version.
 
 Estimated runtime: 1h 45 minutes
 '''
+
+#TODO
+#add argparser option to specify where to read and write files to
 
 import numpy as np
 import pandas as pd 
 import matplotlib.pyplot as plt
 from caveclient import CAVEclient
-from standard_transform import minnie_transform_vx
 from ccmodels.preprocessing.extractors.utils import connectome_constructor, subset_v1l234
 
 
