@@ -18,8 +18,9 @@ from ccmodels.preprocessing.extractors.utils import connectome_constructor, subs
 
 def main():
     #define Caveclient and database version
+    version = 661
     client = CAVEclient('minnie65_public')
-    client.materialize.version = 661
+    client.materialize.version = version
 
     #Extracting all the root id of the functionally matched cells
     funct_match = client.materialize.query_table('coregistration_manual_v3')
@@ -30,7 +31,7 @@ def main():
     connect_functional = connectome_constructor(client, fun, fun, 500)
 
     #Save it
-    connect_functional.to_csv('functional_connectomev661.csv', index = False)
+    connect_functional.to_csv(f'functional_connectomev{version}.csv', index = False)
 
 
 if __name__ == '__main__':
