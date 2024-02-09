@@ -84,7 +84,7 @@ def sampler(client, neurons, neurons_subtype,  n = 100, seed = 4, extract = 'bot
     neur_out_t = unique_neuronal_outputs(neurons_subtype['pt_root_id'].values[0], neurons, client)
     neur_in_t = unique_neuronal_inputs(neurons_subtype['pt_root_id'].values[0], neurons, client)
 
-    for cell in tqdm(np.random.choice(neurons_subtype['pt_root_id'].values[1:], n), desc = f'Extracting sample for {name} neurons'):
+    for cell in tqdm(np.random.choice(neurons_subtype['pt_root_id'].values[1:], n, replace = False), desc = f'Extracting sample for {name} neurons'):
         if extract == 'both':
             #Concatenate pre/post information on extracted neuron to shared DataFrame
             neur_out = unique_neuronal_outputs(cell, neurons, client)
