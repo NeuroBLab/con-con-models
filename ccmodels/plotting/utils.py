@@ -18,8 +18,9 @@ def figure_saver(fig,name,width_cm, height_cm, save_path):
     fig.set_size_inches(w_inch, h_inch) 
     fig.savefig(f'{save_path}{name}.pdf', format='pdf', bbox_inches='tight')
 
+# --- Auxiliary functions for Figure 1 --- 
 
-def prepare_c1(data_location = '../con-con-models/data'):
+def get_number_connections(data_location = '../con-con-models/data'):
     '''Reads in appropriate data and prepares it for plotting by calculating counts'''
 
     nonproof_inputs_sample = pd.read_csv(f'{data_location}/nonproof_inputs_sample.csv')
@@ -37,14 +38,16 @@ def prepare_c1(data_location = '../con-con-models/data'):
     nonproof_outputs_counts = nonproof_outputs_sample.groupby('pre_pt_root_id').count().reset_index()
     proof_outputs_counts = proof_outputs_sample.groupby('pre_pt_root_id').count().reset_index()
 
-    return nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts
+    return nonproof_inputs_counts["id"], proof_inputs_counts["id"], nonproof_outputs_counts["id"], proof_outputs_counts["id"]
 
 
-def prepare_d1(data_location = '../con-con-models/data'):
+def get_propotion_connections(data_location = '../con-con-models/data'):
     '''
     Performs a bootstrap analysis on the proportion of inputs from L2/3 and L4 neurons that are received by
     L2/3 neurons that are proofread VS that are not proofread
     '''
+
+    #Read data from layer L2/3
     proof_inputs_l23sample = pd.read_csv(f'{data_location}/proof_inputs_l23sample.csv')
     nonproof_inputs_l23sample = pd.read_csv(f'{data_location}/nonproof_inputs_l23sample.csv')
 
@@ -54,6 +57,7 @@ def prepare_d1(data_location = '../con-con-models/data'):
     layer_groups_p = nonproof_inputs_l23sample.groupby(['post_pt_root_id','cortex_layer']).count()
 
     #Clean the dataframes
+    #Rename the id column to be called n_connections and contain the number of postsynaptic units
     #Proofread
     layer_groups_p = layer_groups_p.reset_index().loc[:, ['post_pt_root_id', 'cortex_layer', 'id']].rename(columns = {'id':'n_connections'})
     #NON-proofread
@@ -67,6 +71,9 @@ def prepare_d1(data_location = '../con-con-models/data'):
     
     
     return boots_propl_proof, boots_propl_noproof
+
+
+# --- Auxiliary functions for Figure 2 --- 
 
 
 def prepare_b2(v1_connections):
