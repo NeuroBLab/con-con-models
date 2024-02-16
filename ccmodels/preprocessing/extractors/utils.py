@@ -326,3 +326,11 @@ def proofread_neurons(client, table, dendrites = True, axons = True):
                                 (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])&
                                 (proofread_neur['status_axon'] ==  'extended')]
     return proofread_neur
+
+def client_version(version = 343):
+    '''Define the version of the CAVE client database you want to access and use for the analysis'''
+    
+    client = CAVEclient('minnie65_public')
+    client.materialize.version = version
+    
+    return client
