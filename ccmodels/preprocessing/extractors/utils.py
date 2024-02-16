@@ -2,7 +2,9 @@
 import numpy as np
 import pandas as pd 
 from tqdm.auto import tqdm
+from caveclient import CAVEclient
 from standard_transform import minnie_transform_vx
+
 
 
 
@@ -264,6 +266,9 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     Returns:
     connectome_full: df, with the connectome subset and features for the pre and post neurons
     '''
+
+    connectome = connectome.copy()
+    neuron_features = neuron_features.copy()
 
     keep_same = [pre_id, post_id, conn_str, neuron_id]
 
