@@ -295,3 +295,34 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     connectome_full.drop(columns = neuron_id, inplace = True)
     
     return connectome_full
+
+
+def proofread_neurons(client, table, dendrites = True, axons = True):
+    '''
+    Identify and extract  proofread neurons
+    Args:
+    client: CAVEclient
+    table: str, name of cave table to query
+    dendrites: bool, whether to extract neurons with fully proofread dendrites
+    axons: bool, whether to extract neurons with fully proofread axons
+    
+    Returns:
+    proofread_neur: DF with information on proofread neurons
+    '''
+
+    # Set of fully proofread neurons
+    proofread_neur = client.materialize.query_table(table)
+
+    if dendrites:
+        proofread_neur = proofread_neur[(proofread_neur['status_dendrite'] == 'extended') & 
+                                (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])]
+    
+    elif axons:
+        proofread_neur = proofread_neur[(proofread_neur['status_axon'] == 'extended') & 
+                                (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])]
+
+    elif dendrites and axons:
+        proofread_neur = proofread_neur[(proofread_neur['status_dendrite'] == 'extended') & 
+                                (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])&
+                                (proofread_neur['status_axon'] ==  'extended')]
+    return proofread_neur
