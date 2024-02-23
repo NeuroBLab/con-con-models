@@ -143,6 +143,59 @@ def all_inputs_aggregator(layer_data, activity_column, dirs_columns, grouping = 
     return a_grouped, ungrouped
 
 
+def normalize_current(current, norm):
+    #return (current-np.min(current))/(np.max(current)-np.min(current))
+    return current / norm 
+
+def find_largest_current(all_currents, mode="mean"):
+    if mode=="max":
+        maxcurr = 0.0
+        for curr in all_currents:
+            maxcurr_neuron = np.max(curr)
+            if  maxcurr_neuron > maxcurr:
+                maxcurr = maxcurr_neuron
+        return maxcurr
+    elif mode=="mean":
+        meancurr = 0.0
+        for curr in all_currents:
+            meancurr += curr.sum()
+        return meancurr / (len(curr)*len(all_currents)) 
+
+
+def flatten_orientation_current(connections_data, ori_column_name, actvity_column_name, dir_range="full"):
+    """
+    Activity and direction are arrays inside each row of the dataframe, so one cannot groupby them. 
+    This function "unfolds" these arrays so the table has pre, post, orientation and activity as single numbers.
+    """
+
+    #Prepare the arrays to be filled
+    ndirs = []
+    nacts = []
+    norm = []
+
+    maxcurr = find_largest_current(connections_data[actvity_column_name])
+    #For each row...
+    for ndr, at in zip(connections_data[ori_column_name], connections_data[actvity_column_name]):
+        if dir_range == 'half':
+            ndirs += list(np.abs(ndr))
+        elif dir_range == 'full':
+            ndirs+=list(ndr)
+
+        #Add the flattened activities to a list
+        #atnorm = (at-np.min(at))/(np.max(at)-np.min(at))
+        atnorm = normalize_current(at, maxcurr)
+        nacts+= list(at)
+        norm+= list(atnorm)
+
+
+    #Save it in a data frame, now each column has simple values 
+    ungrouped = pd.DataFrame({'dirs': ndirs, 'cur':nacts, 'norm_cur':norm})
+
+
+    #Round the directions
+    return ungrouped.round({'dirs':6, 'cur':5, 'norm_cur':5})
+
+
 
 def all_inputs_aggregator2(layer_data, activity_column, dirs_columns, grouping = 'mean', dir_range = 'full'):
     '''This function allows to group all the activity of all presynaptic neurons and returns both the sum,
@@ -164,6 +217,7 @@ def all_inputs_aggregator2(layer_data, activity_column, dirs_columns, grouping =
     '''
     
     #extract all the activity of the neurons and the corresponding directions in two big lists
+    """
     ndirs = []
     nacts = []
     norm = []
@@ -189,6 +243,10 @@ def all_inputs_aggregator2(layer_data, activity_column, dirs_columns, grouping =
 
     #sort values by direction
     asort = a.sort_values(by = 'dirs')
+    """
+
+    ungrouped = flatten_orientation_current(layer_data, dirs_columns, activity_column, dir_range)
+    asort = ungrouped.sort_values(by = 'dirs')
 
     #Group values by direction and sum the activities
     a_grouped = asort.groupby('dirs').sum().reset_index()

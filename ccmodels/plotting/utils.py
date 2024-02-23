@@ -4,7 +4,7 @@ import numpy as np
 from tqdm.auto import tqdm
 from ccmodels.analysis.simulators import bootstrap_conn_prob, tpo_po_simulator_new,bootstrap_layerinput_proportions
 from ccmodels.analysis.utils import tuning_segmenter, compute_cur_delta_dist
-from ccmodels.analysis.aggregators import all_inputs_aggregator2, cumul_dist
+from ccmodels.analysis.aggregators import flatten_orientation_current, normalize_current, find_largest_current, all_inputs_aggregator2, cumul_dist
 
 
 
@@ -76,35 +76,41 @@ def get_propotion_connections(data_location = '../con-con-models/data'):
 # --- Auxiliary functions for Figure 2 --- 
 
 
-def prepare_b2(v1_connections):
+def prob_conectivity_tuned_untuned(v1_connections, nsamples=100):
+    """
+    Perform a number nsamples of bootstrap samples of the connection probability, and returns a matrix
+    of probability of connection between tuned/untuned populations of layers 2/3 and 4 to layer 2/3.
+    """
     #Connection probability between combinations of tuned and untuned inputs/outputs
-    l4t_l23t = []
-    l4t_l23u = []
-    l4u_l23u = []
-    l4u_l23t = []
+    #Rows: L2/3T, L2/3U (post synaptic)
+    #Columns: L2/3T, L2/3U,  L4T, L4U (pre synaptic)
+    sampled_probabilities = np.empty((2, 4))
 
-    l23t_l23t = []
-    l23t_l23u = []
-    l23u_l23u = []
-    l23u_l23t = []
-
-    for i in tqdm(range(100)):
+    for i in tqdm(range(nsamples)):
+        #Sample a number of connections with repetitions
         v1_connections_samp = v1_connections.sample(v1_connections.shape[0], replace = True)
+
+        #Separate the samples in both tuned/untuned and layer.
         l4_combinations, l23_combinations = tuning_segmenter(v1_connections_samp)
 
         #L4 -> L2/3
-        #Normalising constants
+        #Normalising constants, total number of connections
         layer_4_tuned_out = v1_connections_samp[(v1_connections_samp['post_tuned'] == 1)
                                 & (v1_connections_samp['pre_layer'] == 'L4')].shape[0]
 
         layer_4_untuned_out = v1_connections_samp[(v1_connections_samp['post_tuned'] == 0)
                                 & (v1_connections_samp['pre_layer'] == 'L4')].shape[0]
 
-        #Probabilities
-        l4t_l23t.append(l4_combinations[0].shape[0]/layer_4_tuned_out)
-        l4t_l23u.append(l4_combinations[1].shape[0]/layer_4_untuned_out)
-        l4u_l23u.append(l4_combinations[2].shape[0]/layer_4_untuned_out)
-        l4u_l23t.append(l4_combinations[3].shape[0]/layer_4_tuned_out)
+        #Compute the averages!
+        #L4T -> L2/3T
+        sampled_probabilities[0,2] += (l4_combinations[0].shape[0]/layer_4_tuned_out)
+        #L4T -> L2/3U
+        sampled_probabilities[1,2] += (l4_combinations[1].shape[0]/layer_4_untuned_out)
+        #L4U -> L2/3T
+        sampled_probabilities[0,3] += (l4_combinations[3].shape[0]/layer_4_tuned_out)
+        #L4U -> L2/3U
+        sampled_probabilities[1,3] += (l4_combinations[2].shape[0]/layer_4_untuned_out)
+
 
         #L2/3 -> L2/3
         #Normalising constants
@@ -114,19 +120,53 @@ def prepare_b2(v1_connections):
         layer_23_untuned_out = v1_connections_samp[(v1_connections_samp['post_tuned'] == 0)
                                 & (v1_connections_samp['pre_layer'] == 'L2/3')].shape[0]
 
-        #Probabilities
-        l23t_l23t.append(l23_combinations[0].shape[0]/layer_23_tuned_out)
-        l23t_l23u.append(l23_combinations[1].shape[0]/layer_23_untuned_out)
-        l23u_l23u.append(l23_combinations[2].shape[0]/layer_23_untuned_out)
-        l23u_l23t.append(l23_combinations[3].shape[0]/layer_23_tuned_out)
+        #Compute the averages!
+        #L2/3T -> L2/3T
+        sampled_probabilities[0,0] += (l23_combinations[0].shape[0]/layer_23_tuned_out)
+        #L2/3T -> L2/3U
+        sampled_probabilities[1,0] += (l23_combinations[1].shape[0]/layer_23_untuned_out)
+        #L2/3U -> L2/3T
+        sampled_probabilities[0,1] += (l23_combinations[3].shape[0]/layer_23_tuned_out)
+        #L2/3U -> L2/3U
+        sampled_probabilities[1,1] += (l23_combinations[2].shape[0]/layer_23_untuned_out)
+
+    #Finish average and return
+    return sampled_probabilities/nsamples
+
+def strength_tuned_untuned(v1_connections):
+    """
+    Returns the matrix of connection strength from layer 2/3 and 4 to layer 2/3,
+    normalized to the strenght of recurrent layer 2/3 connections.
+    """
+
+    #Rows: L2/3T, L2/3U (post synaptic)
+    #Columns: L2/3T, L2/3U,  L4T, L4U (pre synaptic)
+    sampled_strenghts = np.empty((2, 4))
+
+    #Extract tuning combinations
+    l4_combinations, l23_combinations = tuning_segmenter(v1_connections)
+
+    #Normalization
+    normcstr = np.mean(v1_connections[v1_connections['pre_layer'] == 'L2/3']['size'])
+
+    #Fill our matrix accordingly. See also the previous function
+    sampled_strenghts[0,0] = np.mean(l23_combinations[0]['size']) #From L2/3T to L2/3 T,U
+    sampled_strenghts[1,0] = np.mean(l23_combinations[1]['size'])
+    sampled_strenghts[0,1] = np.mean(l23_combinations[2]['size']) #From L2/3U to L2/3 T,U
+    sampled_strenghts[1,1] = np.mean(l23_combinations[3]['size'])
+
+    sampled_strenghts[0,2] = np.mean(l4_combinations[0]['size']) #From L4 T,U to L2/3
+    sampled_strenghts[1,2] = np.mean(l4_combinations[1]['size'])
+    sampled_strenghts[0,3] = np.mean(l4_combinations[2]['size'])
+    sampled_strenghts[1,3] = np.mean(l4_combinations[3]['size'])
+
+    return sampled_strenghts/normcstr
 
 
-    l4_tuning_connp = [l4t_l23t, l4t_l23u, l4u_l23t, l4u_l23u]
-    l23_tuning_connp = [l23t_l23t, l23t_l23u, l23u_l23t, l23u_l23u]
-    return l23_tuning_connp, l4_tuning_connp
-
-
-def prepare_c2(v1_connections):
+def prob_conn_diffori(v1_connections):
+    """
+    Computes the connection probability between neurons depending on the difference of orientation between them.
+    """
 
     #Identify tuned neurons
     tuned_neurons = v1_connections[(v1_connections['post_type']!= 'not_selective') & 
@@ -138,29 +178,12 @@ def prepare_c2(v1_connections):
 
     return l23_boots, l4_boots
 
-def prepare_d2(v1_connections):
 
-    #Extract tuning combinations
-    l4_combinations, l23_combinations = tuning_segmenter(v1_connections)
-
-    #L4 -> L2/3
-    l4t_l23t_strengths = np.array(l4_combinations[0]['size'])
-    l4t_l23u_strengths = np.array(l4_combinations[1]['size'])
-    l4u_l23u_strengths =np.array(l4_combinations[2]['size'])
-    l4u_l23t_strengths =np.array(l4_combinations[3]['size'])
-
-    #L2/3 -> L2/3
-    l23t_l23t_strengths = np.array(l23_combinations[0]['size'])
-    l23t_l23u_strengths = np.array(l23_combinations[1]['size'])
-    l23u_l23u_strengths = np.array(l23_combinations[2]['size'])
-    l23u_l23t_strengths = np.array(l23_combinations[3]['size'])
-    
-    l4_comb_strengths = [l4t_l23t_strengths,l4t_l23u_strengths,l4u_l23t_strengths, l4u_l23u_strengths]
-    l23_comb_strengths = [l23t_l23t_strengths,l23t_l23u_strengths,l23u_l23t_strengths, l23u_l23u_strengths]
-
-    return l23_comb_strengths, l4_comb_strengths
-
-def prepare_e2(v1_connections, angles_list, bins = 20):
+def cumulative_probconn(v1_connections, angles_list):
+    """
+    Cumulative distribution of the connectivity between neurons with perpendicular
+    orientation, from layers 2/3 or 4, to L2/3
+    """
 
     #examp_vals = [0, 1.570796, 0, 1.570796]
     tuned_neurons = v1_connections[(v1_connections['post_type']!= 'not_selective') & 
@@ -177,41 +200,290 @@ def prepare_e2(v1_connections, angles_list, bins = 20):
     sub2l23 =tuned_neurons[(tuned_neurons['delta_ori_constrained'] == angles_list[3])& 
                            (tuned_neurons['pre_layer'] == 'L2/3')]['size'].values/normcstr 
     
-    ch1, b1 = cumul_dist(sub1l4,20)
+    ch1, b1 = cumul_dist(sub1l4, 20)
 
-    ch2, b2 = cumul_dist(sub2l4,20)
+    ch2, b2 = cumul_dist(sub2l4, 20)
 
-    ch3, b3 = cumul_dist(sub1l23,20)
+    ch3, b3 = cumul_dist(sub1l23, 20)
 
-    ch4, b4 = cumul_dist(sub2l23,20)
+    ch4, b4 = cumul_dist(sub2l23, 20)
 
     return [[ch1, b1], [ch2, b2], [ch3, b3], [ch4, b4]]
 
 
 
-def prepare_b3(v1_connections, proofread_input_n):
+def compute_avg_inpt_current(v1_connections, proofread_input_n, dir_range):
+    """
+    Computes the average input current to neurons in the L2/3, as well as the proportion of it
+    arriving from recurrent interactions and L4
+    """
 
+    #Use only tuned neurons
     tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') 
                                    & (v1_connections['pre_type']!= 'not_selective')]
+
+    #Get presynaptic neurons depending on layer
     l23_t = tuned_outputs[tuned_outputs['pre_layer'] == 'L2/3']
     l23_t = l23_t.copy()
     l4_t = tuned_outputs[tuned_outputs['pre_layer'] == 'L4']
     l4_t = l4_t.copy()
     
     #Calculate aggregated currents
-    t23_grouped, _, _= all_inputs_aggregator2(l23_t, 'shifted_current', 'new_dirs', grouping = 'mean' )#, dir_range='half')
-    t4_grouped, _, _= all_inputs_aggregator2(l4_t, 'shifted_current', 'new_dirs', grouping = 'mean' )#, dir_range='half')
+    avg_input_l23, _, _= all_inputs_aggregator2(l23_t, 'shifted_current', 'new_dirs', grouping = 'mean',  dir_range = dir_range)
+    avg_input_l4, _, _= all_inputs_aggregator2(l4_t, 'shifted_current', 'new_dirs', grouping = 'mean',   dir_range = dir_range)
 
-    # calculate number of L2/3 inputs and number of L4 inputs
-    ave_l23 = np.mean(proofread_input_n[proofread_input_n['cortex_layer'] == 'L2/3']['n_connections'])
-    ave_l4 = np.mean(proofread_input_n[proofread_input_n['cortex_layer'] == 'L4']['n_connections'])
-    tot = ave_l23+ave_l4
+    # calculate average number of L2/3 inputs and number of L4 inputs
+    avg_connections_l23 = np.mean(proofread_input_n[proofread_input_n['cortex_layer'] == 'L2/3']['n_connections'])
+    avg_connections_l4 = np.mean(proofread_input_n[proofread_input_n['cortex_layer'] == 'L4']['n_connections'])
+    tot = avg_connections_l23+avg_connections_l4
 
     #Proportions of inputs from each layer
-    propl23 = ave_l23/tot
-    propl4 = ave_l4/tot
+    propl23 = avg_connections_l23/tot
+    propl4 = avg_connections_l4/tot
 
-    return t23_grouped, propl23, t4_grouped, propl4
+    return avg_input_l23, propl23, avg_input_l4, propl4
+
+def compute_single_inpt_current(v1_connections, n_neurons, seed=4, dir_range="full"):
+    """
+    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
+    """
+
+    #Use only tuned neurons
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+    
+    #Get which neurons are in each layer
+    tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
+    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
+
+    #Get some neurons from each one of the layers
+    np.random.seed(seed)
+    ids_l23 = tuned_l23["post_id"].sample(n_neurons, replace=False).values
+    ids_l4  = tuned_l4["post_id"].sample(n_neurons, replace=False).values 
+
+    #Get number of angles, and set up a Dataframe based on it, that we will fill
+    #Keep each result in a separate table depending on layer of presynaptic
+    angles = tuned_outputs["new_dirs"].values[0]
+    inputs = {"L2/3" : pd.DataFrame(index = angles),
+              "L4"   : pd.DataFrame(index = angles)}
+
+    #Compute the inputs for all the selected neurons. Do it separately for each layer
+    for layer, ids_list in zip(["L2/3", "L4"], [ids_l23, ids_l4]):
+
+        inputs[layer].rename_axis("new_dirs", inplace=True)
+
+        for neuron_id in ids_list:
+            #Get a mask to operate only with this postsynaptic neuron
+            neuronmask = tuned_outputs["post_id"] == neuron_id 
+
+            #Orientation and current are inside of lists. We need to have an entire row per value. 
+            #flattened = flatten_orientation_current(tuned_outputs[neuronmask], "new_dirs", "shifted_current", dir_range)
+            #flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : "shifted_current"})
+
+            #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
+            #inpt2neuron = flattened.groupby("new_dirs")["shifted_current"].sum().reset_index() 
+            inpt2neuron = get_input_frompresynaptic(tuned_outputs[neuronmask], dir_range=dir_range)
+
+            #Make sure columns are unique to add them later, and set the index to do a correct merge
+            inpt2neuron = inpt2neuron.rename(columns={"shifted_current" : "sc" + str(neuron_id)})
+            inpt2neuron = inpt2neuron.set_index("new_dirs")
+
+            #Concatenate to our result to a new column 
+            inputs[layer] = inputs[layer].join(inpt2neuron)
+
+    return inputs
+
+
+def get_input_frompresynaptic(connections_to_post, dir_range="full"):
+    flattened = flatten_orientation_current(connections_to_post, "new_dirs", "shifted_current", dir_range)
+    flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : "shifted_current"})
+
+    #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
+    return flattened.groupby("new_dirs")["shifted_current"].sum().reset_index() 
+
+
+def single_synapse_current(v1_connections, n_neurons, seed=4, dir_range="full"):
+    """
+    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
+    """
+
+    #Use only tuned neurons
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+    
+    #Get which neurons are in each layer
+    tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
+    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
+
+    #Get some neurons from each one of the layers
+    np.random.seed(seed)
+    ids_l23 = tuned_l23.sample(n_neurons, replace=False)
+    ids_l4  = tuned_l4.sample(n_neurons, replace=False)
+
+    maxcurr = find_largest_current(tuned_outputs["shifted_current"])
+    print(maxcurr)
+    ids_l23["shifted_current"] = ids_l23["shifted_current"].apply(normalize_current, args=[maxcurr])
+    ids_l4["shifted_current"]  = ids_l4["shifted_current"].apply(normalize_current, args=[maxcurr])
+
+
+    return {"L2/3" : ids_l23[["new_dirs", "shifted_current"]], 
+            "L4" : ids_l4[["new_dirs", "shifted_current"]]}
+
+def compute_inpt_bootstrap2(v1_connections, nsamples, dir_range="full", seed=4):
+    """
+    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
+    """
+
+    #Use only tuned neurons
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+    
+    #Select a random neuron and sample inputs to it
+    np.random.seed(seed)
+    random_neuron = tuned_outputs["post_id"].sample(1).values[0]
+    presynpatics = tuned_outputs[tuned_outputs["post_id"] == random_neuron]
+
+    #preboostrap = presynpatics.sample(nsamples, replace=True)
+    preboostrap = tuned_outputs.sample(nsamples, replace=True)
+    prebt_l23 = preboostrap[preboostrap["pre_layer"] == "L2/3"]
+    prebt_l4  = preboostrap[preboostrap["pre_layer"] == "L4"]
+
+
+
+    inputs = {}
+    #inputs["Total"] = get_input_frompresynaptic(preboostrap, dir_range=dir_range)
+    inputs["L2/3"]  = get_input_frompresynaptic(prebt_l23, dir_range=dir_range)
+    inputs["L4"]    = get_input_frompresynaptic(prebt_l4, dir_range=dir_range)
+
+    #inputs["Total"] = inputs["Total"].set_index("new_dirs")
+    inputs["L2/3"]  = inputs["L2/3"].set_index("new_dirs")
+    inputs["L4"]    = inputs["L4"].set_index("new_dirs")
+
+    return inputs 
+
+def compute_inpt_bootstrap(v1_connections, nsamples, dir_range="full", seed=4):
+    """
+    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
+    """
+
+    #Use only tuned neurons
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+    
+    #Select ids of the post synaptic neurons to study
+    np.random.seed(seed)
+    neuron_ids = tuned_outputs["post_id"].values
+    angles = tuned_outputs["new_dirs"].values[0]
+
+    preferred_orientations = []
+    for id in neuron_ids:
+        #Grab all rows of this post synaptic neuron 
+        presynpatics = tuned_outputs[tuned_outputs["post_id"] == id]
+
+        #Bootstrap the connections and get the input to the neuron 
+        preboostrap = presynpatics.sample(nsamples, replace=True)
+        total_activity = get_input_frompresynaptic(preboostrap, dir_range=dir_range)
+
+        rate = total_activity["shifted_current"].values
+
+        maxrate_index = np.argmax(rate)
+        preferred_orientations.append(angles[maxrate_index]) 
+
+    return angles, preferred_orientations 
+
+
+def compute_distrib_diffrate_allsynapses(v1_connections, dir_range="full"):
+
+    if dir_range=="full":
+        index_zero = 7 
+        index_pihalf = 11
+    else:
+        index_zero = 0 
+        index_pihalf = 4 
+
+    #Use only tuned neurons
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+    
+    #Get which neurons are in each layer
+    tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
+    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
+
+    #Get number of angles, and set up a Dataframe based on it, that we will fill
+    #Keep each result in a separate table depending on layer of presynaptic
+    diffs = {"L2/3" : [],
+              "L4"   : []} 
+    checked = False
+
+    maxcurr = find_largest_current(tuned_outputs["shifted_current"])
+    #Compute the inputs for all the selected neurons. Do it separately for each layer
+    for layer, allsynapses in zip(["L2/3", "L4"], [tuned_l23, tuned_l4]):
+        for current in allsynapses["shifted_current"]:
+
+            #Normalize currents
+            norm_curr = normalize_current(current, maxcurr) 
+
+            #Difference between pi/half and 0
+            diffs[layer].append(norm_curr[index_pihalf] - norm_curr[index_zero]) 
+
+    return diffs 
+
+def compute_distrib_diffrate_allneurons(v1_connections, dir_range="full", seed=4):
+
+    if dir_range=="full":
+        index_zero = 7 
+        index_pihalf = 11
+    else:
+        index_zero = 0 
+        index_pihalf = 4 
+
+    #Use only tuned neurons
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+    
+    #Get which neurons are in each layer
+    tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
+    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
+
+    #Get some neurons from each one of the layers
+    np.random.seed(seed)
+    ids_l23 = tuned_l23["post_id"]
+    ids_l4  = tuned_l4["post_id"]
+
+    #Get number of angles, and set up a Dataframe based on it, that we will fill
+    #Keep each result in a separate table depending on layer of presynaptic
+    diffs = {"L2/3" : [],
+              "L4"   : []} 
+    checked = False
+
+    #Compute the inputs for all the selected neurons. Do it separately for each layer
+    for layer, ids_list in zip(["L2/3", "L4"], [ids_l23, ids_l4]):
+        for neuron_id in ids_list:
+            #Get a mask to operate only with this postsynaptic neuron
+            neuronmask = tuned_outputs["post_id"] == neuron_id 
+
+            #Orientation and current are inside of lists. We need to have an entire row per value. 
+            flattened = flatten_orientation_current(tuned_outputs[neuronmask], "new_dirs", "shifted_current", dir_range)
+            flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : "shifted_current"})
+
+            #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
+            inpt2neuron = flattened.groupby("new_dirs")["shifted_current"].sum().reset_index() 
+
+            #Difference between 0 and pi/halfs
+            diffs[layer].append(inpt2neuron.loc[index_pihalf, "shifted_current"] - inpt2neuron.loc[index_zero, "shifted_current"]) 
+
+            if not checked:
+                print(inpt2neuron)
+                print(diffs[layer])
+                print(inpt2neuron.loc[index_pihalf, "shifted_current"])
+                checked = True
+
+
+    return diffs 
+
+
+
+
+
+
+
+
+
+
 
 
 def prepare_c3(v1_connections):
