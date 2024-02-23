@@ -336,7 +336,7 @@ def input_current_simulator(n_neurons, Nl23, Nl4, l4_pre_tuned, l23_pre_tuned,
 
 def bootstrap_conn_prob(connectome_subset, 
                         pre_layer: str,
-                        half_dirs: bool = False ):
+                        half_dirs: bool = False, seed=4, n_samps=1000):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
     for a specific layer as a function of the difference in preferred orientation
     
@@ -356,9 +356,8 @@ def bootstrap_conn_prob(connectome_subset,
 
 
     #Bootstrap
-    np.random.seed(4)
-    n_samps = 1000
-    resamples = np.zeros((n_samps, grouped_diffs.shape[0]))
+    np.random.seed(seed)
+    resamples = np.empty((n_samps, grouped_diffs.shape[0]))
     dirs = np.zeros((n_samps, grouped_diffs.shape[0]))
 
     for i in range(n_samps):
@@ -370,7 +369,7 @@ def bootstrap_conn_prob(connectome_subset,
         boot_diffs = boot_samp.groupby('delta_ori_constrained')['post_id'].count().reset_index()
 
 
-        #Rename columns and generate connection porbability
+        #Rename columns and generate connection probability
         boot_diffs = boot_diffs.rename(columns = {'post_id':'n_connections'})
         boot_diffs['prob_connection']=boot_diffs['n_connections']/np.sum(boot_diffs['n_connections'])
         resamples[i, :] = boot_diffs['prob_connection'].values
@@ -389,7 +388,6 @@ def bootstrap_conn_prob(connectome_subset,
                                      'std':boots_data_std})
 
     return boots_data_clean
-
 
 def bootstrap_layerinput_proportions(data, layer_column, counts_column, layer_labels = None, n_iters = 100):
     """

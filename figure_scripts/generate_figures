@@ -1,0 +1,6 @@
+#!/usr/bin
+
+#Generates all paper figures in one go
+python figure_scripts/fig1.py figure_scripts/output/
+python figure_scripts/fig2.py figure_scripts/output/
+python figure_scripts/fig3.py figure_scripts/output/
