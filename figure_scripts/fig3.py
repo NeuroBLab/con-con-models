@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 from PIL import Image
 import sys
 sys.path.append(".")
-from ccmodels.plotting.utils import compute_avg_inpt_current, single_synapse_current, compute_distrib_diffrate_allsynapses, compute_inpt_bootstrap, prepare_c3, prepare_d3, prepare_e3
+from ccmodels.plotting.utils import compute_avg_inpt_current, single_synapse_current, compute_distrib_diffrate_allsynapses, compute_inpt_bootstrap, compute_inpt_bootstrap2, prepare_c3, prepare_d3, prepare_e3
 import ccmodels.plotting.styles as sty 
 import ccmodels.plotting.color_reference as cr
 
@@ -66,19 +66,19 @@ def plot_single_current(ax, inputs, dir_range="full"):
 def plot_distrib_diffrates(ax, diffs, dir_range="full"):
 
     nbins = 70 
-    #bins = np.linspace(0, 30, nbins)
-    bins = np.logspace(0, 3, nbins)
+    bins = np.linspace(-10, 10, nbins)
+    #bins = np.logspace(0, 3, nbins)
 
     total_diffs = [] 
 
     for layer in ["L2/3", "L4"]:
         total_diffs += diffs[layer]
-        ax.hist(np.abs(diffs[layer]), bins, density=True, cumulative=False, histtype='step', lw=2, color = cr.lcolor[layer])
+        ax.hist(diffs[layer], bins, density=True, cumulative=False, histtype='step', lw=2, color = cr.lcolor[layer])
         #ax.axvline(np.mean(diffs[layer]), color=cr.lcolor[layer], ls=":")
 
 
 
-    ax.hist(np.abs(total_diffs), bins, density=True, cumulative=False, histtype='step', lw=2, color =cr.lcolor["Total"])
+    ax.hist(total_diffs, bins, density=True, cumulative=False, histtype='step', lw=2, color =cr.lcolor["Total"])
 
     meantotal = np.mean(total_diffs)
     stdtotal = np.std(total_diffs)
@@ -86,8 +86,8 @@ def plot_distrib_diffrates(ax, diffs, dir_range="full"):
     #ax.axvspan(meantotal - stdtotal, meantotal + stdtotal, color=cr.lcolor["Total"], ls=":", alpha=0.1)
     #ax.text(0.4, 0.8, "68% CI", color=cr.lcolor["Total"])
 
-    ax.set_xlim(1, 100)
-    ax.set_xscale("log")
+    #ax.set_xlim(1, 100)
+    #ax.set_xscale("log")
     ax.set_yscale("log")
 
     ax.set_xlabel("Δ")
@@ -111,14 +111,17 @@ def plot_bootstraps(ax, bootstrap, dir_range="full"):
     ax.set_xlabel("Δθ")
     ax.set_ylabel("Bootstrap Current")
 
-def plot_dist_bootstrap(ax, angles, bootstrap, dir_range="full"):
+def plot_dist_bootstrap(ax, angles, prob_pref_ori, dir_range="full", color=cr.lcolor["Total"]): 
+    #Add a zero at beginning and end for a more beatiful plot
+    prob_pref_ori = np.insert(prob_pref_ori, [0, prob_pref_ori.size], [0, 0])
 
-    if dir_range=="half":
-        angles = angles[4:]
-        bootstrap = np.array(bootstrap)
-        bootstrap[bootstrap < 0.] = np.pi + bootstrap[bootstrap < 0.] 
+    #Set for how much we will have these 0 at left and right
+    offset = angles[2] - angles[0]
+    left, right = angles[0] - offset, angles[-1] + offset
+    angles = np.insert(angles, [0, angles.size], [left, right])
 
-    ax.hist(bootstrap, angles, density=True, cumulative=False, histtype='step', lw=2, color =cr.lcolor["Total"])
+    #Plot
+    ax.step(angles, prob_pref_ori, where="mid", color=color)
 
     if dir_range=="full":
         ax.set_xticks([ -np.pi, -np.pi/2, 0, np.pi/2, np.pi], [r'-π', r'- π/2', '0', r'π/2', r'π'])
@@ -183,12 +186,17 @@ plot_distrib_diffrates(axes["C"], diffrate, dir_range=dir_range)
 
 # ------------
 
-#input_bootstrap = compute_inpt_bootstrap(v1_connections, 1000, dir_range=dir_range)
-#plot_bootstraps(axes["D"], input_bootstrap, dir_range=dir_range)
+v1_connections = pd.read_pickle('../con-con-models/data/v1l234_connections2.pkl')
 
-angles, preferred_oris = compute_inpt_bootstrap(v1_connections, 100, dir_range=dir_range)
-plot_dist_bootstrap(axes["D"], angles, preferred_oris, dir_range="full")
+tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
 
 
+
+
+angles, prob_pref_ori = compute_inpt_bootstrap(tuned_outputs, 1000, dir_range=dir_range)
+plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, dir_range="full")
+
+angles, prob_pref_ori = compute_inpt_bootstrap2(tuned_outputs, 1000, dir_range=dir_range)
+plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, dir_range="full", color="red")
 
 fig.savefig(args.save_destination+"fig3.pdf", bbox_inches="tight")

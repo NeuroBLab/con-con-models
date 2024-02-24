@@ -5,7 +5,9 @@ import pandas as pd
 from tqdm.auto import tqdm
 from collections import defaultdict
 from scipy import stats
+
 from ccmodels.analysis.simulators import bootstrap_medians
+from ccmodels.analysis.utils import get_current_normalization
 
 
 
@@ -143,23 +145,6 @@ def all_inputs_aggregator(layer_data, activity_column, dirs_columns, grouping = 
     return a_grouped, ungrouped
 
 
-def normalize_current(current, norm):
-    #return (current-np.min(current))/(np.max(current)-np.min(current))
-    return current / norm 
-
-def find_largest_current(all_currents, mode="mean"):
-    if mode=="max":
-        maxcurr = 0.0
-        for curr in all_currents:
-            maxcurr_neuron = np.max(curr)
-            if  maxcurr_neuron > maxcurr:
-                maxcurr = maxcurr_neuron
-        return maxcurr
-    elif mode=="mean":
-        meancurr = 0.0
-        for curr in all_currents:
-            meancurr += curr.sum()
-        return meancurr / (len(curr)*len(all_currents)) 
 
 
 def flatten_orientation_current(connections_data, ori_column_name, actvity_column_name, dir_range="full"):
@@ -173,7 +158,7 @@ def flatten_orientation_current(connections_data, ori_column_name, actvity_colum
     nacts = []
     norm = []
 
-    maxcurr = find_largest_current(connections_data[actvity_column_name])
+    maxcurr = get_current_normalization(connections_data[actvity_column_name])
     #For each row...
     for ndr, at in zip(connections_data[ori_column_name], connections_data[actvity_column_name]):
         if dir_range == 'half':
@@ -182,8 +167,9 @@ def flatten_orientation_current(connections_data, ori_column_name, actvity_colum
             ndirs+=list(ndr)
 
         #Add the flattened activities to a list
-        #atnorm = (at-np.min(at))/(np.max(at)-np.min(at))
-        atnorm = normalize_current(at, maxcurr)
+        #atnorm = normalize_current(at, maxcurr)
+        #Normalize current
+        atnorm = at/maxcurr
         nacts+= list(at)
         norm+= list(atnorm)
 
@@ -215,36 +201,6 @@ def all_inputs_aggregator2(layer_data, activity_column, dirs_columns, grouping =
     ungrouped: DataFrame with all of the responses (not averaged) across neurons
     
     '''
-    
-    #extract all the activity of the neurons and the corresponding directions in two big lists
-    """
-    ndirs = []
-    nacts = []
-    norm = []
-    for ndr, at in zip(layer_data[dirs_columns], layer_data[activity_column]):
-        if dir_range == 'half':
-            ndirs += list(np.abs(ndr))
-        elif dir_range == 'full':
-            ndirs+=list(ndr)
-
-        #Normalising
-        atnorm = (at-np.min(at))/(np.max(at)-np.min(at))
-        nacts+= list(at)
-        norm+= list(atnorm)
-
-
-    #Save it in a data frame for plotting purposes
-    ungrouped = pd.DataFrame({'dirs': ndirs, 'cur':nacts, 'norm_cur':norm})
-
-    #Aggregating the data for plotting
-
-    #Round the directions
-    a = ungrouped.round({'dirs':6, 'cur':0, 'norm_cur':0})
-
-    #sort values by direction
-    asort = a.sort_values(by = 'dirs')
-    """
-
     ungrouped = flatten_orientation_current(layer_data, dirs_columns, activity_column, dir_range)
     asort = ungrouped.sort_values(by = 'dirs')
 
