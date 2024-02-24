@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from tqdm.auto import tqdm
 from ccmodels.analysis.simulators import bootstrap_conn_prob, tpo_po_simulator_new,bootstrap_layerinput_proportions
-from ccmodels.analysis.utils import tuning_segmenter, compute_cur_delta_dist
-from ccmodels.analysis.aggregators import flatten_orientation_current, normalize_current, find_largest_current, all_inputs_aggregator2, cumul_dist
+from ccmodels.analysis.utils import tuning_segmenter, compute_cur_delta_dist, get_current_normalization
+from ccmodels.analysis.aggregators import flatten_orientation_current, all_inputs_aggregator2, cumul_dist
 
 
 
@@ -20,7 +20,7 @@ def figure_saver(fig,name,width_cm, height_cm, save_path):
 
 # --- Auxiliary functions for Figure 1 --- 
 
-def get_number_connections(data_location = '../con-con-models/data'):
+def get_number_connections(data_location = '../con-con-models/data', layer234_only=True):
     '''Reads in appropriate data and prepares it for plotting by calculating counts'''
 
     nonproof_inputs_sample = pd.read_csv(f'{data_location}/nonproof_inputs_sample.csv')
@@ -29,6 +29,16 @@ def get_number_connections(data_location = '../con-con-models/data'):
     nonproof_outputs_sample = pd.read_csv(f'{data_location}/nonproof_outputs_sample.csv')
     proof_outputs_sample = pd.read_csv(f'{data_location}/proofread_outputs_sample.csv')
 
+    #These tables contain more layers. If we want to check only connectivity from layer 2,3,4, we do it in this way
+    if layer234_only:
+        mask = (nonproof_inputs_sample["cortex_layer"] == "L2/3") | (nonproof_inputs_sample["cortex_layer"] == "L4")
+        nonproof_inputs_sample = nonproof_inputs_sample[mask]
+        mask = (proof_inputs_sample["cortex_layer"] == "L2/3") | (proof_inputs_sample["cortex_layer"] == "L4")
+        proof_inputs_sample = proof_inputs_sample[mask]
+        mask = (nonproof_outputs_sample["cortex_layer"] == "L2/3") | (nonproof_inputs_sample["cortex_layer"] == "L4")
+        nonproof_outputs_sample = nonproof_outputs_sample[mask]
+        mask = (proof_outputs_sample["cortex_layer"] == "L2/3") | (proof_inputs_sample["cortex_layer"] == "L4")
+        proof_outputs_sample = proof_outputs_sample[mask]
 
     #Count number of input neurons for each post synaptic neuron
     nonproof_inputs_counts = nonproof_inputs_sample.groupby('post_pt_root_id').count().reset_index()
@@ -210,6 +220,24 @@ def cumulative_probconn(v1_connections, angles_list):
 
     return [[ch1, b1], [ch2, b2], [ch3, b3], [ch4, b4]]
 
+# --- Auxiliary functions for figure 3 ---- 
+
+"""
+def get_input_frompresynaptic(connections_to_post, dir_range="full", input_name="shifted_current"):
+    flattened = flatten_orientation_current(connections_to_post, "new_dirs", input_name, dir_range)
+    flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : input_name})
+
+    #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
+    return flattened.groupby("new_dirs")[input_name].sum().reset_index() 
+"""
+
+def get_input_frompresynaptic(connections_to_post, dir_range="full", input_name="shifted_current"):
+    current_to_post = np.zeros(16)
+    for current in connections_to_post["shifted_current"]:
+        current += np.array(current_to_post)
+    
+    return pd.DataFrame({input_name : current}) 
+
 
 
 def compute_avg_inpt_current(v1_connections, proofread_input_n, dir_range):
@@ -243,62 +271,7 @@ def compute_avg_inpt_current(v1_connections, proofread_input_n, dir_range):
 
     return avg_input_l23, propl23, avg_input_l4, propl4
 
-def compute_single_inpt_current(v1_connections, n_neurons, seed=4, dir_range="full"):
-    """
-    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
-    """
 
-    #Use only tuned neurons
-    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
-    
-    #Get which neurons are in each layer
-    tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
-    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
-
-    #Get some neurons from each one of the layers
-    np.random.seed(seed)
-    ids_l23 = tuned_l23["post_id"].sample(n_neurons, replace=False).values
-    ids_l4  = tuned_l4["post_id"].sample(n_neurons, replace=False).values 
-
-    #Get number of angles, and set up a Dataframe based on it, that we will fill
-    #Keep each result in a separate table depending on layer of presynaptic
-    angles = tuned_outputs["new_dirs"].values[0]
-    inputs = {"L2/3" : pd.DataFrame(index = angles),
-              "L4"   : pd.DataFrame(index = angles)}
-
-    #Compute the inputs for all the selected neurons. Do it separately for each layer
-    for layer, ids_list in zip(["L2/3", "L4"], [ids_l23, ids_l4]):
-
-        inputs[layer].rename_axis("new_dirs", inplace=True)
-
-        for neuron_id in ids_list:
-            #Get a mask to operate only with this postsynaptic neuron
-            neuronmask = tuned_outputs["post_id"] == neuron_id 
-
-            #Orientation and current are inside of lists. We need to have an entire row per value. 
-            #flattened = flatten_orientation_current(tuned_outputs[neuronmask], "new_dirs", "shifted_current", dir_range)
-            #flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : "shifted_current"})
-
-            #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
-            #inpt2neuron = flattened.groupby("new_dirs")["shifted_current"].sum().reset_index() 
-            inpt2neuron = get_input_frompresynaptic(tuned_outputs[neuronmask], dir_range=dir_range)
-
-            #Make sure columns are unique to add them later, and set the index to do a correct merge
-            inpt2neuron = inpt2neuron.rename(columns={"shifted_current" : "sc" + str(neuron_id)})
-            inpt2neuron = inpt2neuron.set_index("new_dirs")
-
-            #Concatenate to our result to a new column 
-            inputs[layer] = inputs[layer].join(inpt2neuron)
-
-    return inputs
-
-
-def get_input_frompresynaptic(connections_to_post, dir_range="full"):
-    flattened = flatten_orientation_current(connections_to_post, "new_dirs", "shifted_current", dir_range)
-    flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : "shifted_current"})
-
-    #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
-    return flattened.groupby("new_dirs")["shifted_current"].sum().reset_index() 
 
 
 def single_synapse_current(v1_connections, n_neurons, seed=4, dir_range="full"):
@@ -318,74 +291,17 @@ def single_synapse_current(v1_connections, n_neurons, seed=4, dir_range="full"):
     ids_l23 = tuned_l23.sample(n_neurons, replace=False)
     ids_l4  = tuned_l4.sample(n_neurons, replace=False)
 
-    maxcurr = find_largest_current(tuned_outputs["shifted_current"])
+    maxcurr = get_current_normalization(tuned_outputs["shifted_current"])
     print(maxcurr)
-    ids_l23["shifted_current"] = ids_l23["shifted_current"].apply(normalize_current, args=[maxcurr])
-    ids_l4["shifted_current"]  = ids_l4["shifted_current"].apply(normalize_current, args=[maxcurr])
+    #ids_l23["shifted_current"] = ids_l23["shifted_current"].apply(normalize_current, args=[maxcurr])
+    #ids_l4["shifted_current"]  = ids_l4["shifted_current"].apply(normalize_current, args=[maxcurr])
 
+    ids_l23["shifted_current"] /= maxcurr 
+    ids_l4["shifted_current"]  /= maxcurr 
 
     return {"L2/3" : ids_l23[["new_dirs", "shifted_current"]], 
             "L4" : ids_l4[["new_dirs", "shifted_current"]]}
 
-def compute_inpt_bootstrap2(v1_connections, nsamples, dir_range="full", seed=4):
-    """
-    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
-    """
-
-    #Use only tuned neurons
-    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
-    
-    #Select a random neuron and sample inputs to it
-    np.random.seed(seed)
-    random_neuron = tuned_outputs["post_id"].sample(1).values[0]
-    presynpatics = tuned_outputs[tuned_outputs["post_id"] == random_neuron]
-
-    #preboostrap = presynpatics.sample(nsamples, replace=True)
-    preboostrap = tuned_outputs.sample(nsamples, replace=True)
-    prebt_l23 = preboostrap[preboostrap["pre_layer"] == "L2/3"]
-    prebt_l4  = preboostrap[preboostrap["pre_layer"] == "L4"]
-
-
-
-    inputs = {}
-    #inputs["Total"] = get_input_frompresynaptic(preboostrap, dir_range=dir_range)
-    inputs["L2/3"]  = get_input_frompresynaptic(prebt_l23, dir_range=dir_range)
-    inputs["L4"]    = get_input_frompresynaptic(prebt_l4, dir_range=dir_range)
-
-    #inputs["Total"] = inputs["Total"].set_index("new_dirs")
-    inputs["L2/3"]  = inputs["L2/3"].set_index("new_dirs")
-    inputs["L4"]    = inputs["L4"].set_index("new_dirs")
-
-    return inputs 
-
-def compute_inpt_bootstrap(v1_connections, nsamples, dir_range="full", seed=4):
-    """
-    Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
-    """
-
-    #Use only tuned neurons
-    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
-    
-    #Select ids of the post synaptic neurons to study
-    np.random.seed(seed)
-    neuron_ids = tuned_outputs["post_id"].values
-    angles = tuned_outputs["new_dirs"].values[0]
-
-    preferred_orientations = []
-    for id in neuron_ids:
-        #Grab all rows of this post synaptic neuron 
-        presynpatics = tuned_outputs[tuned_outputs["post_id"] == id]
-
-        #Bootstrap the connections and get the input to the neuron 
-        preboostrap = presynpatics.sample(nsamples, replace=True)
-        total_activity = get_input_frompresynaptic(preboostrap, dir_range=dir_range)
-
-        rate = total_activity["shifted_current"].values
-
-        maxrate_index = np.argmax(rate)
-        preferred_orientations.append(angles[maxrate_index]) 
-
-    return angles, preferred_orientations 
 
 
 def compute_distrib_diffrate_allsynapses(v1_connections, dir_range="full"):
@@ -410,70 +326,99 @@ def compute_distrib_diffrate_allsynapses(v1_connections, dir_range="full"):
               "L4"   : []} 
     checked = False
 
-    maxcurr = find_largest_current(tuned_outputs["shifted_current"])
+    maxcurr = get_current_normalization(tuned_outputs["shifted_current"])
     #Compute the inputs for all the selected neurons. Do it separately for each layer
     for layer, allsynapses in zip(["L2/3", "L4"], [tuned_l23, tuned_l4]):
         for current in allsynapses["shifted_current"]:
 
             #Normalize currents
-            norm_curr = normalize_current(current, maxcurr) 
+            norm_curr = current/maxcurr 
 
             #Difference between pi/half and 0
-            diffs[layer].append(norm_curr[index_pihalf] - norm_curr[index_zero]) 
+            diffs[layer].append(norm_curr[index_zero] - norm_curr[index_pihalf]) 
 
     return diffs 
 
-def compute_distrib_diffrate_allneurons(v1_connections, dir_range="full", seed=4):
 
-    if dir_range=="full":
-        index_zero = 7 
-        index_pihalf = 11
-    else:
-        index_zero = 0 
-        index_pihalf = 4 
+
+def compute_inpt_bootstrap2(v1_connections, nsamples=250, dir_range="full", seed=4):
+    """
+    Bootstrap input per each neuron in the dataset, using its own connectivity 
+    """
 
     #Use only tuned neurons
     tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') & (v1_connections['pre_type']!= 'not_selective')]
+
+    mask_untuned = tuned_outputs["pre_type"] == "not_selective"
+    tuned_outputs[mask_untuned]["shifted_current"] = tuned_outputs[mask_untuned]["shifted_current"].apply(np.random.shuffle)
+    tuned_outputs[mask_untuned]["shifted_current2"] = tuned_outputs[mask_untuned]["shifted_current2"].apply(np.random.shuffle)
     
-    #Get which neurons are in each layer
-    tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
-    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
-
-    #Get some neurons from each one of the layers
+    #Select ids of the post synaptic neurons to study
     np.random.seed(seed)
-    ids_l23 = tuned_l23["post_id"]
-    ids_l4  = tuned_l4["post_id"]
+    neuron_ids = tuned_outputs["post_id"].values
+    angles = tuned_outputs["new_dirs"].values[0]
 
-    #Get number of angles, and set up a Dataframe based on it, that we will fill
-    #Keep each result in a separate table depending on layer of presynaptic
-    diffs = {"L2/3" : [],
-              "L4"   : []} 
-    checked = False
+    prob_pref_ori = np.zeros(len(angles)) 
+    for id in neuron_ids:
+        #Grab all rows of this post synaptic neuron 
+        presynpatics = tuned_outputs[tuned_outputs["post_id"] == id]
 
-    #Compute the inputs for all the selected neurons. Do it separately for each layer
-    for layer, ids_list in zip(["L2/3", "L4"], [ids_l23, ids_l4]):
-        for neuron_id in ids_list:
-            #Get a mask to operate only with this postsynaptic neuron
-            neuronmask = tuned_outputs["post_id"] == neuron_id 
+        #Bootstrap the connections and get the input to the neuron 
+        preboostrap = presynpatics.sample(nsamples, replace=True)
+        total_activity = get_input_frompresynaptic(preboostrap, dir_range=dir_range)
 
-            #Orientation and current are inside of lists. We need to have an entire row per value. 
-            flattened = flatten_orientation_current(tuned_outputs[neuronmask], "new_dirs", "shifted_current", dir_range)
-            flattened = flattened.rename(columns={"dirs" : "new_dirs", "norm_cur" : "shifted_current"})
+        rate = total_activity["shifted_current"].values
 
-            #Input to the neuron, for each angle. We select only the current and sum over, so result is pd.Series with index new_dirs
-            inpt2neuron = flattened.groupby("new_dirs")["shifted_current"].sum().reset_index() 
+        idx_prefrd_ori = np.argmax(rate)
+        prob_pref_ori[idx_prefrd_ori] += 1
 
-            #Difference between 0 and pi/halfs
-            diffs[layer].append(inpt2neuron.loc[index_pihalf, "shifted_current"] - inpt2neuron.loc[index_zero, "shifted_current"]) 
-
-            if not checked:
-                print(inpt2neuron)
-                print(diffs[layer])
-                print(inpt2neuron.loc[index_pihalf, "shifted_current"])
-                checked = True
+    prob_pref_ori /= np.sum(prob_pref_ori)
+    return np.array(angles), prob_pref_ori 
 
 
-    return diffs 
+
+def compute_inpt_bootstrap(tuned_connections, nexperiments, nsamples=250, dir_range="full", seed=4):
+
+    mask_untuned = tuned_connections["pre_type"] == "not_selective"
+    tuned_connections[mask_untuned]["shifted_current"] = tuned_connections[mask_untuned]["shifted_current"].apply(np.random.shuffle)
+    tuned_connections[mask_untuned]["shifted_current2"] = tuned_connections[mask_untuned]["shifted_current2"].apply(np.random.shuffle)
+    
+    #Get the angles
+    angles = tuned_connections["new_dirs"].values[0]
+    #angles = np.arange(0, 2*np.pi, np.pi/8)
+
+    #Prepare to do experiments...
+    prob_pref_ori = np.zeros(len(angles)) 
+    for i in range(nexperiments): 
+
+        #Sample a bunch of neurons
+        neuron_sample = tuned_connections.sample(nsamples, replace=True) 
+
+        #COmpute the current they get 
+        current = get_input_frompresynaptic(neuron_sample, dir_range=dir_range, input_name="shifted_current")
+
+        #Use the current to determine the preferred orientation
+        idx_prefrd_ori = np.argmax(current["shifted_current"])
+        prob_pref_ori[idx_prefrd_ori] += 1
+    
+    #Normalize
+    prob_pref_ori /= np.sum(prob_pref_ori)
+
+    #Return (transform to numpy array)
+    return np.array(angles), prob_pref_ori 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
