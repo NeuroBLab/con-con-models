@@ -210,13 +210,15 @@ def cumulative_probconn(v1_connections, angles_list):
     sub2l23 =tuned_neurons[(tuned_neurons['delta_ori_constrained'] == angles_list[3])& 
                            (tuned_neurons['pre_layer'] == 'L2/3')]['size'].values/normcstr 
     
-    ch1, b1 = cumul_dist(sub1l4, 20)
+    logbins = np.logspace(-2.3, 1.5, 100) 
 
-    ch2, b2 = cumul_dist(sub2l4, 20)
+    ch1, b1 = cumul_dist(sub1l4, logbins)
 
-    ch3, b3 = cumul_dist(sub1l23, 20)
+    ch2, b2 = cumul_dist(sub2l4, logbins)
 
-    ch4, b4 = cumul_dist(sub2l23, 20)
+    ch3, b3 = cumul_dist(sub1l23, logbins)
+
+    ch4, b4 = cumul_dist(sub2l23, logbins)
 
     return [[ch1, b1], [ch2, b2], [ch3, b3], [ch4, b4]]
 
@@ -246,9 +248,11 @@ def compute_avg_inpt_current(v1_connections, proofread_input_n, dir_range):
     arriving from recurrent interactions and L4
     """
 
-    #Use only tuned neurons
-    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective') 
-                                   & (v1_connections['pre_type']!= 'not_selective')]
+    #Use both tuned and unted neurons, and shuffle untuned ones
+    tuned_outputs = v1_connections[(v1_connections['post_type']!= 'not_selective')]
+    mask_untuned = tuned_outputs["pre_type"] == "not_selective"
+    tuned_outputs.loc[mask_untuned, "shifted_current"] = tuned_outputs.loc[mask_untuned, "shifted_current"].apply(lambda x : np.random.choice(x, len(x), replace=False)) 
+    
 
     #Get presynaptic neurons depending on layer
     l23_t = tuned_outputs[tuned_outputs['pre_layer'] == 'L2/3']
@@ -274,7 +278,7 @@ def compute_avg_inpt_current(v1_connections, proofread_input_n, dir_range):
 
 
 
-def single_synapse_current(v1_connections, n_neurons, seed=4, dir_range="full"):
+def single_synapse_current(v1_connections, n_neurons, seed=4, dir_range="full", also_L4=True):
     """
     Compute real input from the data using just a single neuron. We use n_neurons both from layer 2/3 and 4 
     """
@@ -284,23 +288,30 @@ def single_synapse_current(v1_connections, n_neurons, seed=4, dir_range="full"):
     
     #Get which neurons are in each layer
     tuned_l23 = tuned_outputs[tuned_outputs["pre_layer"] == "L2/3"]
-    tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
 
     #Get some neurons from each one of the layers
     np.random.seed(seed)
-    ids_l23 = tuned_l23.sample(n_neurons, replace=False)
-    ids_l4  = tuned_l4.sample(n_neurons, replace=False)
+    if type(n_neurons) == int:
+        ids_l23 = tuned_l23.sample(n_neurons, replace=False)
+    else:
+        ids_l23 = tuned_l23.iloc[n_neurons,:]
 
     maxcurr = get_current_normalization(tuned_outputs["shifted_current"])
-    print(maxcurr)
-    #ids_l23["shifted_current"] = ids_l23["shifted_current"].apply(normalize_current, args=[maxcurr])
-    #ids_l4["shifted_current"]  = ids_l4["shifted_current"].apply(normalize_current, args=[maxcurr])
 
     ids_l23["shifted_current"] /= maxcurr 
-    ids_l4["shifted_current"]  /= maxcurr 
 
-    return {"L2/3" : ids_l23[["new_dirs", "shifted_current"]], 
-            "L4" : ids_l4[["new_dirs", "shifted_current"]]}
+    #Repeat for L4, if we want neurons from there too
+    #and then return
+    if also_L4:
+        tuned_l4  = tuned_outputs[tuned_outputs["pre_layer"] == "L4"]
+        ids_l4  = tuned_l4.sample(n_neurons, replace=False)
+        ids_l4["shifted_current"]  /= maxcurr 
+
+        return {"L2/3" : ids_l23[["new_dirs", "shifted_current"]], 
+                "L4" : ids_l4[["new_dirs", "shifted_current"]]}
+    else:
+        #Return the just L2/3
+        return {"L2/3" : ids_l23[["new_dirs", "shifted_current"]]} 
 
 
 
@@ -377,11 +388,14 @@ def compute_inpt_bootstrap2(v1_connections, nsamples=250, dir_range="full", seed
 
 
 
-def compute_inpt_bootstrap(tuned_connections, nexperiments, nsamples=250, dir_range="full", seed=4):
+def compute_inpt_bootstrap(tuned_connections, nexperiments, nsamples=250, dir_range="full", seed=4, reshuffle_all=False):
 
-    mask_untuned = tuned_connections["pre_type"] == "not_selective"
-    tuned_connections[mask_untuned]["shifted_current"] = tuned_connections[mask_untuned]["shifted_current"].apply(np.random.shuffle)
-    tuned_connections[mask_untuned]["shifted_current2"] = tuned_connections[mask_untuned]["shifted_current2"].apply(np.random.shuffle)
+    #Check if we do the actual thing, or if we try with a reshuffled model for comparison.
+    if not reshuffle_all:
+        mask_untuned = tuned_connections["pre_type"] == "not_selective"
+        tuned_connections.loc[mask_untuned, "shifted_current"] = tuned_connections.loc[mask_untuned, "shifted_current"].apply(lambda x : np.random.choice(x, len(x), replace=False)) 
+    else:
+        tuned_connections.loc[:, "shifted_current"] = tuned_connections["shifted_current"].apply(lambda x : np.random.choice(x, len(x), replace=False)) 
     
     #Get the angles
     angles = tuned_connections["new_dirs"].values[0]
@@ -406,6 +420,38 @@ def compute_inpt_bootstrap(tuned_connections, nexperiments, nsamples=250, dir_ra
 
     #Return (transform to numpy array)
     return np.array(angles), prob_pref_ori 
+
+def compute_inpt_reshuffled(tuned_connections, nexperiments, nsamples=250, dir_range="full", seed=4):
+
+    tuned_connections["shifted_current"] = tuned_connections["shifted_current"].apply(np.random.shuffle)
+    
+    #Get the angles
+    angles = tuned_connections["new_dirs"].values[0]
+    #angles = np.arange(0, 2*np.pi, np.pi/8)
+
+    #Prepare to do experiments...
+    prob_pref_ori = np.zeros(len(angles)) 
+    for i in range(nexperiments): 
+
+        #Sample a bunch of neurons
+        neuron_sample = tuned_connections.sample(nsamples, replace=True) 
+
+        #COmpute the current they get 
+        current = get_input_frompresynaptic(neuron_sample, dir_range=dir_range, input_name="shifted_current")
+
+        #Use the current to determine the preferred orientation
+        idx_prefrd_ori = np.argmax(current["shifted_current"])
+        prob_pref_ori[idx_prefrd_ori] += 1
+    
+    #Normalize
+    prob_pref_ori /= np.sum(prob_pref_ori)
+
+    #Return (transform to numpy array)
+    return np.array(angles), prob_pref_ori 
+
+
+
+# -------------------------------------------------------------------
 
 
 

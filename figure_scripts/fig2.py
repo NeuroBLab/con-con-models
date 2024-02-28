@@ -110,7 +110,7 @@ def conn_prob_osi(ax, data):
 #TODO we have to improve the return format of this function to allow colors, etc to be better...
 def plot_cumulative(ax, data):
     cumul_dists = cumulative_probconn(data, [0, 1.570796, 0, 1.570796])
-    labels = ["L2/3, φ=0", "         φ=π", "L4, φ=0", "      φ=π"]
+    labels = ["L2/3, θ=0", "θ=π", "L4, θ=0", "θ=π"]
 
     for i,cd in enumerate(cumul_dists):
         color = cr.angles[i]
@@ -120,7 +120,7 @@ def plot_cumulative(ax, data):
     ax.set_xlabel("Conn. Strength")
     ax.set_ylabel("Cumulative")
     ax.set_xscale("log")
-    ax.legend(loc="best")
+    ax.legend(loc=(0.05, 0.65))
 
 
 # ----------------------------------------------------------------------------------------
