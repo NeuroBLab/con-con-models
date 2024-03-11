@@ -352,5 +352,58 @@ def compute_cur_delta_dist(connectome_subset):
     
     return curdelta
 
+
+# ------------------------------------
+# --- WORKING WITH CURRENT -----------
+# ------------------------------------
+
+"""
+def normalize_current(current, norm):
+    #return (current-np.min(current))/(np.max(current)-np.min(current))
+    return current / norm 
+"""
+
+def get_current_normalization(all_currents, mode="mean"):
+    """
+    Computes a constant to normalize all currents to. 
+    It can do it to the max, so all currents are smaller than 1, or to the mean current
+    mode can be eithe "mean" or "max". All_currents gives the table of currents to normalize from. 
+    """
+    if mode=="max":
+        maxcurr = 0.0
+        #Each element in the row is a list, so we have to work it out
+        for curr in all_currents:
+            maxcurr_neuron = np.max(curr)
+            if  maxcurr_neuron > maxcurr:
+                maxcurr = maxcurr_neuron
+        return maxcurr
+    elif mode=="mean":
+        meancurr = 0.0
+        for curr in all_currents:
+            meancurr += curr.sum()
+        return meancurr / (len(curr)*len(all_currents)) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
     print(f'cwd: {os.getcwd()}')

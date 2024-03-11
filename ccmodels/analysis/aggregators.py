@@ -5,7 +5,9 @@ import pandas as pd
 from tqdm.auto import tqdm
 from collections import defaultdict
 from scipy import stats
+
 from ccmodels.analysis.simulators import bootstrap_medians
+from ccmodels.analysis.utils import get_current_normalization
 
 
 
@@ -144,6 +146,43 @@ def all_inputs_aggregator(layer_data, activity_column, dirs_columns, grouping = 
 
 
 
+
+def flatten_orientation_current(connections_data, ori_column_name, actvity_column_name, dir_range="full"):
+    """
+    Activity and direction are arrays inside each row of the dataframe, so one cannot groupby them. 
+    This function "unfolds" these arrays so the table has pre, post, orientation and activity as single numbers.
+    """
+
+    #Prepare the arrays to be filled
+    ndirs = []
+    nacts = []
+    norm = []
+
+    maxcurr = get_current_normalization(connections_data[actvity_column_name])
+    #For each row...
+    for ndr, at in zip(connections_data[ori_column_name], connections_data[actvity_column_name]):
+        if dir_range == 'half':
+            ndirs += list(np.abs(ndr))
+        elif dir_range == 'full':
+            ndirs+=list(ndr)
+
+        #Add the flattened activities to a list
+        #atnorm = normalize_current(at, maxcurr)
+        #Normalize current
+        atnorm = at/maxcurr
+        nacts+= list(at)
+        norm+= list(atnorm)
+
+
+    #Save it in a data frame, now each column has simple values 
+    ungrouped = pd.DataFrame({'dirs': ndirs, 'cur':nacts, 'norm_cur':norm})
+
+
+    #Round the directions
+    return ungrouped.round({'dirs':6, 'cur':5, 'norm_cur':5})
+
+
+
 def all_inputs_aggregator2(layer_data, activity_column, dirs_columns, grouping = 'mean', dir_range = 'full'):
     '''This function allows to group all the activity of all presynaptic neurons and returns both the sum,
     the average and an ungrouped version of the dataframe
@@ -162,33 +201,8 @@ def all_inputs_aggregator2(layer_data, activity_column, dirs_columns, grouping =
     ungrouped: DataFrame with all of the responses (not averaged) across neurons
     
     '''
-    
-    #extract all the activity of the neurons and the corresponding directions in two big lists
-    ndirs = []
-    nacts = []
-    norm = []
-    for ndr, at in zip(layer_data[dirs_columns], layer_data[activity_column]):
-        if dir_range == 'half':
-            ndirs += list(np.abs(ndr))
-        elif dir_range == 'full':
-            ndirs+=list(ndr)
-
-        #Normalising
-        atnorm = (at-np.min(at))/(np.max(at)-np.min(at))
-        nacts+= list(at)
-        norm+= list(atnorm)
-
-
-    #Save it in a data frame for plotting purposes
-    ungrouped = pd.DataFrame({'dirs': ndirs, 'cur':nacts, 'norm_cur':norm})
-
-    #Aggregating the data for plotting
-
-    #Round the directions
-    a = ungrouped.round({'dirs':6, 'cur':0, 'norm_cur':0})
-
-    #sort values by direction
-    asort = a.sort_values(by = 'dirs')
+    ungrouped = flatten_orientation_current(layer_data, dirs_columns, activity_column, dir_range)
+    asort = ungrouped.sort_values(by = 'dirs')
 
     #Group values by direction and sum the activities
     a_grouped = asort.groupby('dirs').sum().reset_index()
