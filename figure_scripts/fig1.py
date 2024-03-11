@@ -2,120 +2,100 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import argparse
-from scipy.stats import sem
-from scipy.stats import wilcoxon, mannwhitneyu
-from ccmodels.plotting.utils import figure_saver, prepare_c1, prepare_d1
+import sys
+sys.path.append(".")
+from ccmodels.plotting.utils import get_number_connections, get_propotion_connections 
+import ccmodels.plotting.styles as sty 
+import ccmodels.plotting.color_reference as cr
+
+#Defining Parser
+parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
+
+# Adding and parsing arguments
+parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+args = parser.parse_args()
 
 
-def plot_fig1(axes, cmap,
-              plt_a: str, 
-              plt_b: str,
-              plt_c: list,
-              plt_d: list,
-              plt_e: str,
-              ):
-    
-    ''' This function generates the plots making up Figure 1 of the paper 
-    Inputs:
-    axes: matplotlib axes to plot on
-    plt_a: str, with the path of the image in figure a,
-    plt_b: str, with the path of the image in figure b,
-    plt_c: list, where each item is a dataframe with the information for the required counts of the sample of neuronal connectivity
-    plt_d: list,where each item is  a dataframe of bootstrap samples of connetion proportions for neurons form L2/3 and L4
-    plt_e: str, with the path of the image in figure e
-    '''
-    
-    axs = axes.ravel()
+def show_image(ax, path2im):
+    im = Image.open("images/" + path2im)
 
-    #A&B
-    image1 = Image.open(plt_a)
-    image2 = Image.open(plt_b)
-
-    axs[0].imshow(image1)
-    axs[0].set_xticks([])
-    axs[0].set_yticks([])
-    axs[0].set_xticklabels([])
-    axs[0].set_yticklabels([])
+    ax.imshow(im)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
 
 
-    axs[1].imshow(image2)
-    axs[1].set_xticks([])
-    axs[1].set_yticks([])
-    axs[1].set_xticklabels([])
-    axs[1].set_yticklabels([])
+def input_statistics(ax):
+      #Get the data we want to plot
+      nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts = get_number_connections()
 
-    #C
-    axs[2].bar(['non-proofread', 'proofread'], [np.median(plt_c[0]['id']),np.median(plt_c[1]['id'])], color = ['red', 'green'])
-    axs[2].set_title('Median input neurons')
+      #Get the medians of the data
+      proof_medians = [np.median(values) for values in [proof_inputs_counts, proof_outputs_counts]]
+      nonpr_medians = [np.median(values) for values in [nonproof_inputs_counts, nonproof_outputs_counts]]
 
-    axs[3].bar(['non-proofread', 'proofread'], [np.median(plt_c[2]['id']),np.median(plt_c[3]['id'])], color = ['red', 'green'])
-    axs[3].set_title('Median output neurons')
-
-
-    #D
-    axs[4].bar([0,1, 3,4], [np.mean(plt_d[0]['L2/3']),np.mean(plt_d[1]['L2/3']),np.mean(plt_d[0]['L4']), np.mean(plt_d[1]['L4'])], 
-        yerr = [np.std(plt_d[0]['L2/3']),np.std(plt_d[1]['L2/3']),np.std(plt_d[0]['L4']), np.std(plt_d[1]['L4'])],
-          tick_label = ['L2/3', 'L2/3_np', 'l4', 'l4_np'], color = ['purple', 'lightblue', 'darkorange', 'orange'])
-
-    axs[4].set_xlabel('Layer', fontsize = 20)
-    axs[4].set_ylabel('Mean input proportion', fontsize = 20)
-    axs[4].tick_params(axis='both', which='major', labelsize=20)
-
-    #E
-    image3= Image.open(plt_e)
-    axs[5].imshow(image3)
-    axs[5].set_xticks([])
-    axs[5].set_yticks([])
-    axs[5].set_xticklabels([])
-    axs[5].set_yticklabels([])
-
-
-def main():
-    '''Main function to plot and save figure 1'''
-
-    #Defining Parser
-    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
-    
-    # Adding and parsing arguments
-    parser.add_argument('width', type=int, help='Width of image (cm)')
-    parser.add_argument('height', type=int, help='Height of image (cm)')
-    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
-    args = parser.parse_args()
-    print('''
-          
-    Preparing data for the plot...
-          
-          ''')
-    nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts = prepare_c1()
-    boots_propl_proof, boots_propl_noproof = prepare_d1()
-
-    fig, axes = plt.subplots(nrows=3, ncols = 2, constrained_layout=True)#, figsize=style.two_col_size(height=12))
-
-    print('''
-          
-    Plotting data
-          
-          ''')
-    
-    plot_fig1(axes, plt.cm.Blues, plt_a='images/network_schema.png', plt_b='images/3d_reconstruction.png', 
-              plt_c=[nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts],
-               plt_d = [boots_propl_proof, boots_propl_noproof],
-                plt_e ='images/fig1_plotE.png')
-
-
-    print('''
-          
-    Saving plot...
-          
-          ''')
-    
-    figure_saver(fig, 'fig1', args.width, args.height, args.save_destination)
-
-    print('''
-          
-    Plot saved!
+      #Position x of the bars
+      barwidth = 1
+      xpos = np.array([1, 4])
+      xpos_proof = [x - barwidth/2 for x in xpos]
+      xpos_nonpr = [x + barwidth/2 for x in xpos]
       
-          ''')
+      #Plot the bars 
+      ax.bar(xpos_proof, proof_medians, color="green", label="Proofread")
+      ax.bar(xpos_nonpr, nonpr_medians, color="red", label="Non proofread")
 
-if __name__ == '__main__':
-    main()
+      #Legend, title and labels
+      ax.set_xticks(xpos, labels=["Input", "Output"])
+      ax.set_title("Median connectivity")
+
+def fractional_statistics(ax):
+      #Get the data we want to plot
+      boots_propl_proof, boots_propl_noproof = get_propotion_connections()
+
+      #Get the medians of the data
+      proof_means = [np.median(boots_propl_proof[layer]) for layer in ["L2/3", "L4"]]
+      nonpr_means = [np.median(boots_propl_noproof[layer]) for layer in ["L2/3", "L4"]]
+      proof_std   = [np.std(boots_propl_proof[layer]) for layer in ["L2/3", "L4"]]
+      nonpr_std   = [np.std(boots_propl_noproof[layer]) for layer in ["L2/3", "L4"]]
+
+      #Position x of the bars
+      barwidth = 1
+      xpos = np.array([1, 4])
+      xpos_proof = [x - barwidth/2 for x in xpos]
+      xpos_nonpr = [x + barwidth/2 for x in xpos]
+      
+      #Plot the bars 
+      ax.bar(xpos_proof, proof_means, color="green", yerr=proof_std, label="Proofread")
+      ax.bar(xpos_nonpr, nonpr_means, color="red", yerr=nonpr_std, label="Non proofread")
+
+      #Legend, title and labels
+      ax.legend(loc=(0.4, 0.6))
+      ax.set_xticks(xpos, labels=["L2/3", "L4"])
+      ax.set_title("Median input proportion")
+
+
+sty.master_format()
+fig, axes = plt.subplot_mosaic(
+    """
+    ABF
+    CDD
+    CDD
+    """,
+    figsize=sty.two_col_size(ratio=2), layout="constrained",
+    gridspec_kw={"width_ratios":[1, 0.7, 0.7], "height_ratios":[1.2,1,1]}
+)
+
+show_image(axes["A"], "network_schema.png")
+show_image(axes["C"], "3d_reconstruction.png")
+show_image(axes["D"], "fig1_plotE.png")
+
+input_statistics(axes["B"])
+fractional_statistics(axes["F"])
+
+#Separation between axes
+fig.get_layout_engine().set(wspace=1/72, w_pad=0)
+
+fig.savefig(args.save_destination+"fig1.pdf",  bbox_inches="tight")
+
+
+

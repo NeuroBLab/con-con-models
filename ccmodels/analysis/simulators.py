@@ -336,7 +336,7 @@ def input_current_simulator(n_neurons, Nl23, Nl4, l4_pre_tuned, l23_pre_tuned,
 
 def bootstrap_conn_prob(connectome_subset, 
                         pre_layer: str,
-                        half_dirs: bool = False ):
+                        half_dirs: bool = False, seed=4, n_samps=1000):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
     for a specific layer as a function of the difference in preferred orientation
     
@@ -356,9 +356,8 @@ def bootstrap_conn_prob(connectome_subset,
 
 
     #Bootstrap
-    np.random.seed(4)
-    n_samps = 1000
-    resamples = np.zeros((n_samps, grouped_diffs.shape[0]))
+    np.random.seed(seed)
+    resamples = np.empty((n_samps, grouped_diffs.shape[0]))
     dirs = np.zeros((n_samps, grouped_diffs.shape[0]))
 
     for i in range(n_samps):
@@ -370,7 +369,7 @@ def bootstrap_conn_prob(connectome_subset,
         boot_diffs = boot_samp.groupby('delta_ori_constrained')['post_id'].count().reset_index()
 
 
-        #Rename columns and generate connection porbability
+        #Rename columns and generate connection probability
         boot_diffs = boot_diffs.rename(columns = {'post_id':'n_connections'})
         boot_diffs['prob_connection']=boot_diffs['n_connections']/np.sum(boot_diffs['n_connections'])
         resamples[i, :] = boot_diffs['prob_connection'].values
@@ -390,22 +389,37 @@ def bootstrap_conn_prob(connectome_subset,
 
     return boots_data_clean
 
-
 def bootstrap_layerinput_proportions(data, layer_column, counts_column, layer_labels = None, n_iters = 100):
-   
-    # dists_matrix = []
+    """
+    Computes the proportion of inputs coming from L2/3 and L4 for a given neuron. 
 
-    if layer_labels == None:
+    Parameters:
+    data: dataframe containing the connections
+    layer_column: string, the column name that stores in which layer the neuron is (e.g. "L2/3").
+    counts_column: string, the name of the column which has (precomputed) number of inputs from that layer
+    layer_label: array of strings, default None; layers to consider when doing the fraction. If None, all are selected.
+    n_iters: int, number of trials
+
+    Returns: 
+    bootstrap_samples, a dataframe with column_name layer_labels and a rows containing the fraction of inputs per trial
+    """
+   
+    #Get over which layers we want to check. If None, go over all
+    if layer_labels is None:
         iter_labels = sorted(list(set(data[layer_column].values)))
     else:
         iter_labels = layer_labels
 
-    bootstrap_matrix = np.zeros((len(iter_labels), n_iters))
+    #Declare bootstrap matrix and iterate to fill it...
+    bootstrap_matrix = np.empty((len(iter_labels), n_iters))
 
     for iter in tqdm(range(n_iters)):
 
         for layer_id in range(len(iter_labels)):
+            #Get the number of connections we have have from this layer, per each unit
             layer_dist = data[data[layer_column] == iter_labels[layer_id]][counts_column].values
+
+            #Sample randomly some of these (bootstrap: we allow repetitions) and average
             layer_sample = np.random.choice(layer_dist, layer_dist.shape[0])
             bootstrap_matrix[layer_id, iter] = np.mean(layer_sample)
 

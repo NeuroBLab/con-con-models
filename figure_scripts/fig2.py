@@ -4,225 +4,197 @@ import pandas as pd
 import argparse
 from scipy.stats import sem
 from scipy.stats import wilcoxon, mannwhitneyu
+import sys
+sys.path.append(".")
 from ccmodels.analysis.utils import tuning_encoder
-from ccmodels.plotting.utils import figure_saver, prepare_b2, prepare_c2, prepare_d2, prepare_e2
+from ccmodels.plotting.utils import  prob_conectivity_tuned_untuned, prob_conn_diffori, strength_tuned_untuned, cumulative_probconn 
+import ccmodels.plotting.styles as sty 
+import ccmodels.plotting.color_reference as cr
 
 
 
 
-def plot_fig2(axes, cmap, norm_const, 
-              plt_a: pd.DataFrame, 
-              plt_b: list,
-              plt_c: list,
-              plt_d: list,
-              plt_e: list,
-              ):
 
-    ''' This function generates the plots making up Figure 2 of the paper 
-    Inputs:
-    axes: matplotlib axes to plot on
-    norm_const: normalising constant,
-    plt_a: DF, with the data with also OSI information on all V1 neurons of interest,
-    plt_b: list, containing two lists each with the bootstrap samples of connetion probabilities 
-        according to pre and postsynpatic tuning
-    plt_c: list, containing two dataframes with the boostrap on the connection probabilities 
-        as a function of the difference in preferredo rientation, the first for 
-        L2/3 neurons the second for L4 neurons
-    plt_d: list,containing two lists each with the distirbutions of connection strengths according 
-        to pre and postsynpatic tuning
-    plt_e: list, with four sub lists containing the cumulative counts and the bins of connections strengths for a specific 
-        pre-post difference in preferred orientation
-    '''
-    normcstr = norm_const
-    axs = axes.ravel()
+def plot_dist(ax, data, layer):
 
-    # Plot A
-    l23_n = plt_a[plt_a['cortex_layer'] == 'L2/3']
-    l4_n = plt_a[plt_a['cortex_layer'] == 'L4']
-    bins = np.linspace(0, 1,20)
+    #Filter the data
+    neurons_layer = data[data['cortex_layer'] == layer]
 
-    x1 = l23_n[(l23_n['model_type'] == 'orientation') | (l23_n['model_type'] == 'direction')]['osi']
-    histl23, binsl23 = np.histogram(x1, bins)
-    histl23n = histl23/np.sum(histl23)
-    axs[0].step(binsl23[:-1], histl23n,
-            color = 'purple')
-    axs[0].axvline(x =binsl23[0], ymax = histl23n[0]/np.max(histl23n), color = 'purple')
-    axs[0].axvline(x =binsl23[-2], ymax = (histl23n[-1]/np.max(histl23n))-0.01, color = 'purple')
+    #Create bins and compute their centers, which is useful for plotting
+    bins = np.linspace(0, 1, 20)
+    bins_centered = 0.5*(bins[1:] + bins[:-1])
+
+    #Select only tuned neurons
+    tuned_neurons = neurons_layer[(neurons_layer['model_type'] == 'orientation') | (neurons_layer['model_type'] == 'direction')]['osi']
+
+    #Histogram them, normalizing to count (not by density) 
+    hist, _ = np.histogram(tuned_neurons, bins)
+    hist = hist/np.sum(hist)
+    ax.step(bins_centered, hist, color = cr.lcolor[layer])
 
 
-    axs[0].set_ylabel('% Neurons')
-    axs[0].set_xlabel('OSI L2/3 neurons')
-    axs[0].set_ylim(bottom = 0)
+def fraction_tuned(ax, data):
+    barw = 0.1
+    ybars = [0, barw] 
+    offset = 0.05 #To display text
+
+    #Create a Pandas Series which contains the number of tuned neurons in a layer
+    #The value is accesed by the key of the pandas dataframe, e.g. n_tuned["L2/3"]
+    tuned_neurons = data[(data['model_type'] == 'orientation') | (data['model_type'] == 'direction')]
+    n_tuned = tuned_neurons.groupby("cortex_layer").size()
+    total_neurons = data.groupby("cortex_layer").size() 
+
+    layers = ["L2/3", "L4"]
+
+    #Plot those fractions
+    for i,layer in enumerate(["L2/3", "L4"]):
+        perc_tuned = n_tuned[layer]/total_neurons[layer]
+        ax.barh(ybars[i], perc_tuned, color=cr.lcolor[layer], height=barw)
+        ax.text(perc_tuned + offset, ybars[i], f"{round(100*perc_tuned)}%", va="center", ha="left")
+    
+    #Configure the axis in a nice way  
+    #No spine below, but mark the 100% with a vertical line
+    ax.set_yticks(ybars, layers) 
+    ax.set_xticks([0, 1], labels=["0", "100%"])
+    ax.tick_params(length=0)
+    ax.spines["bottom"].set_visible(False)
+    ax.axvline(1, color="black", lw=3)
+    ax.set_xlabel("% of tuned neurons", fontsize=8)
+    
+
+def plot_matrix_tuneuntune(ax, averages, addticks=False, title=""):
+    ax.imshow(averages, interpolation="none")
+
+    for (j,i),value in np.ndenumerate(averages):
+        ax.text(i, j, f"{value:.2f}", ha="center",va="center", color="white")
+    
+    ax.set_yticks([0,1], labels=["L2/3T", "L2/3U"])
+    ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+
+    ax.set_title(title)
+
+    if addticks:
+        ax.set_xticks([0,1,2,3], labels=["L2/3T", "L2/3U", "L4T", "L4U"])
+    else:
+        ax.set_xticks([])
+    
 
 
+def conn_prob_osi(ax, data):
 
-    x2 = l4_n[(l4_n['model_type'] == 'orientation') | (l4_n['model_type'] == 'direction')]['osi']
-    histl4, binsl4 = np.histogram(x2, bins)
-    histl4n = histl4/np.sum(histl4)
+    #Get the data to be plotted 
+    conprob = {}
+    conprob["L2/3"], conprob["L4"]= prob_conn_diffori(data)
 
-    axs[1].step(binsl4[:-1], histl4n,
-            color = 'darkorange')
-    axs[1].axvline(x =binsl4[0], ymax = histl4n[0]/np.max(histl4n), color = 'darkorange')
-    axs[1].axvline(x =binsl4[-2], ymax = (histl4n[-1]/np.max(histl4n))-0.001, color = 'darkorange')
+    #Plot it!
+    for layer in ["L2/3", "L4"]:
+        p = conprob[layer]
+        c = cr.lcolor[layer]
 
-    axs[1].set_ylabel('% Neurons')
-    axs[1].set_xlabel('OSI L4 neurons')
-    axs[1].set_ylim(bottom = 0)
-
-    #Plot B
-    bars_dashed = [1,3,5,7]
-    bars = axs[2].bar([0,1, 3,4, 6,7, 9,10], 
-            [np.mean(plt_b[0][0]), np.mean(plt_b[0][1]),  np.mean(plt_b[0][2]), np.mean(plt_b[0][3]),  
-             np.mean(plt_b[1][0]),np.mean(plt_b[1][1]), np.mean(plt_b[1][2]),np.mean(plt_b[1][3])],
-            yerr= [np.std(plt_b[0][0]), np.std(plt_b[0][1]),  np.std(plt_b[0][2]), np.std(plt_b[0][3]), 
-                    np.std(plt_b[1][0]),np.std(plt_b[1][1]), np.std(plt_b[1][2]),np.std(plt_b[1][3])],
-            edgecolor = ['purple', 'purple', 'purple', 'purple', 'darkorange', 'darkorange',
-                         'darkorange', 'darkorange'], fill=False)
-    for i in bars_dashed:
-        bars[i].set_linestyle('--')
-
-    axs[2].set_xticks([0.5,3.5,6.5,9.5], ['L2/3 tuned', 'L2/3 untuned', 'L4 tuned', 'L4 untuned'])
-    axs[2].set_xlabel('Input', fontsize = 20)
-    axs[2].set_ylabel('Connection Probability', fontsize = 20)
-    #axs.set_title('L2/3 and L4 Input proportion', fontsize = 20)
-    axs[2].tick_params(axis='both', which='major', labelsize=12)
+        ax.fill_between(p['directions'],p ['mean']-p['std'], p['mean']+p['std'], color = c, alpha = 0.2)
+        ax.plot(p['directions'], p['mean'], color = c, label = layer)
+        ax.scatter(p['directions'], p['mean'], color = 'black', s=5, zorder = 3)
 
 
-    legend_elements = [plt.Line2D([0], [0], linestyle='-', color='black', label='Tuned output'),
-                    plt.Line2D([0], [0], linestyle='--', color='black', label='Untuned output')]
-
-
-    # Add the legend to the plot
-    axs[2].legend(handles=legend_elements, loc=(0.21,0.85))
-
-
-    #Plot C
-    axs[3].fill_between(plt_c[0]['directions'],plt_c[0]['mean']-plt_c[0]['std'],
-                 plt_c[0]['mean']+plt_c[0]['std'], color = 'purple', alpha = 0.2)
-    axs[3].plot(plt_c[0]['directions'],plt_c[0]['mean'], color = 'purple',
-            label = 'L2/3')
-    axs[3].scatter(plt_c[0]['directions'],plt_c[0]['mean'], color = 'black', zorder = 3)
-
-
-
-    axs[3].fill_between(plt_c[1]['directions'],plt_c[1]['mean']-plt_c[1]['std'],
-                    plt_c[1]['mean']+plt_c[1]['std'],color = 'darkorange',  alpha = 0.2)
-    axs[3].plot(plt_c[1]['directions'],plt_c[1]['mean'], color = 'darkorange',
-            label = 'L4')
-    axs[3].scatter(plt_c[1]['directions'],plt_c[1]['mean'], color = 'black', zorder = 3)
-    axs[3].set_ylabel('Connection Probability', fontsize = 20)
-    axs[3].set_xlabel('∆ori', fontsize = 20)
-
-    #axs.set_title('Connection probability at varying ∆ori', fontsize = 20)
-
-    axs[3].tick_params(axis='both', which='major', labelsize=15)
-
-    axs[3].legend(fontsize = 15, loc = 'upper right')
+    #Then just adjust axes and put a legend
+    ax.tick_params(axis='both', which='major')
+    ax.set_xlabel('∆ori')
+    ax.set_ylabel("Conn. Probability")
+    ax.legend(loc = 'upper right')
 
     # Significance band
-    axs[3].annotate('***', xy=(0.8, 0.043), xytext=(0.8, 0.035), xycoords='data', 
-                fontsize=15*1.5, ha='center', va='bottom',
+    ax.annotate('***', xy=(0.8, 0.043), xytext=(0.8, 0.035), xycoords='data', ha='center', va='bottom', 
                 arrowprops=dict(arrowstyle='-[, widthB=2.0, lengthB=1', lw=2.0, color='k'))
 
 
-    #Plot D
+#TODO we have to improve the return format of this function to allow colors, etc to be better...
+def plot_cumulative(ax, data):
+    cumul_dists = cumulative_probconn(data, [0, 1.570796, 0, 1.570796])
+    labels = ["L2/3, θ=0", "θ=π", "L4, θ=0", "θ=π"]
 
-    bars_dashed = [1,3,5,7]
-    bars = axs[4].bar([0,1, 3,4, 6,7, 9,10], 
-                [np.mean(plt_d[0][0])/normcstr, np.mean(plt_d[0][1])/normcstr,  
-                 np.mean(plt_d[0][2])/normcstr, np.mean(plt_d[0][3])/normcstr,  
-                 np.mean(plt_d[1][0])/normcstr,np.mean(plt_d[1][1])/normcstr, 
-                 np.mean(plt_d[1][2])/normcstr,np.mean(plt_d[1][3])/normcstr],
-            yerr= [np.std(plt_d[0][0])/(normcstr * np.sqrt(len(plt_d[0][0]))), 
-                   np.std(plt_d[0][1])/(normcstr * np.sqrt(len(plt_d[0][1]))),  
-                   np.std(plt_d[0][2])/(normcstr * np.sqrt(len(plt_d[0][2]))), 
-                   np.std(plt_d[0][3])/(normcstr * np.sqrt(len(plt_d[0][3]))),  
-                   np.std(plt_d[1][0])/(normcstr * np.sqrt(len(plt_d[1][0]))),
-                   np.std(plt_d[1][1])/(normcstr * np.sqrt(len(plt_d[1][1]))),
-                   np.std(plt_d[1][2])/(normcstr * np.sqrt(len(plt_d[1][2]))),
-                   np.std(plt_d[1][3])/(normcstr * np.sqrt(len(plt_d[1][3])))],
-            edgecolor = ['purple', 'purple', 'purple', 'purple', 'darkorange', 'darkorange','darkorange', 'darkorange'], fill=False)
-    
-    for i in bars_dashed:
-        bars[i].set_linestyle('--')
+    for i,cd in enumerate(cumul_dists):
+        color = cr.angles[i]
+        label = labels[i]
+        ax.step(cd[1], cd[0]/np.sum(cd[0][-1]), color = color, label = label)
 
-    axs[4].set_xticks([0.5,3.5,6.5,9.5], ['L2/3 tuned', 'L2/3 untuned', 'L4 tuned', 'L4 untuned'])
-    axs[4].set_xlabel('Input', fontsize = 20)
-    axs[4].set_ylabel('Connection Strength', fontsize = 20)
-    #axs.set_title('L2/3 and L4 Input proportion', fontsize = 20)
-    axs[4].tick_params(axis='both', which='major', labelsize=12)
+    ax.set_xlabel("Conn. Strength")
+    ax.set_ylabel("Cumulative")
+    ax.set_xscale("log")
+    ax.legend(loc=(0.05, 0.65))
 
 
-    legend_elements = [plt.Line2D([0], [0], linestyle='-', color='black', label='Tuned output'),
-                    plt.Line2D([0], [0], linestyle='--', color='black', label='Untuned output')]
+# ----------------------------------------------------------------------------------------
 
-    # Add the legend to the plot
-    axs[4].legend(handles=legend_elements, loc=(0.21,0.85))
+#Defining Parser
+parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
+#Adding and parsing arguments
+parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+args = parser.parse_args()
 
-    #plot E
-    axs[5].step(plt_e[0][1], plt_e[0][0]/np.sum(plt_e[0][0][-1]), color = 'darkorange', label = 'L4: 0 rads')
-    axs[5].step(plt_e[1][1], plt_e[1][0]/np.sum(plt_e[1][0][-1]), color = 'gold', label = 'L4: pi/2 rads')
-    axs[5].step(plt_e[2][1], plt_e[2][0]/np.sum(plt_e[2][0][-1]), color = 'purple', label = 'L2/3: 0 rads')
-    axs[5].step(plt_e[3][1], plt_e[3][0]/np.sum(plt_e[3][0][-1]), color = 'violet',label = 'L2/3: pi/2 rads')
-    axs[5].legend()
+sty.master_format()
 
+fig = plt.figure(layout="constrained", figsize=sty.two_col_size(ratio=1.5))
+subfigs = fig.subfigures(1, 3)
 
+axes = {}
 
-def main():
-    '''Main function to plot and save figure 1'''
+axes["left"] = subfigs[0].subplots(nrows=3, ncols=1, height_ratios=[1, 0.15, 0.85])
+axes["center"] = subfigs[1].subplots(nrows=3, ncols=1, height_ratios=[1, 0.5, 0.5])
+axes["right"] = subfigs[2].subplots(nrows=2, ncols=1)
 
-    #Defining Parser
-    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
-    
-    # Adding and parsing arguments
-    parser.add_argument('width', type=int, help='Width of image (cm)')
-    parser.add_argument('height', type=int, help='Height of image (cm)')
-    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
-    args = parser.parse_args()
-    print('''
-          
-    Preparing data for the plot...
-          
-          ''')
-    
-    v1_neurons = pd.read_pickle('../con-con-models/data/v1l234_neurons.pkl')
-    v1_connections = pd.read_pickle('../con-con-models/data/v1l234_connections.pkl')
-    #Encoding numerically if input and output is tuned or untuned
-    v1_connections = tuning_encoder(v1_connections,'pre_type', 'post_type', 'not_selective')
-    normcstr = np.mean(v1_connections[v1_connections['pre_layer'] == 'L2/3']['size'])
+#fig, axes = plt.subplot_mosaic(
+#    """
+#    ABC
+#    DBC
+#    EFG
+#    """, 
+#    figsize=sty.two_col_size(ratio=1.5), layout="constrained", gridspec_kw={"height_ratios":[0.15,0.85,1], })
 
-    l23_tuning_connp, l4_tuning_connp = prepare_b2(v1_connections)
-    l23_boots, l4_boots = prepare_c2(v1_connections)
-    l23_comb_strengths, l4_comb_strengths = prepare_d2(v1_connections)
-    cumul_dists = prepare_e2(v1_connections, [0, 1.570796, 0, 1.570796])
+#Read and process necessary data
+v1_neurons = pd.read_pickle('../con-con-models/data/v1l234_neurons.pkl')
+v1_connections = pd.read_pickle('../con-con-models/data/v1l234_connections.pkl')
 
-    fig, axes = plt.subplots(nrows=3, ncols = 2, constrained_layout=True)
+#Encoding numerically if input and output is tuned or untuned
+v1_connections = tuning_encoder(v1_connections,'pre_type', 'post_type', 'not_selective')
 
-    print('''
-          
-    Plotting data
-          
-          ''')
-    
-    plot_fig2(axes,plt.cm.Blues,normcstr,plt_a=v1_neurons, plt_b=[l23_tuning_connp, l4_tuning_connp],
-              plt_c = [l23_boots, l4_boots], plt_d=[l23_comb_strengths, l4_comb_strengths],
-               plt_e=cumul_dists)
+# --- First panel
+
+#Leave space for the diagram
+axes["left"][0].axis("off")
+axes["center"][0].axis("off")
 
 
-    print('''
-          
-    Saving plot...
-          
-          ''')
-    
-    figure_saver(fig,'fig2', args.width, args.height, args.save_destination)
+#Plot the data for both layer in the same axis. Then format it. 
+fraction_tuned(axes["left"][1], v1_neurons)
 
-    print('''
-          
-    Plot saved!
-      
-          ''')
 
-if __name__ == '__main__':
-    main()
+#Plot the data for both layer in the same axis. Then format it. 
+ax = axes["left"][2]
+plot_dist(ax, v1_neurons, "L2/3")
+plot_dist(ax, v1_neurons, "L4")
+
+ax.set_ylabel('Fraction')
+ax.set_xlabel('OSI')
+ax.set_ylim(bottom = 0)
+
+# ----
+
+conn_probability_matrix = prob_conectivity_tuned_untuned(v1_connections)
+strength_matrix = strength_tuned_untuned(v1_connections)
+plot_matrix_tuneuntune(axes["center"][1], conn_probability_matrix, title="Conn. Probability", addticks=True)
+plot_matrix_tuneuntune(axes["center"][2], strength_matrix, title="Conn. Strength")
+
+# --------- 
+
+conn_prob_osi(axes["right"][0], v1_connections)
+
+# --------
+
+plot_cumulative(axes["right"][1], v1_connections)
+
+
+
+
+
+fig.savefig(args.save_destination+"fig2.pdf", bbox_inches="tight")
