@@ -86,7 +86,7 @@ def main():
     Preparing data for the plot...
           
           ''')
-    onproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts = prepare_c1()
+    nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts = prepare_c1()
     boots_propl_proof, boots_propl_noproof = prepare_d1()
 
     fig, axes = plt.subplots(nrows=3, ncols = 2, constrained_layout=True)#, figsize=style.two_col_size(height=12))
@@ -98,7 +98,7 @@ def main():
           ''')
     
     plot_fig1(axes, plt.cm.Blues, plt_a='images/network_schema.png', plt_b='images/3d_reconstruction.png', 
-              plt_c=[onproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts],
+              plt_c=[nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts],
                plt_d = [boots_propl_proof, boots_propl_noproof],
                 plt_e ='images/fig1_plotE.png')
 
