@@ -1,7 +1,8 @@
 '''
-By running this script you can extract a pickle file containing a subset of teh connectome
-with the connnectivity amongst all functionally matched neurons from L2/3/4 of V1.
-In addition pre and post synpatic neurons also contain information on...
+By running this script you can extract a csv file containing a subset of the connectome
+with the connnectivity amongst all functionally matched neurons from L2/3/4 of V1 and all other neurons of interest (such as inhibitory neurons)
+contained in the unit table.
+For each connection you also have the size of the synapse and the difference in preferred orientation between the pre and post synaptic neurons
 
 Estimated runtime: 1 hour
 '''
