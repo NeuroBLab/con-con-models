@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 from caveclient import CAVEclient
 from standard_transform import minnie_transform_vx
-from preprocessing.utils import layer_extractor
+from .utils import layer_extractor
 
 
 def client_version(version = 343):
@@ -199,3 +199,7 @@ def proofread_neurons(client, table, dendrites = True, axons = True):
                                 (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])&
                                 (proofread_neur['status_axon'] ==  'extended')]
     return proofread_neur
+
+if __name__ == '__main__':
+    import os
+    print(os.getcwd())

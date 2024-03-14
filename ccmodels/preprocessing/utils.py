@@ -138,3 +138,6 @@ def layer_extractor(input_df, transform, column = 'pre_pt_position'):
     input_df['cortex_layer'] = layers   
     return input_df
 
+if __name__ == '__main__':
+    import os
+    print(os.getcwd())
