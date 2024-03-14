@@ -14,7 +14,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from caveclient import CAVEclient
-from ccmodels.preprocessing.extractors.utils import connectome_constructor, subset_v1l234, constrain_act_range, constrainer, connectome_feature_merger
+from ccmodels.preprocessing.utils import connectome_constructor, subset_v1l234, constrain_act_range, constrainer, connectome_feature_merger
 
 
 def main():
