@@ -14,14 +14,14 @@ import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from caveclient import CAVEclient
-from ccmodels.preprocessing.utils import connectome_constructor, subset_v1l234, constrain_act_range, constrainer, connectome_feature_merger
+from ccmodels.preprocessing.utils import constrain_act_range, constrainer
+from ccmodels.preprocessing.connectomics import client_version, connectome_constructor, subset_v1l234, connectome_feature_merger
 
 
 def main():
     #define Caveclient and database version
-    client = CAVEclient('minnie65_public')
-    client.materialize.version = 661
-
+    client = client_version(661)
+    
     ############################### Exctract connectome of functionally matched L2/3/4 V1 neurons ##################################
     v1l234_neur = subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'con-con-models/data_full/v1_n.csv')
 
