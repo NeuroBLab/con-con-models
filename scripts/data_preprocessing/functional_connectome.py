@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd 
 import matplotlib.pyplot as plt
 from caveclient import CAVEclient
-from ccmodels.preprocessing.extractors.utils import connectome_constructor, subset_v1l234
+from ccmodels.preprocessing.utils import connectome_constructor, subset_v1l234
 
 
 def main():
