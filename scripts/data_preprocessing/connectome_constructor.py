@@ -1,0 +1,46 @@
+'''
+By running this script you can extract a pickle file containing a subset of teh connectome
+with the connnectivity amongst all functionally matched neurons from L2/3/4 of V1.
+In addition pre and post synpatic neurons also contain information on...
+
+Estimated runtime: 1 hour
+'''
+
+#TODO
+#add argparser option to specify where to read and write files to and which version of the Caveclient database to use
+
+import numpy as np
+import pandas as pd 
+from ccmodels.preprocessing.connectomics import client_version, connectome_constructor, connectome_feature_merger
+
+
+def main():
+    #define Caveclient and database version
+    client = client_version(661)
+    
+    #Load unit table containing information on desired neurons
+    neurons = pd.read_csv('unit_table.csv')
+
+    #Extracting all the root id of the desired neurons
+    neuron_ids = np.array(list(set(neurons[neurons['pt_root_id'] != 0]['pt_root_id'])))
+
+    #Extract connectome
+    connections = connectome_constructor(client, neuron_ids, neuron_ids, 500)
+
+    
+    #Add information on difference in preferred angle between pre and post synaptic neurons
+    connections = connectome_feature_merger(connections, neurons['pref_ori'], neuron_id='root_id')
+    connections['dtheta'] = connections['pre_po'] - connections['post_po']
+
+    #Clean up the dataframe by removing unnecessary columns and renaming the size column
+    connections_clean = connections.copy()
+    connections_clean = connections_clean.drop(columns = ['pre_pref_ori', 'post_pref_ori'])
+    connections_clean = connections_clean.rename(columns={'size':'synapse_size'})
+
+
+    #Save it
+    connections_clean.to_csv('v1l234_connections.csv', index = False)
+
+if __name__ == '__main__':
+    main()
+
