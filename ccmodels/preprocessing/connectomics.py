@@ -101,7 +101,7 @@ def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'co
     client: CAVEclient needed to access MICrONS connectomics data
     table_name: name of table in CAVEClient database with functionally matched neurons
     area_df: DataFrame containing brain area of all neurons in functional database, uniquely identifiable
-    by their (session, scan_idx, unit_id) tuples.
+    by their (session, scan_idx, unit_id) tuples, or str with the path to the csv file containing the area_df
 
     Returns:
     v1l234_neur: pd.DataFrame only containing neurons from L2/3/4 of V1
@@ -110,7 +110,11 @@ def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'co
     funct_match = client.materialize.query_table(table_name)
     funct_match_clean = funct_match[['pt_root_id', 'id', 'session', 'scan_idx', 'unit_id', 'pt_position']]
     
-    v1_area = pd.read_csv(area_df)
+    if type(area_df) == str:
+        v1_area = pd.read_csv(area_df)
+    else:
+        v1_area = area_df
+
 
     v1_neurons = funct_match_clean.merge(v1_area, on = ['session', 'scan_idx', 'unit_id'], how = 'inner')
 
