@@ -118,7 +118,7 @@ for file in tqdm(os.listdir('./data/in_processing/orientation_fits/')[1:], desc=
         continue
 
 #Saving the data
-ors_all.to_pickle('./data/in_processing/orientation_fits.csv', index = False)
+ors_all.to_pickle('./data/in_processing/orientation_fits.pkl', index = False)
 
 #Delete unnecessary data repeats
 shutil.rmtree('../data/in_processing/orientation_fits')
