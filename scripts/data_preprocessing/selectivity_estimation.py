@@ -6,9 +6,14 @@ import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 
+
+
+#Read in data with selectivity infromation
+l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
+
 ############# Select all cells that are NOT selective ###############
 
-#select all those withp value larger than 0.05
+#select all those with p value larger than 0.05
 not_sel = l234_orifits[l234_orifits['pvalue']>0.05]
 #group by root id and select ids of only those cells that are not significant for both orientation and direction
 not_sel_grouped = not_sel.groupby('root_id').count().reset_index()
@@ -39,7 +44,7 @@ single_good = good[(good['root_id'].isin(double_sig)) & (good['r_squared_diff']<
 #Select all remaining neurons with only one significant model
 remaining_good = good[~good['root_id'].isin(double_sig)]
 
-almost_good = pd.concat([double_fringe,single_good,remaining_good])
+almost_good = pd.concat([double_fringe,single_good,remaining_good]) 
 
 #select all neurons from 'fringe case 2'
 fringe2 = almost_good[(almost_good['r_squared_diff']<-0.5)&(almost_good['model_type'] == 'double') & (almost_good['pvalue'] <0.05)]['root_id']
