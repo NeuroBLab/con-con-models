@@ -14,6 +14,7 @@ To be able to utilise the package you then need to install it in editable mode i
 
 ## Preprocessing the data
 To follow our steps you can run:
+    
     1. funcdata_extraction.py: to carry out the first data extraction and preprocessing step required to estimate the selectivity of each of the neurons under study and extract all the features required to carry out the thresholding criteria needed to determine more granularly the selectivity of neurons. The output of this file is a 'orientation_fits.pkl' file.  (NOTE: this is a time intensive step that requires both setting up access to the functional database and x hours to run).
 
     2. selectivity_estimation.py: to assigne to each neuron whether it is elective or not, together with other useful characteristics utilised in our analises. The output of this script is a csv file called 'unit_test.csv' in a convenient format for analysis. 
