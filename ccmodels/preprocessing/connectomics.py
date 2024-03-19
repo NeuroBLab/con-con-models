@@ -174,7 +174,7 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     return connectome_full
 
 
-def proofread_neurons(client, table, dendrites = True, axons = True):
+def proofread_neurons(client, table, dendrites = False, axons = False):
     '''
     Identify and extract  proofread neurons
     Args:
@@ -198,7 +198,7 @@ def proofread_neurons(client, table, dendrites = True, axons = True):
         proofread_neur = proofread_neur[(proofread_neur['status_axon'] == 'extended') & 
                                 (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])]
 
-    elif dendrites and axons:
+    else:
         proofread_neur = proofread_neur[(proofread_neur['status_dendrite'] == 'extended') & 
                                 (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])&
                                 (proofread_neur['status_axon'] ==  'extended')]
