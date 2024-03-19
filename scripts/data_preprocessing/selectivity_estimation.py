@@ -1,12 +1,12 @@
-''''This script extracts the oreintation and direction tuning properties of neurons in Layer 2/3 and 4 or V1
-    NOTE: run this within the scripts folder'''
+''''This script is used to assign the selectivity type, layer, OSI, proofreading status, position, cell type 
+to functionally matched L2/3/4 V1 neurons and inhibitory L2/3 V1 neurons.'''
 
 import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator
-from ccmodels.preprocessing.connectomics import subset_v1l234, client_version
+from ccmodels.preprocessing.connectomics import subset_v1l234, client_version, proofread_neurons
 
 
 
@@ -31,7 +31,6 @@ neur_seltype = neur_seltype.merge(func_neurons, left_on=['root_id', 'session', '
 #Directions shown during stimulus presentation
 arr_dirs = np.array(sorted(list(set(neur_seltype['orientations'].values[0]))))
 
-#Find the least preferred orientation depending on the model type
 osis = []
 for pref_ori, tunig_type, responses in zip(neur_seltype['phi'].values, neur_seltype['tuning_type'].values, neur_seltype['activity']):
     
@@ -43,3 +42,12 @@ for pref_ori, tunig_type, responses in zip(neur_seltype['phi'].values, neur_selt
 
 #Assign new osi column
 neur_seltype['osi'] = osis
+
+
+#Add proofreading information
+#Identify ids of neurons with differing proofreading statuses
+#NOTE: all axonally proofread neurons are also dendritically proofread thus included in the 'full' variable
+full = set(proofread_neurons(client, 'proofreading_status_public_release')['pt_root_id'].values)
+dendrites = set(proofread_neurons(client, 'proofreading_status_public_release', dendrites = True)['pt_root_id'].values)
+dendrites_only = dendrites.difference(full)
+
