@@ -204,6 +204,26 @@ def proofread_neurons(client, table, dendrites = False, axons = False):
                                 (proofread_neur['status_axon'] ==  'extended')]
     return proofread_neur
 
+# Define the function to determine the new column values
+def identify_proofreading_status(client, df, id_col = 'pt_root_id'):
+
+    #Identify ids of neurons with differing proofreading statuses
+    full = set(proofread_neurons(client, 'proofreading_status_public_release')['pt_root_id'].values)
+    dendrites = set(proofread_neurons(client, 'proofreading_status_public_release', dendrites = True)['pt_root_id'].values)
+    axons = set(proofread_neurons(client, 'proofreading_status_public_release', axons = True)['pt_root_id'].values)
+    dendrites_only = dendrites.difference(full)
+    axons_only = axons.diffference(full)
+
+    
+    if df[id_col] in full:
+        return 'full'
+    elif df[id_col] in full in dendrites_only:
+        return 'denrite'
+    elif df[id_col] in full in axons_only:
+        return 'axon'
+    else:
+        return 'not_proofread'
+    
 if __name__ == '__main__':
     import os
     print(os.getcwd())
