@@ -118,6 +118,16 @@ def constrain_act_range(post_root_col, post_root_id, directions, pre_df, current
 
 
 def layer_extractor(input_df, transform, column = 'pre_pt_position'):
+    '''This function assigns a layer to each neuron based on the y axis value of the pial distance
+    
+    Args:
+    input_df: pandas dataframe containing the 3d coordinates
+    transform: transform object to turn the 3d coordinates in to pial distances 
+    column: string, column name containing the pial distances
+    
+    Returns:
+    input_df: pandas dataframe containing the pial distances and the assigned layer
+    '''
     input_df['pial_distances'] = transform.apply(input_df[column])
 
     #Use the y axis value to assign the corresponding layer as per Ding et al. 2023
