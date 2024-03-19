@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator
-from ccmodels.preprocessing.connectomics import subset_v1l234, client_version, proofread_neurons
+from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status
 
 
 
@@ -43,11 +43,10 @@ for pref_ori, tunig_type, responses in zip(neur_seltype['phi'].values, neur_selt
 #Assign new osi column
 neur_seltype['osi'] = osis
 
+#Add indexed version of the preferred angle
+
+# Add inhibitory neurons and relevant column to identify them
+
 
 #Add proofreading information
-#Identify ids of neurons with differing proofreading statuses
-#NOTE: all axonally proofread neurons are also dendritically proofread thus included in the 'full' variable
-full = set(proofread_neurons(client, 'proofreading_status_public_release')['pt_root_id'].values)
-dendrites = set(proofread_neurons(client, 'proofreading_status_public_release', dendrites = True)['pt_root_id'].values)
-dendrites_only = dendrites.difference(full)
-
+neur_seltype['proofreading'] = neur_seltype.apply(identify_proofreading_status, axis=1)
