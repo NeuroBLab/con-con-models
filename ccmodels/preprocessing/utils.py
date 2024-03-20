@@ -220,17 +220,25 @@ def osi_calculator(least_pref_ori, pref_ori, responses, dirs):
     '''
 
     # Extract the activity at the preferred orientation and at the least preferred one
-    maxact = []
-    minact = []
-
     ind_max = np.where(dirs==pref_ori)[0]
     ind_min = np.where(dirs==least_pref_ori)[0]
-    maxact.append(responses[ind_max[0]])
-    minact.append(responses[ind_min[0]])
+    maxact = responses[ind_max[0]]
+    minact = responses[ind_min[0]]
 
     osi = (maxact-minact)/(maxact+minact)
     return osi
 
+def angle_indexer(pref_orientation):
+    '''This function returns the index of the preferred orientation in a 16 bin discretization of the orientation space
+    Args:
+    pref_orientation: float, preferred orientation of the neuron
+    
+    Returns:
+    indexed_angle: int, index of the preferred orientation in the 16 bin discretization of the orientation space
+    '''
+    indexed_angle = int(round(pref_orientation/round(((2*np.pi)/16),8), 0))
+
+    return indexed_angle
    
 if __name__ == '__main__':
     import os
