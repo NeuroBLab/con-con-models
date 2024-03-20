@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
-from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator
+from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator, angle_indexer
 from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status
 
 
@@ -24,7 +24,7 @@ func_neurons[['x_pos', 'y_pos', 'z_pos']] = func_neurons['pial_distances'].apply
 
 
 #Merge to get information on layer
-neur_seltype = neur_seltype.merge(func_neurons, left_on=['root_id', 'session', 'scan_idx', 'unit_id'], right_on = ['pt_root_id', 'session', 'scan_idx', 'unit_id'], how = 'left')
+neur_seltype = neur_seltype.merge(func_neurons, left_on=['root_id', 'session', 'scan_idx', 'unit_id'], right_on = ['pt_root_id', 'session', 'scan_idx', 'unit_id'], how = 'inner')
 
 
 # Calculate the OSI of neurons
@@ -44,6 +44,7 @@ for pref_ori, tunig_type, responses in zip(neur_seltype['phi'].values, neur_selt
 neur_seltype['osi'] = osis
 
 #Add indexed version of the preferred angle
+neur_seltype['pref_ori'] = neur_seltype['phi'].apply(angle_indexer, axis = 1)
 
 # Add inhibitory neurons and relevant column to identify them
 
