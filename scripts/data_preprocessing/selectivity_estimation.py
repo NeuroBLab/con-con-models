@@ -47,7 +47,18 @@ neur_seltype['osi'] = osis
 neur_seltype['pref_ori'] = neur_seltype['phi'].apply(angle_indexer, axis = 1)
 
 # Add inhibitory neurons and relevant column to identify them
+inhib_neurons = pd.read_pickle('/Users/jacopobiggiogera/Desktop/con-con-models/data/in_processing/inhibitory_nurons_ba.pkl')
+nuc = client.materialize.query_table('aibs_soma_nuc_metamodel_preds_v117')
 
+#Add layer information
+inhib_neurons_l = layer_extractor(inhib_neurons, tform_vx, column='pt_position')
+
+# Identify the ones in v1 L2/3
+inhv1l23 = inhib_neurons_l[(inhib_neurons_l['brain_area'] == 'V1') & (inhib_neurons_l['cortex_layer'] == 'L2/3')]
+inhv1l23[['x_pos', 'y_pos', 'z_pos']] = inhv1l23['pial_distances'].apply(lambda x: pd.Series(x))
+
+neurs = nuc[nuc['classification_system']=='aibs_neuronal']
+inhib_neur = inhv1l23.merge(neurs, on='id', how='inner')
 
 #Add proofreading information
 neur_seltype['proofreading'] = neur_seltype.apply(identify_proofreading_status, axis=1)
