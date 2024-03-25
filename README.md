@@ -17,13 +17,13 @@ To follow our steps you can run:
     
     1. funcdata_extraction.py: to carry out the first data extraction and preprocessing step required to estimate the selectivity of each of the neurons under study and extract all the features required to carry out the thresholding criteria needed to determine more granularly the selectivity of neurons. The output of this file is a 'orientation_fits.pkl' file.  (NOTE: this is a time intensive step that requires both setting up access to the functional database and x hours to run).
 
-    2. selectivity_estimation.py: to assigne to each neuron whether it is elective or not, together with other useful characteristics utilised in our analises. The output of this script is a csv file called 'unit_test.csv' in a convenient format for analysis. 
+    2. selectivity_estimation.py: to assigne to each neuron whether it is elective or not, together with other useful characteristics utilised in our analises. The output of this script is a csv file called 'unit_table.csv' in a convenient format for analysis. 
     NOTE: requires the output of funcdata_extraction.py to run.
 
-    3. responses_organizer.py: to organise the responses of the neurons under study and the corresponding angle shown in a format useful for subsequent analysis. The output is a csv file called 'activity.csv'.
+    3. responses_organizer.py: to organise the responses of the neurons under study and the corresponding angle shown in a format useful for subsequent analysis. The output is a csv file called 'activity_table.csv'.
     NOTE: requires the output of funcdata_extraction.py to run.
 
-    4. connectome_constructor.py: to extract the subest of the connectome containing the neurons under study. The ouptut is a csv file called 'connections.csv'. NOTHE: requires the output of selectivity_estimation.py to run.
+    4. connectome_constructor.py: to extract the subest of the connectome containing the neurons under study. The ouptut is a csv file called 'connections_table.csv'. NOTHE: requires the output of selectivity_estimation.py to run.
 
 ## Generate the figures
 ### Generate one of the figures
