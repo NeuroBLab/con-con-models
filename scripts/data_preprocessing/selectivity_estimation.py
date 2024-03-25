@@ -5,9 +5,11 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
-from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator, angle_indexer
+from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator, angle_indexer, layer_extractor
 from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status
+from standard_transform import minnie_transform_vx
 
+tform_vx = minnie_transform_vx()
 
 
 #Read in data with selectivity infromation
@@ -57,8 +59,26 @@ inhib_neurons_l = layer_extractor(inhib_neurons, tform_vx, column='pt_position')
 inhv1l23 = inhib_neurons_l[(inhib_neurons_l['brain_area'] == 'V1') & (inhib_neurons_l['cortex_layer'] == 'L2/3')]
 inhv1l23[['x_pos', 'y_pos', 'z_pos']] = inhv1l23['pial_distances'].apply(lambda x: pd.Series(x))
 
-neurs = nuc[nuc['classification_system']=='aibs_neuronal']
+neurs = nuc[nuc['classification_system']=='aibs_neuronal'][['id', 'classification_system']]
 inhib_neur = inhv1l23.merge(neurs, on='id', how='inner')
 
+#Add columns to match the excitatory neurons df
+inhib_neur['tuning_type'] = np.nan*len(inhib_neur)
+inhib_neur['osi'] = np.nan*len(inhib_neur)
+inhib_neur['pref_ori'] = np.nan*len(inhib_neur)
+inhib_neur['root_id'] = inhib_neur['pt_root_id']
+
+neur_seltype['cell_type'] = 'excitatory'
+
+#Select only the relevant columns
+inhib_clean = inhib_neur[['root_id','pref_ori', 'cell_type', 'tuning_type','osi', 'brain_area', 'cortex_layer', 'x_pos',
+       'y_pos', 'z_pos']]
+
+excit_clean = neur_seltype[['root_id','pref_ori','cell_type',  'tuning_type','osi', 'brain_area', 'cortex_layer', 'x_pos',
+       'y_pos', 'z_pos']]
+
+#Concatenate the inhibitroy and excitatory neuron dataframes
+neur_all = pd.concat([excit_clean, inhib_clean], axis = 0)
+
 #Add proofreading information
-neur_seltype['proofreading'] = neur_seltype.apply(identify_proofreading_status, axis=1)
+neur_all['proofreading'] = neur_all.apply(identify_proofreading_status, axis=1)
