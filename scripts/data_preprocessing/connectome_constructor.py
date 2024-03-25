@@ -4,7 +4,7 @@ with the connnectivity amongst all functionally matched neurons from L2/3/4 of V
 contained in the unit table.
 For each connection you also have the size of the synapse and the difference in preferred orientation between the pre and post synaptic neurons
 
-Estimated runtime: 1 hour
+Estimated runtime: 5 minutes
 '''
 
 #TODO
