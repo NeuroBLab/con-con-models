@@ -17,21 +17,21 @@ from ccmodels.preprocessing.connectomics import client_version, connectome_const
 
 def main():
     #define Caveclient and database version
-    client = client_version(661)
+    client = client_version(343)
     
     #Load unit table containing information on desired neurons
-    neurons = pd.read_csv('unit_table.csv')
+    neurons = pd.read_csv('../../data/preprocessed/unit_table.csv')
 
     #Extracting all the root id of the desired neurons
-    neuron_ids = np.array(list(set(neurons[neurons['pt_root_id'] != 0]['pt_root_id'])))
+    neuron_ids = np.array(list(set(neurons[neurons['root_id'] != 0]['root_id'])))
 
     #Extract connectome
     connections = connectome_constructor(client, neuron_ids, neuron_ids, 500)
 
     
     #Add information on difference in preferred angle between pre and post synaptic neurons
-    connections = connectome_feature_merger(connections, neurons['pref_ori'], neuron_id='root_id')
-    connections['dtheta'] = connections['pre_po'] - connections['post_po']
+    connections = connectome_feature_merger(connections, neurons[['root_id','pref_ori']], neuron_id='root_id')
+    connections['dtheta'] = connections['pre_pref_ori'] - connections['post_pref_ori']
 
     #Clean up the dataframe by removing unnecessary columns and renaming the size column
     connections_clean = connections.copy()
@@ -40,8 +40,9 @@ def main():
 
 
     #Save it
-    connections_clean.to_csv('v1l234_connections.csv', index = False)
-
+    print('Saving connections table')
+    connections_clean.to_csv('../../data/preprocessed/connections_table.csv', index = False)
+    print('Data Saved')
 if __name__ == '__main__':
     main()
 
