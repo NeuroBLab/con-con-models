@@ -14,6 +14,17 @@ def client_version(version = 343):
     
     return client
 
+def load_table(client, name):
+    '''Function to load a table from the CAVEclient database
+    
+    Args:
+    client: CAVEclient needed to access MICrONS connectomics data
+    name: str, name of the table to load
+    
+    Returns:
+    df: pd.DataFrame with the table loaded from the database'''
+    
+    return client.materialize.query_table(name)
 
 def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500):
     '''
@@ -174,21 +185,17 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     return connectome_full
 
 
-def proofread_neurons(client, table, dendrites = False, axons = False):
+def proofread_neurons(proofread_neur, dendrites = False, axons = False):
     '''
     Identify and extract  proofread neurons
     Args:
-    client: CAVEclient
-    table: str, name of cave table to query
+    proofread_neur: df, cave table with proofreading information
     dendrites: bool, whether to extract neurons with fully proofread dendrites
     axons: bool, whether to extract neurons with fully proofread axons
     
     Returns:
     proofread_neur: DF with information on proofread neurons
     '''
-
-    # Set of fully proofread neurons
-    proofread_neur = client.materialize.query_table(table)
 
     if dendrites:
         proofread_neur = proofread_neur[(proofread_neur['status_dendrite'] == 'extended') & 
@@ -205,20 +212,28 @@ def proofread_neurons(client, table, dendrites = False, axons = False):
     return proofread_neur
 
 # Define the function to determine the new column values
-def identify_proofreading_status(client, df, id_col = 'pt_root_id'):
+def identify_proofreading_status(df, proofreading_df, id_col = 'pt_root_id'):
+    ''' Function to identify the proofreading status of a neuron based on the proofreading table
+    Args:
+    df: pd.DataFrame, dataframe containing the neurons for which to identify the proofreading status
+    proofreading_df: pd.DataFrame, dataframe containing the proofreading information
+    id_col: str, name of the column containing the ids of the neurons in the df
+    
+    Returns:
+    str, with the proofreading status of the neuron in the df'''
 
     #Identify ids of neurons with differing proofreading statuses
-    full = set(proofread_neurons(client, 'proofreading_status_public_release')['pt_root_id'].values)
-    dendrites = set(proofread_neurons(client, 'proofreading_status_public_release', dendrites = True)['pt_root_id'].values)
-    axons = set(proofread_neurons(client, 'proofreading_status_public_release', axons = True)['pt_root_id'].values)
+    full = set(proofread_neurons(proofreading_df)['pt_root_id'].values)
+    dendrites = set(proofread_neurons(proofreading_df, dendrites = True)['pt_root_id'].values)
+    axons = set(proofread_neurons(proofreading_df, axons = True)['pt_root_id'].values)
     dendrites_only = dendrites.difference(full)
-    axons_only = axons.diffference(full)
+    axons_only = axons.difference(full)
 
     
     if df[id_col] in full:
         return 'full'
     elif df[id_col] in full in dendrites_only:
-        return 'denrite'
+        return 'dendrite'
     elif df[id_col] in full in axons_only:
         return 'axon'
     else:
