@@ -3,8 +3,6 @@ to functionally matched L2/3/4 V1 neurons and inhibitory L2/3 V1 neurons.'''
 
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
-import matplotlib.pyplot as plt
 from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator, angle_indexer, layer_extractor
 from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status, load_table
 from standard_transform import minnie_transform_vx
