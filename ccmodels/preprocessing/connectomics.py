@@ -146,9 +146,9 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     Args:
     connectome: df, subset of the connectome of interest, 
     neuron_features: df, with the features of interest for the neurons in the connectome
-    pre_id: str, column name with the ids of the presynaptic neurons on which to match the features df on 
-    post_id: str,column name with the ids of the postsynaptic neurons on which to match the features df on  
-    neuron_id: str, column name in the features df identifying neuron on which to match on in the connectome
+    pre_id: str, column name in connectome df with the ids of the presynaptic neurons on which to match the features df on 
+    post_id: str,column name in connectome df with the ids of the postsynaptic neurons on which to match the features df on  
+    neuron_id: str, column name in the neurone_features df identifying neuron on which to match on in the connectome
     conn_str: str, column name containing connection strength in the connectome df
 
     Returns:
