@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator, angle_indexer, layer_extractor
-from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status
+from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status, load_table
 from standard_transform import minnie_transform_vx
 
 tform_vx = minnie_transform_vx()
@@ -77,8 +77,12 @@ inhib_clean = inhib_neur[['root_id','pref_ori', 'cell_type', 'tuning_type','osi'
 excit_clean = neur_seltype[['root_id','pref_ori','cell_type',  'tuning_type','osi', 'brain_area', 'cortex_layer', 'x_pos',
        'y_pos', 'z_pos']]
 
-#Concatenate the inhibitroy and excitatory neuron dataframes
-neur_all = pd.concat([excit_clean, inhib_clean], axis = 0)
+#Concatenate the inhibitory and excitatory neuron dataframes
+neurs_all = pd.concat([excit_clean, inhib_clean], axis = 0)
 
 #Add proofreading information
-neur_all['proofreading'] = neur_all.apply(identify_proofreading_status, axis=1)
+proofread = load_table(client, 'proofreading_status_public_release')
+neurs_all.apply(identify_proofreading_status, axis=1, args = (proofread,'root_id' ))
+
+#Save the dataframe
+neurs_all.to_csv('../../data/preprocessed/unit_table.csv', index = False)
