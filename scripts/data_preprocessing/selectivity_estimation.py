@@ -48,7 +48,7 @@ neur_seltype['pref_ori'] = neur_seltype['phi'].apply(angle_indexer)
 
 # Add inhibitory neurons and relevant column to identify them
 print('Adding information on inhibitory neurons')
-inhib_neurons = pd.read_pickle('../../data/in_processing/inhibitory_nurons_bal.pkl')
+inhib_neurons = pd.read_pickle('../../data/in_processing/inhibitory_neurons_bal.pkl')
 
 # Identify the ones in v1 L2/3
 inhv1l23 = inhib_neurons[(inhib_neurons['brain_area'] == 'V1') & (inhib_neurons['cortex_layer'] == 'L2/3')]
