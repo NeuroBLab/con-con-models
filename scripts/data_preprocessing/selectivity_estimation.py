@@ -18,7 +18,7 @@ neur_seltype = tuning_labler(l234_orifits)
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
 client = client_version(343) #select the CaveDatabase version you are interested in 
-func_neurons = subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/v1_n.csv')
+func_neurons = subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/area_membership.csv')
 #split column with position values in to three separate columns
 func_neurons[['x_pos', 'y_pos', 'z_pos']] = func_neurons['pial_distances'].apply(lambda x: pd.Series(x))
 
@@ -48,29 +48,22 @@ neur_seltype['pref_ori'] = neur_seltype['phi'].apply(angle_indexer)
 
 # Add inhibitory neurons and relevant column to identify them
 print('Adding information on inhibitory neurons')
-inhib_neurons = pd.read_pickle('/Users/jacopobiggiogera/Desktop/con-con-models/data/in_processing/inhibitory_nurons_ba.pkl')
-nuc = client.materialize.query_table('aibs_soma_nuc_metamodel_preds_v117')
-
-#Add layer information
-inhib_neurons_l = layer_extractor(inhib_neurons, tform_vx, column='pt_position')
+inhib_neurons = pd.read_pickle('../../data/in_processing/inhibitory_nurons_bal.pkl')
 
 # Identify the ones in v1 L2/3
-inhv1l23 = inhib_neurons_l[(inhib_neurons_l['brain_area'] == 'V1') & (inhib_neurons_l['cortex_layer'] == 'L2/3')]
+inhv1l23 = inhib_neurons[(inhib_neurons['brain_area'] == 'V1') & (inhib_neurons['cortex_layer'] == 'L2/3')]
 inhv1l23[['x_pos', 'y_pos', 'z_pos']] = inhv1l23['pial_distances'].apply(lambda x: pd.Series(x))
 
-neurs = nuc[nuc['classification_system']=='aibs_neuronal'][['id', 'classification_system']]
-inhib_neur = inhv1l23.merge(neurs, on='id', how='inner')
-
 #Add columns to match the excitatory neurons df
-inhib_neur['tuning_type'] = np.nan*len(inhib_neur)
-inhib_neur['osi'] = np.nan*len(inhib_neur)
-inhib_neur['pref_ori'] = np.nan*len(inhib_neur)
-inhib_neur['root_id'] = inhib_neur['pt_root_id']
+inhv1l23['tuning_type'] = np.nan*len(inhv1l23)
+inhv1l23['osi'] = np.nan*len(inhv1l23)
+inhv1l23['pref_ori'] = np.nan*len(inhv1l23)
+inhv1l23['root_id'] = inhv1l23['pt_root_id']
 
 neur_seltype['cell_type'] = 'excitatory'
 
 #Select only the relevant columns
-inhib_clean = inhib_neur[['root_id','pref_ori', 'cell_type', 'tuning_type','osi', 'brain_area', 'cortex_layer', 'x_pos',
+inhib_clean = inhv1l23[['root_id','pref_ori', 'cell_type', 'tuning_type','osi', 'brain_area', 'cortex_layer', 'x_pos',
        'y_pos', 'z_pos']]
 
 excit_clean = neur_seltype[['root_id','pref_ori','cell_type',  'tuning_type','osi', 'brain_area', 'cortex_layer', 'x_pos',
