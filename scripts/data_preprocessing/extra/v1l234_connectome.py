@@ -23,7 +23,7 @@ def main():
     client = client_version(661)
     
     ############################### Exctract connectome of functionally matched L2/3/4 V1 neurons ##################################
-    v1l234_neur = subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'con-con-models/data_full/v1_n.csv')
+    v1l234_neur = subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = '../../data/raw/area_membership.csv')
 
     #Extracting all the root id of the functionally matched cells
     nv1l234 = np.array(list(set(v1l234_neur[v1l234_neur['pt_root_id'] != 0]['pt_root_id'])))
