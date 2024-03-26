@@ -103,7 +103,7 @@ def func_pre_subsetter(client, to_keep, func_id):
     return sub
 
 
-def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'con-con-models/data_full/v1_n.csv'):
+def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'con-con-models/data/raw/area_membership.csv'):
     '''This function takes a table of functionally matched neurons from the MICrONs connectomics database
     and returns a subset only containing neurons belonging to L2/3/4 of V1
     
@@ -118,7 +118,7 @@ def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'co
     v1l234_neur: pd.DataFrame only containing neurons from L2/3/4 of V1
 
     '''
-    funct_match = client.materialize.query_table(table_name)
+    funct_match = load_table(client, table_name)
     funct_match_clean = funct_match[['pt_root_id', 'id', 'session', 'scan_idx', 'unit_id', 'pt_position']]
     
     if type(area_df) == str:
@@ -126,8 +126,8 @@ def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'co
     else:
         v1_area = area_df
 
-
-    v1_neurons = funct_match_clean.merge(v1_area, on = ['session', 'scan_idx', 'unit_id'], how = 'inner')
+    v1_area_subset = v1_area[v1_area['brain_area'] == 'V1']
+    v1_neurons = funct_match_clean.merge(v1_area_subset, on = ['session', 'scan_idx', 'unit_id'], how = 'inner')
 
     tform_vx = minnie_transform_vx()
 
