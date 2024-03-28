@@ -18,8 +18,8 @@ v1l234_neur = v1l234_neur[v1l234_neur['pt_root_id'] != 0]
 session_scan_pairs = [(8,7), (4, 7), (5, 3), (5, 6),(5, 7),(6, 2),(6, 4),(6, 6),(6, 7),(7, 3),(7, 4),(7, 5),(8, 5), (9, 3), (9, 4), (9, 6)]
 
 #Check if storage folders for temporary data exist, if not make them
-if os.path.isdir('../data/in_processing/orientation_fits') != True:
-    os.makedirs('../data/in_processing/orientation_fits')
+if os.path.isdir('../../data/in_processing/orientation_fits') != True:
+    os.makedirs('../../data/in_processing/orientation_fits')
 
 
 print('Starting Extraction...')
@@ -92,7 +92,7 @@ for pair in tqdm(session_scan_pairs, desc = 'Session and Scan Loop'):
             
     #Save the data
     data_df = pd.DataFrame(data, columns = columns)
-    data_df.to_pickle(f'../data/in_processing/orientation_fits/orientations_fits_{pair[0]}_{pair[1]}.pkl')
+    data_df.to_pickle(f'../../data/in_processing/orientation_fits/orientations_fits_{pair[0]}_{pair[1]}.pkl')
         
     #Clean RAM
     del sub, unit_key, df, gp, pars_s, pars_d, pcov_s, pcov_d, ate_d, ate_s, r2d, r2s, rdiff, vs, ps, vdb, pdb, max_rad
@@ -103,18 +103,18 @@ print('Extraction finished, saving data...')
 
 #Joining all of the DataFrames
 #Loading the first file in the directory
-ors_all = pd.read_pickle(f"../data/in_processing/orientation_fits/{os.listdir('../Data/orientation_fits')[0]}")
+ors_all = pd.read_pickle(f"../../data/in_processing/orientation_fits/{os.listdir('../../data/in_processing/orientation_fits')[0]}")
 
 #Loading the rest iteratively and concatenating
-for file in tqdm(os.listdir('../data/in_processing/orientation_fits/')[1:], desc='Aggregating session, scan files'):
+for file in tqdm(os.listdir('../../data/in_processing/orientation_fits/')[1:], desc='Aggregating session, scan files'):
     if file!='.DS_Store':
-        cont_df = pd.read_pickle(f'../data/in_processing/orientation_fits/{file}')
+        cont_df = pd.read_pickle(f'../../data/in_processing/orientation_fits/{file}')
         ors_all = pd.concat([ors_all, cont_df], axis = 0)
     else:
         continue
 
 #Saving the data
-ors_all.to_pickle('../data/in_processing/orientation_fits.pkl', index = False)
+ors_all.to_pickle('../../data/in_processing/orientation_fits.pkl')
 
 #Delete unnecessary data repeats
-shutil.rmtree('../data/in_processing/orientation_fits')
+shutil.rmtree('../../data/in_processing/orientation_fits')
