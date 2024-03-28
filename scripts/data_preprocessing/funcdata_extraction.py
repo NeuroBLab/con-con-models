@@ -1,8 +1,5 @@
-''''This script extracts the oreintation and direction tuning properties of neurons in Layer 2/3 and 4 or V1
-    NOTE: run this within the scripts folder'''
-
-import gc
 import os
+import gc
 import shutil
 import numpy as np
 import pandas as pd
@@ -18,11 +15,11 @@ client = client_version(661)
 area_v1_neurons = cell_area_identifiers('V1')
 v1l234_neur = subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = area_v1_neurons)
 v1l234_neur = v1l234_neur[v1l234_neur['pt_root_id'] != 0]
-session_scan_pairs = [(4, 7), (5, 3), (5, 6),(5, 7),(6, 2),(6, 4),(6, 6),(6, 7),(7, 3),(7, 4),(7, 5),(8, 5),(9, 3), (9, 4), (9, 6)]
+session_scan_pairs = [(8,7), (4, 7), (5, 3), (5, 6),(5, 7),(6, 2),(6, 4),(6, 6),(6, 7),(7, 3),(7, 4),(7, 5),(8, 5), (9, 3), (9, 4), (9, 6)]
 
 #Check if storage folders for temporary data exist, if not make them
 if os.path.isdir('../data/in_processing/orientation_fits') != True:
-    os.makedirs('data/in_processing/orientation_fits')
+    os.makedirs('../data/in_processing/orientation_fits')
 
 
 print('Starting Extraction...')
@@ -48,8 +45,7 @@ for pair in tqdm(session_scan_pairs, desc = 'Session and Scan Loop'):
         
     #loop through cells
     for i in tqdm(range(sub.shape[0]), desc = f'Extracting neurons of session: {pair[0]}, scan: {pair[1]}' ):
-        unit_key = {'session':sub.iloc[i, 1], 'scan_idx':sub.iloc[i, 2], 'unit_id':sub.iloc[i, 3]}
-
+        unit_key = {'session':sub.iloc[i, 2], 'scan_idx':sub.iloc[i, 3], 'unit_id':sub.iloc[i, 4]}
         df = orientation_extractor(unit_key, fpd)
 
 
@@ -107,18 +103,18 @@ print('Extraction finished, saving data...')
 
 #Joining all of the DataFrames
 #Loading the first file in the directory
-ors_all = pd.read_pickle(f"./data/in_processing/orientation_fits/{os.listdir('../Data/orientation_fits')[0]}")
+ors_all = pd.read_pickle(f"../data/in_processing/orientation_fits/{os.listdir('../Data/orientation_fits')[0]}")
 
 #Loading the rest iteratively and concatenating
-for file in tqdm(os.listdir('./data/in_processing/orientation_fits/')[1:], desc='Aggregating session, scan files'):
+for file in tqdm(os.listdir('../data/in_processing/orientation_fits/')[1:], desc='Aggregating session, scan files'):
     if file!='.DS_Store':
-        cont_df = pd.read_pickle(f'./data/in_processing/orientation_fits/{file}')
+        cont_df = pd.read_pickle(f'../data/in_processing/orientation_fits/{file}')
         ors_all = pd.concat([ors_all, cont_df], axis = 0)
     else:
         continue
 
 #Saving the data
-ors_all.to_pickle('./data/in_processing/orientation_fits.pkl', index = False)
+ors_all.to_pickle('../data/in_processing/orientation_fits.pkl', index = False)
 
 #Delete unnecessary data repeats
 shutil.rmtree('../data/in_processing/orientation_fits')
