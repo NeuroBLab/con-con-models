@@ -14,8 +14,8 @@ print('Assigning selectivity type to neurons')
 neur_seltype = tuning_labler(l234_orifits)
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
-client = client_version(343) #select the CaveDatabase version you are interested in 
-func_neurons = subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/area_membership.csv')
+client = client_version(661) #select the CaveDatabase version you are interested in 
+func_neurons = subset_v1l234(client,table_name='coregistration_manual_v3', area_df = '../../data/raw/area_membership.csv')
 #split column with position values in to three separate columns
 func_neurons[['x_pos', 'y_pos', 'z_pos']] = func_neurons['pial_distances'].apply(lambda x: pd.Series(x))
 
