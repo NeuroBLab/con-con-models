@@ -170,17 +170,17 @@ def tuning_labler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_co
     not_sel_grouped = not_sel.groupby(id_col).count().reset_index()
     not_sel_id = not_sel_grouped[not_sel_grouped[pval_col]>1][id_col]
 
-    #Sleect only those cells that are not significant to both orientation and direction
+    #Select only those cells that are not significant to both orientation and direction
     not_sel = not_sel[not_sel[id_col].isin(not_sel_id)]
 
     #Drop duplicates, so the fact that there are two entries for each cell
     not_sel = not_sel.drop_duplicates(subset=id_col)
     not_sel['tuning_type'] = not_sel[model_col].replace('single', 'not_selective')
-
+    not_sel['tuning_type'] = not_sel[model_col].replace('double', 'not_selective')
 
     ############# Select all cells that ARE selective ###############
     good = df[df[pval_col]<0.05]
-
+   
     #Select all cells that are significant according to both models
     grouped_res = good.groupby([id_col]).count().reset_index()
     double_sig = grouped_res[grouped_res[pval_col]>1][id_col].values
@@ -197,14 +197,11 @@ def tuning_labler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_co
     tot_good = pd.concat([double_fringe,single_good,remaining_good]) 
     tot_good['tuning_type'] = tot_good[model_col].replace('single', 'direction')
     tot_good['tuning_type'] = tot_good[model_col].replace('double', 'orientation')
-    
 
     #Concatenate selective and non selective cells
     neur_seltype = pd.concat([tot_good, not_sel])
     
     return neur_seltype
-
-
 
 
 def osi_calculator(least_pref_ori, pref_ori, responses, dirs):
