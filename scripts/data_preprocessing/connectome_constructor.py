@@ -43,6 +43,7 @@ def main():
     print('Saving connections table')
     connections_clean.to_csv('../../data/preprocessed/connections_table.csv', index = False)
     print('Data Saved')
+    
 if __name__ == '__main__':
     main()
 
