@@ -9,3 +9,4 @@ figure_scripts/output/
 
 #Virtual environment folders
 virtual/
+pyproject.toml
