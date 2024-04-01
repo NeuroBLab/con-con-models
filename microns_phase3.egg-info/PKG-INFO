@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: microns-phase3
+Version: 0.8.0
+Summary: Datajoint schemas and related methods for MICrONS phase3
+Author: Stelios Papadopoulos
+Author-email: spapadop@bcm.edu
+Requires-Python: >=3.8
+License-File: LICENSE
