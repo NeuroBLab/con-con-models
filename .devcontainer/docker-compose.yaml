@@ -5,5 +5,3 @@ services:
     mem_limit: 8g
     image: datajoint/microns_devcontainer:latest
     command: bash -c "while sleep 1000; do :; done"
-
-
