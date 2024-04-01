@@ -7,7 +7,7 @@ from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator,
 from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status, load_table
 
 #Read in data with selectivity infromation
-l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
+l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits_v343.pkl')
 
 print('Assigning selectivity type to neurons')
 # Identify the tuning types of neurons based on pvalue and r squared thresholds
@@ -15,7 +15,7 @@ neur_seltype = tuning_labler(l234_orifits)
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
 client = client_version(343) #select the CaveDatabase version you are interested in 
-func_neurons = subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/area_membership.csv')
+func_neurons = subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/area_membership_v343.csv')
 #split column with position values in to three separate columns
 func_neurons[['x_pos', 'y_pos', 'z_pos']] = func_neurons['pial_distances'].apply(lambda x: pd.Series(x))
 
@@ -45,7 +45,7 @@ neur_seltype['pref_ori'] = neur_seltype['phi'].apply(angle_indexer)
 
 # Add inhibitory neurons and relevant column to identify them
 print('Adding information on inhibitory neurons')
-inhib_neurons = pd.read_pickle('../../data/in_processing/inhibitory_neurons_bal.pkl')
+inhib_neurons = pd.read_pickle('../../data/in_processing/inhibitory_neurons_bal_v343.pkl')
 
 # Identify the ones in v1 L2/3
 inhv1l23 = inhib_neurons[(inhib_neurons['brain_area'] == 'V1') & (inhib_neurons['cortex_layer'] == 'L2/3')]
@@ -76,5 +76,5 @@ neurs_all['proofreading'] = neurs_all.apply(identify_proofreading_status, axis=1
 
 #Save the dataframe
 print('Saving the data')
-neurs_all.to_csv('../../data/preprocessed/unit_table.csv', index = False)
+neurs_all.to_csv('../../data/preprocessed/unit_table_v343.csv', index = False)
 print('Data saved') 
