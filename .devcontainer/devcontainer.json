@@ -7,7 +7,7 @@
 		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
 	},
 	"initializeCommand": "docker system prune --all --force",
-	"postStartCommand": "/bin/bash -c 'pip3 install scikit-learn && pip3 install standard-transform && pip install -e .'",
+	"postStartCommand": "pip install -e .'",
 	"hostRequirements": {
 		"cpus": 4,
 		"memory": "8gb"
