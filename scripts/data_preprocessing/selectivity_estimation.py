@@ -11,7 +11,7 @@ l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
 
 print('Assigning selectivity type to neurons')
 # Identify the tuning types of neurons based on pvalue and r squared thresholds
-neur_seltype = tuning_labler(l234_orifits)
+neur_seltype = tuning_labler(l234_orifits, model_col = 'tuning_type')
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
 client = client_version(661) #select the CaveDatabase version you are interested in 
