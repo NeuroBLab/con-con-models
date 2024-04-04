@@ -31,7 +31,7 @@ def main():
     
     #Add information on difference in preferred angle between pre and post synaptic neurons
     connections = connectome_feature_merger(connections, neurons[['root_id','pref_ori']], neuron_id='root_id')
-    connections['dtheta'] = connections['pre_pref_ori'] - connections['post_pref_ori']
+    connections['dtheta'] = connections['post_pref_ori']- connections['pre_pref_ori']
 
     #Clean up the dataframe by removing unnecessary columns and renaming the size column
     connections_clean = connections.copy()
