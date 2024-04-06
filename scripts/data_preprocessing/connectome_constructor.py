@@ -17,7 +17,7 @@ from ccmodels.preprocessing.connectomics import client_version, connectome_const
 
 def main():
     #define Caveclient and database version
-    client = client_version(343)
+    client = client_version(661)
     
     #Load unit table containing information on desired neurons
     neurons = pd.read_csv('../../data/preprocessed/unit_table.csv')
