@@ -388,15 +388,6 @@ def shuffle_neurons(ids, rates):
 
     return 
 
-def untune_rate_deprecated(untuned_ids, rates):
-    """
-    Returns a modified rate matrix where the rows corresponding to untuned neurons
-    are set to their average 
-    """
-    #Average over the axis of angles, and return the resulting matrix.
-    #The new axis allows it to be assigned doing rates[ids, :] = directly
-    return np.mean(rates[untuned_ids, :], axis=1)[:, np.newaxis]
-
 
 def get_untuned_rate(v1_neurons, rates):
     """
