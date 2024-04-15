@@ -4,7 +4,10 @@ from PIL import Image
 import argparse
 import sys
 sys.path.append(".")
-from ccmodels.plotting.utils import get_number_connections, get_propotion_connections 
+
+import ccmodels.dataanalysis.statistics_extraction as ste
+import ccmodels.dataanalysis.utils as utl
+
 import ccmodels.plotting.styles as sty 
 import ccmodels.plotting.color_reference as cr
 
@@ -28,7 +31,7 @@ def show_image(ax, path2im):
 
 def input_statistics(ax):
       #Get the data we want to plot
-      nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts = get_number_connections()
+      nonproof_inputs_counts, proof_inputs_counts, nonproof_outputs_counts, proof_outputs_counts = utl.get_number_connections()
 
       #Get the medians of the data
       proof_medians = [np.median(values) for values in [proof_inputs_counts, proof_outputs_counts]]
@@ -50,7 +53,7 @@ def input_statistics(ax):
 
 def fractional_statistics(ax):
       #Get the data we want to plot
-      boots_propl_proof, boots_propl_noproof = get_propotion_connections()
+      boots_propl_proof, boots_propl_noproof = utl.get_propotion_connections()
 
       #Get the medians of the data
       proof_means = [np.median(boots_propl_proof[layer]) for layer in ["L2/3", "L4"]]
