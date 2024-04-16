@@ -31,9 +31,26 @@ def get_angles(kind="normal", half=True, nangles=16):
     if kind=="normal":
         return np.linspace(0, maxangle, ndivisions) 
     elif kind=="centered":
-        return np.linspace(-maxangle/2, maxangle/2, ndivisions)
+        #return np.linspace(-maxangle/2, maxangle/2, ndivisions+1)[1:]
+        return np.linspace(-maxangle/2, maxangle/2, ndivisions+1)
     elif kind=="diff":
         return np.linspace(-maxangle, maxangle, ndivisions + 1)
+
+def add_symmetric_angle(array):
+    """
+    Function for plotting. Computations get results for, e.g., [-2, -1, 0, 1, 2, 3], so we want to have
+    also the [-3], which should be identical to 3. We add this missing value to the passed array.
+    """
+    return np.insert(array, [0], array[-1])
+
+
+def shift(observable):
+    """
+    This function changes an observable measured in [0, 2pi[ to be plotted in [-pi, pi] (including both extreme) 
+    for nice-looking plots.
+    """
+
+    return add_symmetric_angle(np.roll(observable, len(observable)//2-1))
 
 def get_xticks(ax, max=np.pi, half=True):
     """
@@ -57,10 +74,3 @@ def get_xticks(ax, max=np.pi, half=True):
         ax.set_xticks([-2*np.pi, 0, 2*np.pi], ["-2π", "0", "2π"])
 
     return None
-
-def add_symmetric_angle(array):
-    """
-    Function for plotting. Computations get results for, e.g., [-2, -1, 0, 1, 2, 3], so we want to have
-    also the [-3], which should be identical to 3. We add this missing value to the passed array.
-    """
-    return np.insert(array, [0], array[-1])
