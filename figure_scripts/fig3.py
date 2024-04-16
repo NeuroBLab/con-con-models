@@ -25,10 +25,10 @@ def plot_input_current(ax, angles, currents, half=True):
         av_cur = currents[layer]["av_curr"] / norm_c
         yerror = currents[layer]["std_curr"] / norm_c
 
-        ax.fill_between(angles, utl.shift_4_plot(av_cur - yerror), utl.shift_4_plot(av_cur + yerror), color=cr.lcolor[layer], alpha=0.2)
+        ax.fill_between(angles, plotutils.shift(av_cur - yerror), plotutils.shift(av_cur + yerror), color=cr.lcolor[layer], alpha=0.2)
 
-        ax.plot(angles, utl.shift_4_plot(av_cur), lw = 1, color = cr.lcolor[layer], zorder = 2, label = layer)
-        ax.scatter(angles, utl.shift_4_plot(av_cur), color = 'black', s = 5, zorder = 3)
+        ax.plot(angles, plotutils.shift(av_cur), lw = 1, color = cr.lcolor[layer], zorder = 2, label = layer)
+        ax.scatter(angles, plotutils.shift(av_cur), color = 'black', s = 5, zorder = 3)
 
     plotutils.get_xticks(ax, half=half)
 
@@ -38,7 +38,7 @@ def plot_input_current(ax, angles, currents, half=True):
 def plot_single_current(ax, angles, inputs, nangles=16, half=True):
 
     for r in inputs:
-        rangle = utl.shift_4_plot(r)
+        rangle = plotutils.shift(r)
         ax.plot(angles, rangle,  lw=1)
         ax.scatter(angles, rangle, color="black", s=5, zorder=3)
 
@@ -94,7 +94,7 @@ def plot_dist_bootstrap(ax, angles, prob_pref_ori, color=cr.lcolor["Total"], lab
     #angles = np.insert(angles, [0, angles.size], [left, right])
 
     #Plot
-    ax.plot(angles, utl.shift_4_plot(prob_pref_ori), color=color, label=label)
+    ax.plot(angles, plotutils.shift(prob_pref_ori), color=color, label=label)
     #ax.step(angles, prob_pref_ori, where="mid", color=color, label=label)
     plotutils.get_xticks(ax, max=np.pi, half=True)
 
@@ -162,10 +162,10 @@ tuned_outputs = utl.filter_connections(v1_neurons, v1_connections, tuned=True, w
 nexperiments = 1000
 
 prob_pref_ori = dcr.compute_inpt_bootstrap(v1_neurons, tuned_outputs, nexperiments, rates)
-plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, label="Sampled Current")
+plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, label="Only tuned")
 
-#prob_pref_ori = dcr.compute_inpt_bootstrap(v1_neurons, tuned_outputs, nexperiments, rates, shifted=True)
-#plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, color="red", label="Shuffled Current")
+prob_pref_ori = dcr.compute_inpt_bootstrap(v1_neurons, v1_connections, nexperiments, rates)
+plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, color="red", label="All neurons")
 
 #axes["D"].set_ylim(0, 0.08)
 axes["D"].legend(loc=(0.1, 0.9))

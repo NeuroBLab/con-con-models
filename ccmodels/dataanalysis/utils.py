@@ -326,13 +326,6 @@ def angle_dist(pre, post, nangles=16, half=True):
 
 
 
-def shift_4_plot(observable):
-    """
-    This function changes an observable measured in [0, 2pi] to [-pi, pi] for nice-looking plots, when half=False.
-    If half = True, then leaves the thing as it is (from 0 to pi)
-    """
-
-    return np.roll(observable, len(observable)//2-1)
 
 
 # ------------------------------------------------------------
