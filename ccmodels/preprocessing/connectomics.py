@@ -14,17 +14,185 @@ def client_version(version = 343):
     
     return client
 
-def load_table(client, name):
+def load_table(client, name, columns=[]):
     '''Function to load a table from the CAVEclient database
     
     Args:
-    client: CAVEclient needed to access MICrONS connectomics data
-    name: str, name of the table to load
+    client: CAVEclient 
+        Needed to access MICrONS connectomics data
+    name: str 
+        Name of the table to load
+    columns: list of str 
+        Name of the columns to include. If empty (default) all columns are returned
     
     Returns:
     df: pd.DataFrame with the table loaded from the database'''
-    
-    return client.materialize.query_table(name)
+
+    if len(columns)>0: 
+        return client.materialize.query_table(name, select_columns=columns, split_positions=True)
+    else:
+        return client.materialize.query_table(name, split_positions=True)
+
+
+def read_table(name, prepath="data/", splitpos=False):
+    """
+    Read an already stored raw/in-processing data table. 
+    For loading the preprocessed data, please refer to the datanalysis module.
+    """
+
+    #Get the path to the table and read it
+    path = prepath + _get_table_path(name)
+
+    if "csv" in path:
+        table = pd.read_csv(path)
+    elif "pkl" in path:
+        table = pd.read_pickle(path) 
+
+    #Merge together the positions, so the column contains a list with 3 values
+    if "pt_position_x" in table.columns and not splitpos:
+        splitpos = ["pt_position_x", "pt_position_y", "pt_position_z"]
+        table["pt_position"] = list(table[splitpos].values)  
+        table.drop(columns=splitpos, inplace=True)
+
+    #Return the thing
+    return table
+
+def _get_table_path(name):
+    """
+    Not intended for use outside of the module. 
+    Auxiliary function that indexes in which folder each file is, and return its path. 
+    """
+    folder_content = {"in_processing" : ["ei_table.csv", "orientation_fits.pkl"], 
+                      "raw" : ["aibsct.csv", "area_membership.csv", "coarsect.csv", "finect.csv", 
+                               "functionally_matched.csv", "neuronref.csv", "proofreading.csv"]}
+
+    #Check if the name is in one of the filenames...
+    for key in folder_content:
+        files_in_folder = folder_content[key]
+        for filename in files_in_folder:
+            #If it is, just return the path
+            if name in filename: 
+                return f"{key}/{filename}"
+
+
+
+
+def download_tables(client):
+
+    #--- Functional matched neurons
+    print("Download functionally matched neurons...")
+    columns_2_download = ['id','pt_root_id', 'session','scan_idx','unit_id', 'pt_position']
+    table = load_table(client, 'coregistration_manual_v3', columns=columns_2_download)
+    #Drop unlabelled neurons
+    table = table[table['pt_root_id']!=0]
+    #Drop neurons recorded in more than one scan
+    table = table.drop_duplicates(subset='pt_root_id', keep = 'first')
+    #Save the table
+    table.to_csv("data/raw/functionally_matched.csv", index=False)
+
+    #--- Are observed nuclei a neuron? 
+    print("Download nucleus classification reference...")
+    columns_2_download = ['id', 'target_id', 'pt_root_id','cell_type','pt_position']
+    table = load_table(client, 'nucleus_ref_neuron_svm', columns=columns_2_download)
+    table = table[table['pt_root_id'] !=0]
+    #table = table.drop_duplicates(subset='pt_root_id', keep = 'first')
+    table.to_csv("data/raw/neuronref.csv", index=False)
+
+    # --- Excitatory or inhibitory?
+    print("Download Baylor et al coarse cell classification...")
+    table = load_table(client, 'baylor_log_reg_cell_type_coarse_v1', columns=columns_2_download)
+    table = table[table['pt_root_id'] != 0]
+    #Some tables have some duplicates. I manually checked that all are the same objects,
+    #by checking they have the same positions. I do not want those duplicates 
+    table.drop_duplicates(subset = "target_id", inplace=True)
+    table.to_csv("data/raw/coarsect.csv", index=False)
+
+    # --- Fine-type classification
+    print("Download Baylor et all fine cell classification...")
+    table = load_table(client, 'baylor_gnn_cell_type_fine_model_v2', columns=columns_2_download)
+    table = table[table['pt_root_id'] !=0]
+    table.drop_duplicates(subset = "target_id", inplace=True)
+    table.to_csv("data/raw/finect.csv", index=False)
+
+    # --- AIBS classification  
+    print("Download AIBS classification...")
+    columns_2_download = ['id', 'target_id', 'pt_root_id', 'classification_system', 'cell_type', 'pt_position']
+    table = load_table(client, 'aibs_soma_nuc_metamodel_preds_v117', columns=columns_2_download)
+    table = table[table['pt_root_id'] !=0]
+    table.drop_duplicates(subset = "target_id", inplace=True)
+    table.to_csv("data/raw/aibsct.csv", index=False)
+
+    # --- Proofreading status 
+    print("Download proofreading status...")
+    columns_2_download = ['pt_root_id', 'valid_id', 'status_dendrite', 'status_axon', 'pt_position']
+    table = load_table(client, 'proofreading_status_public_release', columns=columns_2_download)
+    table = table[table['pt_root_id'] !=0]
+    #For this table in particular we have that these are the only valid ids. After that, we do not need that column
+    table = table[table['pt_root_id'] == table['valid_id']]
+    table = table[['pt_root_id', 'status_dendrite', 'status_axon', 'pt_position_x', 'pt_position_y', 'pt_position_z']] 
+    table.to_csv("data/raw/proofreading.csv", index=False)
+
+    print("Download completed succesfully.")
+
+
+
+def obtain_ei_table(prepath="data/"):
+    """
+    This function combines all the information avaiable from three tables in the Microns project to get a slightly 
+    better estimation of an object being a neuron and whether if it's excitatory or inhibitory.
+
+    It prodcues a new table with the classified IDs in the 'in_processing' folder.
+    """
+
+    #Load all the tables
+    neuronref   = read_table("neuronref", prepath=prepath)
+    coarsedata  = read_table("coarsect", prepath=prepath)
+    finedata    = read_table("finect", prepath=prepath)
+    aibs        = read_table("aibsct", prepath=prepath)
+
+    #From aibs/neuronref, select only the ones that are neurons
+    aibs_neurons = aibs[aibs["classification_system"] == "aibs_neuronal"]
+    isneuron = neuronref[neuronref["cell_type"] == "neuron"]
+
+    #Which neuron types are excitatory or inhibitory
+    types_E = ["23P", "4P", "6P-IT", "6P-CT", "5P-IT", "5P-ET", "5P-PT", "5P-NP"]  
+    #types_I = ["MC", "BPC", "NGC", "BC"]
+
+    #Merge all tables with cell type info together, taking only common target_id among them
+    checkneuro = coarsedata.merge(finedata,     on=["target_id"], how="inner")
+    checkneuro = checkneuro.merge(aibs_neurons, on=["target_id"], how="inner")
+
+    #Find the type of each cell in the merged table
+    #cell_type_x is the type in coarse (either exc or inh)
+    #cell_type_y and cell_type are the types in finedata and aibs, respectively, and its a string representing a neuron type
+    ct = []
+    for ct1, ct2, ct3 in checkneuro[["cell_type_x", "cell_type_y", "cell_type"]].values:
+        #Number of tables agreeing on the neuron being Exc
+        ntype = (ct1 == "excitatory") + (ct2 in types_E) + (ct3 in types_E) 
+
+        #If 2 or more tables agree it's exc 
+        if ntype >= 2:
+            ct += ["exc"]
+        else:
+            ct += ["inh"]
+
+
+    #Copy the indices and create a new column with the inferred cell type
+    result = checkneuro[["target_id", "pt_root_id"]].copy()
+    result["cell_type"] = ct
+
+    #Merge them with neuronref, to make 100% everything we pick is a neuron 
+    #(So we force aibs and neuronref to agree)
+    result = result.merge(isneuron, on=["target_id"], how="inner")
+    result = result[["target_id", "pt_root_id_x", "cell_type_x", "pt_position"]]
+    result = result.rename(columns={"pt_root_id_x":"pt_root_id", "cell_type_x":"cell_type"})
+
+    tform_vx = minnie_transform_vx()
+    result = layer_extractor(result, tform_vx, column = 'pt_position')
+
+    return result
+
+
 
 def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500):
     '''
@@ -103,39 +271,34 @@ def func_pre_subsetter(client, to_keep, func_id):
     return sub
 
 
-def subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = 'con-con-models/data/raw/area_membership.csv'):
+def subset_v1l234(path="data/"):
     '''This function takes a table of functionally matched neurons from the MICrONs connectomics database
     and returns a subset only containing neurons belonging to L2/3/4 of V1
     
-
-    Args:
-    client: CAVEclient needed to access MICrONS connectomics data
-    table_name: name of table in CAVEClient database with functionally matched neurons
-    area_df: DataFrame containing brain area of all neurons in functional database, uniquely identifiable
-    by their (session, scan_idx, unit_id) tuples, or str with the path to the csv file containing the area_df
-
     Returns:
     v1l234_neur: pd.DataFrame only containing neurons from L2/3/4 of V1
-
     '''
-    funct_match = load_table(client, table_name)
+
+    #Get the functionally matched neurons
+    #funct_match = pd.read_csv(f"{path}/functionally_matched.csv")
+    funct_match = read_table("functionally_matched", prepath=path)
     funct_match_clean = funct_match[['pt_root_id', 'id', 'session', 'scan_idx', 'unit_id', 'pt_position']]
     
-    if type(area_df) == str:
-        v1_area = pd.read_csv(area_df)
-    else:
-        v1_area = area_df
-
+    #Get the neurons that live in V1
+    #v1_area = pd.read_csv(f"{path}/area_membership.csv")
+    v1_area = read_table("area_membership", prepath=path)
     v1_area_subset = v1_area[v1_area['brain_area'] == 'V1']
+
+    #Merge tables to get only functionally matched neurons in V1
     v1_neurons = funct_match_clean.merge(v1_area_subset, on = ['session', 'scan_idx', 'unit_id'], how = 'inner')
 
+    #Get the layer of such neurons
     tform_vx = minnie_transform_vx()
-
     v1_neurons_layers = layer_extractor(v1_neurons, tform_vx, column = 'pt_position')
 
-    v1l234_neur = v1_neurons_layers[v1_neurons_layers['cortex_layer'].isin(['L2/3', 'L4'])]
+    #Finally return the ones in L2/3 or L4 
+    return v1_neurons_layers[v1_neurons_layers['layer'].isin(['L2/3', 'L4'])]
 
-    return v1l234_neur
     
 
 def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root_id', 
@@ -154,7 +317,6 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     Returns:
     connectome_full: df, with the connectome subset and features for the pre and post neurons
     '''
-
     connectome = connectome.copy()
     neuron_features = neuron_features.copy()
 
@@ -185,59 +347,28 @@ def connectome_feature_merger(connectome, neuron_features, pre_id = 'pre_pt_root
     return connectome_full
 
 
-def proofread_neurons(proofread_neur, dendrites = False, axons = False):
-    '''
-    Identify and extract  proofread neurons
-    Args:
-    proofread_neur: df, cave table with proofreading information
-    dendrites: bool, whether to extract neurons with fully proofread dendrites
-    axons: bool, whether to extract neurons with fully proofread axons
-    
-    Returns:
-    proofread_neur: DF with information on proofread neurons
-    '''
-
-    if dendrites:
-        proofread_neur = proofread_neur[(proofread_neur['status_dendrite'] == 'extended') & 
-                                (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])]
-    
-    elif axons:
-        proofread_neur = proofread_neur[(proofread_neur['status_axon'] == 'extended') & 
-                                (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])]
-
-    else:
-        proofread_neur = proofread_neur[(proofread_neur['status_dendrite'] == 'extended') & 
-                                (proofread_neur['pt_root_id'] == proofread_neur['valid_id'])&
-                                (proofread_neur['status_axon'] ==  'extended')]
-    return proofread_neur
-
-# Define the function to determine the new column values
-def identify_proofreading_status(df, proofreading_df, id_col = 'pt_root_id'):
+def identify_proofreading_status(df, proofreading_df):
     ''' Function to identify the proofreading status of a neuron based on the proofreading table
     Args:
     df: pd.DataFrame, dataframe containing the neurons for which to identify the proofreading status
     proofreading_df: pd.DataFrame, dataframe containing the proofreading information
-    id_col: str, name of the column containing the ids of the neurons in the df
     
     Returns:
     str, with the proofreading status of the neuron in the df'''
 
-    #Identify ids of neurons with differing proofreading statuses
-    full = set(proofread_neurons(proofreading_df)['pt_root_id'].values)
-    dendrites = set(proofread_neurons(proofreading_df, dendrites = True)['pt_root_id'].values)
-    axons = set(proofread_neurons(proofreading_df, axons = True)['pt_root_id'].values)
-    dendrites_only = dendrites.difference(full)
-    axons_only = axons.difference(full)
+    #Select only the columns we are going to work with to avoid problems
+    proofreading_df = proofreading_df[["pt_root_id", "status_axon", "status_dendrite"]]
 
-    
-    if df[id_col] in full:
-        return 'full'
-    elif df[id_col] in full in dendrites_only:
-        return 'dendrite'
-    elif df[id_col] in full in axons_only:
-        return 'axon'
-    else:
-        return 'not_proofread'
+    #Merge, leaving all the coinciding indices as NaN
+    info = df.merge(proofreading_df, on=["pt_root_id"], how="left")
+
+    #Fill the NaN with the default "no proofread" value
+    nan_places = info["status_axon"].isna()
+    info.loc[nan_places, ["status_axon", "status_dendrite"]] = ["non", "non"]  
+
+    return info 
+
+
     
 if __name__ == '__main__':
     import os

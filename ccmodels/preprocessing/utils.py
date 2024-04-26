@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 
-def min_act(max_rad, model_type, dirs):
+def min_act(max_rad, model_type):
     '''This function returns the oreintation for where the minimum of the selective activity should be
     
     Parameters:
@@ -15,26 +15,17 @@ def min_act(max_rad, model_type, dirs):
     '''
     #If there is a single peak, frequency of 2pi -> neuron is direction selective
     if model_type == 'direction':
-        if max_rad>np.pi:
-            min_rad = max_rad-np.pi
-        else:
-            min_rad = max_rad+np.pi
-    
+        min_rad = max_rad-8 if max_rad >= 8 else max_rad +8
     #If there are two peak, frequency of pi -> neuron is orientation selective
     # NOTE: here we treat those neurons that are not selective as orientation selective 
     # for the purpose of calculating an osi value also for them
-
     else:
-        if max_rad>(np.pi*1.5):
-            min_rad = max_rad-(np.pi/2)
-        else:
-            min_rad = max_rad+(np.pi/2)
-
+        #TODO is this constraining necessary??
+        #max_rad = max_rad - 8 if max_rad >= 8 else max_rad
+        min_rad = max_rad-4 if max_rad >=12 else max_rad +4
     
-    ind_min = np.argmin(np.abs(dirs- min_rad))
+    return min_rad 
 
-    closemin = dirs[ind_min]
-    return closemin
 
 def constrainer(dirs, reversed = False):
     '''Function that constrains given matrix of directions between [-2pi, 2pi] in to (-pi, pi]
@@ -136,7 +127,7 @@ def layer_extractor(input_df, transform, column = 'pre_pt_position'):
         if 0<i[1]<=98:
             layers.append('L1')
         elif 98<i[1]<=283:
-            layers.append('L2/3')
+            layers.append('L23')
         elif 283<i[1]<=371:
             layers.append('L4')
         elif 371<i[1]<=574:
@@ -146,11 +137,11 @@ def layer_extractor(input_df, transform, column = 'pre_pt_position'):
         else:
             layers.append('unidentified')
 
-    input_df['cortex_layer'] = layers   
+    input_df['layer'] = layers   
     return input_df
 
 
-def tuning_labler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_col = 'pvalue', model_col = 'model_type'):
+def tuning_labeler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_col = 'pvalue', model_col = 'model_type', p_sign = 0.05):
     '''This function labels the neurons according to their tuning type. It labels neurons as 'not_selective' if they are not.
     Args:
     df: pandas dataframe containing the results of the tuning curve fitting
@@ -158,6 +149,7 @@ def tuning_labler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_co
     delt_r_col: string, column name containing the difference in r squared between the two models used during fitting process
     pval_col: string, column name containing the p value of the wilcoxon test
     model_col: string, column name containing the type of model used for fitting the tuning curve
+    p_sign : float, value at which we consder the statistcs to be significant (default 0.05)
     
     Returns:
     neur_seltype: pandas dataframe containing the unique id of each neuron, and the type of tuning it displays
@@ -165,7 +157,9 @@ def tuning_labler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_co
     
     ############# Select all cells that are NOT selective ###############
     #select all those with p value larger than 0.05
-    not_sel = df[df[pval_col]>0.05]
+    significant = df[pval_col] <= p_sign
+    not_sel = df[~significant]
+
     #group by root id and select ids of only those cells that are not significant for both orientation and direction
     not_sel_grouped = not_sel.groupby(id_col).count().reset_index()
     not_sel_id = not_sel_grouped[not_sel_grouped[pval_col]>1][id_col]
@@ -179,7 +173,7 @@ def tuning_labler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_co
     not_sel['tuning_type'] = not_sel[model_col].replace('double', 'not_selective')
 
     ############# Select all cells that ARE selective ###############
-    good = df[df[pval_col]<0.05]
+    good = df[significant]
    
     #Select all cells that are significant according to both models
     grouped_res = good.groupby([id_col]).count().reset_index()
@@ -217,13 +211,10 @@ def osi_calculator(least_pref_ori, pref_ori, responses, dirs):
     '''
 
     # Extract the activity at the preferred orientation and at the least preferred one
-    ind_max = np.where(dirs==pref_ori)[0]
-    ind_min = np.where(dirs==least_pref_ori)[0]
-    maxact = responses[ind_max[0]]
-    minact = responses[ind_min[0]]
+    maxact = responses[pref_ori]
+    minact = responses[least_pref_ori]
 
-    osi = (maxact-minact)/(maxact+minact)
-    return osi
+    return (maxact-minact)/(maxact+minact)
 
 def angle_indexer(pref_orientation):
     '''This function returns the index of the preferred orientation in a 16 bin discretization of the orientation space
@@ -233,9 +224,8 @@ def angle_indexer(pref_orientation):
     Returns:
     indexed_angle: int, index of the preferred orientation in the 16 bin discretization of the orientation space
     '''
-    indexed_angle = int(round(pref_orientation/round(((2*np.pi)/16),8), 0))
-
-    return indexed_angle
+    #indexed_angle = int(round(pref_orientation/round(((2*np.pi)/16),8), 0))
+    return (pref_orientation * 8 / np.pi).astype(int) 
    
 if __name__ == '__main__':
     import os
