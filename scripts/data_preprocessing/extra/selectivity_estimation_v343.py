@@ -3,7 +3,7 @@ to functionally matched L2/3/4 V1 neurons and inhibitory L2/3 V1 neurons.'''
 
 import numpy as np
 import pandas as pd
-from ccmodels.preprocessing.utils import tuning_labler, min_act, osi_calculator, angle_indexer
+from ccmodels.preprocessing.utils import tuning_labeler, min_act, osi_calculator, angle_indexer
 from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status, load_table
 
 #Read in data with selectivity infromation
@@ -11,7 +11,7 @@ l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits_v343.pk
 
 print('Assigning selectivity type to neurons')
 # Identify the tuning types of neurons based on pvalue and r squared thresholds
-neur_seltype = tuning_labler(l234_orifits)
+neur_seltype = tuning_labeler(l234_orifits)
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
 client = client_version(343) #select the CaveDatabase version you are interested in 

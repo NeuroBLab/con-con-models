@@ -12,12 +12,13 @@ Estimated runtime: 5 minutes
 
 import numpy as np
 import pandas as pd 
-from ccmodels.preprocessing.connectomics import client_version, connectome_constructor, connectome_feature_merger
+#from ccmodels.preprocessing.connectomics import client_version, connectome_constructor, connectome_feature_merger
+import ccmodels.preprocessing.connectomics as conn
 
 
 def main():
     #define Caveclient and database version
-    client = client_version(661)
+    client = conn.client_version(661)
     
     #Load unit table containing information on desired neurons
     neurons = pd.read_csv('../../data/preprocessed/unit_table.csv')
@@ -26,11 +27,11 @@ def main():
     neuron_ids = np.array(list(set(neurons[neurons['root_id'] != 0]['root_id'])))
 
     #Extract connectome
-    connections = connectome_constructor(client, neuron_ids, neuron_ids, 500)
+    connections = conn.connectome_constructor(client, neuron_ids, neuron_ids, 500)
 
     
     #Add information on difference in preferred angle between pre and post synaptic neurons
-    connections = connectome_feature_merger(connections, neurons[['root_id','pref_ori']], neuron_id='root_id')
+    connections = conn.connectome_feature_merger(connections, neurons[['root_id','pref_ori']], neuron_id='root_id')
     connections['dtheta'] = connections['post_pref_ori']-connections['pre_pref_ori']
 
     #Clean up the dataframe by removing unnecessary columns and renaming the size column
