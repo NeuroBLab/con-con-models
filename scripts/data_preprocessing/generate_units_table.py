@@ -99,8 +99,8 @@ mask_layer = (ei_info["layer"] == "L23") | (ei_info["layer"] == "L4")
 v1l234_neurons = ei_info[mask_region & mask_layer]
 
 #Drop any neurons that are inhibitory and in L4
-inh_in_L4 = (v1l234_neurons["layer"]=="L4") & (v1l234_neurons["cell_type"] == "inh")
-v1l234_neurons = v1l234_neurons[~inh_in_L4]
+#inh_in_L4 = (v1l234_neurons["layer"]=="L4") & (v1l234_neurons["cell_type"] == "inh")
+#v1l234_neurons = v1l234_neurons[~inh_in_L4]
 
 #Outer mode: if a neuron is on v1 and not in orifits, just fill the orifits with nans
 #In contrary case, fill v1 columns with nans, except for cell_type and layer (which will coincide)

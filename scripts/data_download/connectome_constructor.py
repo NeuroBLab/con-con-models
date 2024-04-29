@@ -14,10 +14,7 @@ import sys
 sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
 import numpy as np
 import pandas as pd 
-#from ccmodels.preprocessing.connectomics import client_version, connectome_constructor, connectome_feature_merger
 import ccmodels.preprocessing.connectomics as conn
-
-
 
 #define Caveclient and database version
 client = conn.client_version(661)
@@ -26,22 +23,11 @@ client = conn.client_version(661)
 neurons = pd.read_csv('data/preprocessed/unit_table.csv')
 
 #Extracting all the root id of the desired neurons
-#neuron_ids = np.array(list(set(neurons[neurons['root_id'] != 0]['root_id'])))
 neuron_ids = neurons["pt_root_id"].unique()
 
 #Extract connectome
-#TODO vamos a generar la lista de sinapsis. Me falta cambiar el connectome constructr para que no se detenga
 print("Querying API for connections. Might take a while...")
 connections = conn.connectome_constructor(client, neuron_ids, neuron_ids)
-
-#Add information on difference in preferred angle between pre and post synaptic neurons
-#connections = conn.connectome_feature_merger(connections, neurons[['root_id','pref_ori']], neuron_id='root_id')
-#connections['dtheta'] = connections['post_pref_ori']-connections['pre_pref_ori']
-
-#Clean up the dataframe by removing unnecessary columns and renaming the size column
-#connections_clean = connections.copy()
-#connections_clean = connections_clean.drop(columns = ['pre_pref_ori', 'post_pref_ori'])
-#connections_clean = connections_clean.rename(columns={'size':'synapse_size'})
 
 #Save it
 connections.to_csv('data/preprocessed/connections_table.csv', index = False)
