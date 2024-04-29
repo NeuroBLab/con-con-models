@@ -2,9 +2,11 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 from ccmodels.preprocessing.utils import angle_indexer
+import ccmodels.preprocessing.connectomics as conn
 
 #Read in data with selectivity infromation
-l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
+#l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
+l234_orifits = conn.read_table("orientation_fits") 
 
 l234_clean = l234_orifits[['root_id', 'activity', 'orientations' ]].drop_duplicates('root_id')
 

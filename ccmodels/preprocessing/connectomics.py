@@ -3,7 +3,8 @@ import pandas as pd
 from tqdm import tqdm
 from caveclient import CAVEclient
 from standard_transform import minnie_transform_vx
-from .utils import layer_extractor
+from .utils import layer_extractor, time_format
+import time
 
 
 def client_version(version = 343):
@@ -193,8 +194,7 @@ def obtain_ei_table(prepath="data/"):
     return result
 
 
-
-def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500):
+def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500, max_retries=10, delay=5):
     '''
     Function to construct the connectome subset for the neurons specified in the presynaptic_set and postsynaptic_set.
 
@@ -209,24 +209,62 @@ def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_
         you can reliably extract the connectivity for around 500 postsynaptic neurons at a time.
     '''
     
-    if_thresh = (postsynaptic_set.shape[0]//neurs_per_steps)*neurs_per_steps
+    #We are doing the neurons in packages of neurs_per_steps. If neurs_per_steps is not
+    #a divisor of the postsynaptic_set the last iteration has less neurons 
+    n_before_last = (postsynaptic_set.size//neurs_per_steps)*neurs_per_steps
     
+    #Time before starting the party
+    time_0 = time.time() 
+
     syndfs = []
-    for i in tqdm(range(0, postsynaptic_set.shape[0], neurs_per_steps), desc = 'Extracting connectome subset'):
-        
-        if i <if_thresh:
-            post_ids = postsynaptic_set[i:i+neurs_per_steps]
+    for i in range(0, postsynaptic_set.size, neurs_per_steps):
+        #Inform about our progress
+        print(f"Postsynaptic neurons queried so far: {i}...")
 
-        else:
-            post_ids = postsynaptic_set[i:]
+        #Try to query the API several times
+        for retry in range(max_retries):
+            try:
+                #Get the postids that we will be grabbing in this query. We will get neurs_per_step of them
+                post_ids = postsynaptic_set[i:i+neurs_per_steps] if i < n_before_last else postsynaptic_set[i:]
 
-        sub_syn_df = client.materialize.query_table('synapses_pni_2',
-                                            filter_in_dict={'pre_pt_root_id': presynaptic_set,
-                                                            'post_pt_root_id':post_ids})
-            
-        syndfs.append(np.array(sub_syn_df[['pre_pt_root_id', 'post_pt_root_id', 'size']]))
+                #Query the table 
+                sub_syn_df = client.materialize.query_table('synapses_pni_2',
+                                                    filter_in_dict={'pre_pt_root_id': presynaptic_set,
+                                                                    'post_pt_root_id':post_ids})
+                
+
+
+                #Sum all repeated synapses. The last reset_index is because groupby would otherwise create a 
+                #multiindex dataframe and we want to have pre_root and post_root as columns
+                sub_syn_df = sub_syn_df[["pre_pt_root_id", "post_pt_root_id", "size"]]
+                sub_syn_df = sub_syn_df.groupby(["pre_pt_root_id", "post_pt_root_id"]).sum().reset_index()
+
+                #Add the result to the table
+                syndfs.append(np.array(sub_syn_df[['pre_pt_root_id', 'post_pt_root_id', 'size']]))
+
+                #Measure how much time in total our program did run
+                elapsed_time = time.time() - time_0
+
+                #Use it to give the user an estimation of the end time.
+                neurons_done = i+neurs_per_steps
+                time_per_neuron = elapsed_time / neurons_done  
+                neurons_2_do = postsynaptic_set.size - neurons_done
+                remaining_time = time_format(neurons_2_do * time_per_neuron) 
+                print(f"Estimated remaining time: {remaining_time}")
+
+                break
+            except Exception as excep:
+                print(type(excep))
+                print(excep)
+                print(f"API error. Retry in {delay} seconds...")
+                time.sleep(delay)
+                continue
+
+        #If the above loop did not succeed for any reason, then just abort.
+        if retry >= max_retries:
+            raise TimeoutError("Exceeded the max_tries when trying to get synaptic connectivity")
     
-    syn_df = pd.DataFrame({'pre_pt_root_id':np.vstack(syndfs)[:, 0], 'post_pt_root_id': np.vstack(syndfs)[:, 1], 'size': np.vstack(syndfs)[:, 2]})
+    syn_df = pd.DataFrame({'pre_id':np.vstack(syndfs)[:, 0], 'post_id': np.vstack(syndfs)[:, 1], 'syn_volume': np.vstack(syndfs)[:, 2]})
     return syn_df
 
 

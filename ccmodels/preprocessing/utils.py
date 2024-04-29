@@ -226,6 +226,22 @@ def angle_indexer(pref_orientation):
     '''
     #indexed_angle = int(round(pref_orientation/round(((2*np.pi)/16),8), 0))
     return (pref_orientation * 8 / np.pi).astype(int) 
+
+def time_format(seconds):
+    if seconds > 3600*24: 
+        days = int(seconds//(24*3600))
+        hours = int((seconds - days*24*3600)//3600)
+        return f"{days} days, {hours}h"
+    elif seconds > 3600: 
+        hours = int(seconds//3600)
+        minutes = int((seconds - hours*3600) // 60)
+        return f"{hours}h, {minutes}min"
+    elif seconds > 60:
+        minutes = int(seconds//60)
+        rem_sec = int((seconds - 60*minutes))
+        return f"{minutes}min {rem_sec}s"
+    else:
+        return f"{seconds:.0f}s"
    
 if __name__ == '__main__':
     import os
