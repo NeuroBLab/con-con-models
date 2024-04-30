@@ -126,8 +126,8 @@ full_table = conn.identify_proofreading_status(full_table, proofread)
 print("Final touches and write to disk.")
 
 #Select some columns and rename the not-so-clear ones, coming from merges and so on
-full_table = full_table[["pt_root_id", "cell_type", "tuning_type", "layer", "pt_position_x", "status_axon", "status_dendrite", "pref_ori", "osi"]]
-full_table = full_table.rename(columns={"pt_rood_id":"root_id", "pt_position_x":"position_original",
+full_table = full_table[["pt_root_id", "cell_type", "tuning_type", "layer", "pial_distances_x", "status_axon", "status_dendrite", "pref_ori", "osi"]]
+full_table = full_table.rename(columns={"pt_rood_id":"root_id", "pial_distances_x":"pial_distances",
                                         "status_axon":"axon_proof", "status_dendrite":"dendr_proof"})
 
 #Sort so the functionally matched appear first
