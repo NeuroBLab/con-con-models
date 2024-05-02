@@ -9,18 +9,15 @@ from sklearn.metrics import classification_report
 import sys
 
 sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
-#from ccmodels.preprocessing.utils import layer_extractor
 import ccmodels.preprocessing.utils as utl
-#from ccmodels.preprocessing.connectomics import load_table, client_version
 import ccmodels.preprocessing.connectomics as conn
+import ccmodels.preprocessing.rawloader as loader
 from standard_transform import minnie_transform_vx
 
 def train_classifier(do_test=True, prepath="data/"):
-    #Get the transform
-    tform_vx = minnie_transform_vx()
 
     #Load the table of functionally matched neurons
-    funcmatched = conn.read_table("functionally_matched", prepath=prepath) 
+    funcmatched = loader.read_table("functionally_matched", prepath=prepath) 
 
     #Drop unlabelled neurons
     funcmatched = funcmatched[funcmatched['pt_root_id']!=0]
@@ -32,7 +29,7 @@ def train_classifier(do_test=True, prepath="data/"):
 
 
     #Get the neurons for which we now the area
-    brainarea = conn.read_table("area_membership", prepath=prepath)
+    brainarea = loader.read_table("area_membership", prepath=prepath)
     funcm_ba = brainarea.merge(funcm, on = ['session','scan_idx','unit_id'], how = 'inner')
 
     #Classes that we have to classify
@@ -42,24 +39,27 @@ def train_classifier(do_test=True, prepath="data/"):
     encoder = LabelEncoder()
     encoder.fit(target_classes)
 
+    #Get the transform
+    tform_vx = minnie_transform_vx()
+    #Convert to list and then to array allow to unfold pt_position as a Nx3 numpy array, as we need
+    transformed = tform_vx.apply(np.array(list(funcm_ba["pt_position"])))
+
     #Define features and outputs
-    #Pass to list and then to array allow to unfold pt_position as a Nx3 numpy array, as we need
-    x = np.array(list(funcm_ba["pt_position"]))
+    x = list(transformed)
     y = encoder.transform(funcm_ba['brain_area'])
 
+    forest = RandomForestClassifier(random_state=263472846)
 
     #Potentially do a test with train-test split to convince ourselves this is actually working
     if do_test:
         #Split in train and test, and produce a fit
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.20, random_state=42)
-        forest = RandomForestClassifier()
         forest.fit(x_train, y_train)
 
         forestpreds = forest.predict(x_test)
         print(classification_report(y_test, forestpreds, target_names=encoder.classes_))
 
     #Ise the full dataset for training to get better results in the real life
-    forest = RandomForestClassifier()
     forest.fit(x, y)
 
     return forest, encoder
@@ -67,6 +67,7 @@ def train_classifier(do_test=True, prepath="data/"):
 
 
 def predict(table, classifier, encoder):
-    neuron_positions = np.array(list(table["pt_position"]))
-    regions_idx = classifier.predict(neuron_positions)
+    tform_vx = minnie_transform_vx()
+    transformed = tform_vx.apply(np.array(list(table["pt_position"])))
+    regions_idx = classifier.predict(transformed)
     return encoder.inverse_transform(regions_idx)

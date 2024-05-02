@@ -6,14 +6,14 @@ import pandas as pd
 from tqdm.auto import tqdm
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
-from ccmodels.preprocessing.connectomics import client_version, subset_v1l234
+from ccmodels.preprocessing.connectomics import get_client, get_func_match_subset_v1l234
 from ccmodels.preprocessing.selectivity import orientation_extractor, von_mises, von_mises_single, is_selective, cell_area_identifiers, fpd_assignment, identify_multiscan
 
 
 #Identify desired neurons, in this case v1 neurons from L234
-client = client_version(661)
+client = get_client(661)
 area_v1_neurons = cell_area_identifiers('V1')
-v1l234_neur = subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = area_v1_neurons)
+v1l234_neur = get_func_match_subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = area_v1_neurons)
 v1l234_neur = v1l234_neur[v1l234_neur['pt_root_id'] != 0]
 
 #Identify neurons that have been scaned multiple vs one time only

@@ -1,6 +1,11 @@
-import ccmodels.dataanalysis.utils as utl
 import numpy as np
 import pandas as pd
+
+
+import ccmodels.dataanalysis.utils as utl
+import ccmodels.dataanalysis.filters as fl
+
+
 
 
 # ===================================================
@@ -24,7 +29,7 @@ def get_input_to_neuron(v1_neurons, v1_connections, post_id, vij, rates, shifted
         Input to the selected postsynaptic neurons, as a Numpy array
     """
 
-    pre_ids = utl.connections_to(post_id, v1_connections)
+    pre_ids = fl.connections_to(post_id, v1_connections)
 
     #get_currents_subset returns [[current]], so select the first element. Also post_id need to be an array
     return get_currents_subset(v1_neurons, vij, rates, post_ids=[post_id], pre_ids=pre_ids, shift=shifted)[0]
@@ -122,8 +127,8 @@ def compute_inpt_curr_by_layer(v1_neurons, vij, rates):
     rates_unt = utl.get_untuned_rate(v1_neurons, rates) 
 
     #Get the indices of L2/3 and L4 postsynaptic neurons 
-    l23ids = utl.filter_neurons(v1_neurons, layer="L2/3", tuned=True)["id"]
-    l4ids = utl.filter_neurons(v1_neurons, layer="L4", tuned=True)["id"]
+    l23ids = fl.filter_neurons(v1_neurons, layer="L2/3", tuned=True)["id"]
+    l4ids = fl.filter_neurons(v1_neurons, layer="L4", tuned=True)["id"]
 
     #Get the currents and the fractions from the total
     curr_l23 = get_currents_subset(v1_neurons, vij, rates_unt, post_ids=l23ids, pre_ids=l23ids)
@@ -159,11 +164,11 @@ def single_synapse_current(v1_neurons, v1_connections, vij, rates, shifted=True)
     """
 
     #Find pairs of tuned neurons, with presynaptic ones coming from layer L2/3
-    tuned_outputs = utl.filter_connections(v1_neurons, v1_connections, tuned="true", who="both")
-    tuned_outputs = utl.filter_connections(v1_neurons, tuned_outputs, layer="L2/3", who="pre")
+    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuned="true", who="both")
+    tuned_outputs = fl.filter_connections(v1_neurons, tuned_outputs, layer="L2/3", who="pre")
 
     #Find tuned neurons in L2/3 
-    tuned_neurons = utl.filter_neurons(v1_neurons, layer="L2/3", tuned=True) 
+    tuned_neurons = fl.filter_neurons(v1_neurons, layer="L2/3", tuned=True) 
 
     #Select a random postsynaptic neuron and its presynaptic ones 
     selected_neuron = tuned_neurons.sample(1)["id"].values[0]
@@ -187,9 +192,9 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
         index_pihalf = nangles//4 
 
     #Find pairs of tuned neurons, with presynaptic ones coming from specific layer 
-    tuned_outputs = utl.filter_connections(v1_neurons, v1_connections, tuned="true", who="both")
-    l23_conns = utl.filter_connections(v1_neurons, tuned_outputs, layer="L2/3")
-    l4_conns  = utl.filter_connections(v1_neurons, tuned_outputs, layer="L4")
+    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuned="true", who="both")
+    l23_conns = fl.filter_connections(v1_neurons, tuned_outputs, layer="L2/3")
+    l4_conns  = fl.filter_connections(v1_neurons, tuned_outputs, layer="L4")
 
     #Substitute the untuned neurons with the average rate
     rates_untuned = utl.get_untuned_rate(v1_neurons, rates) 
