@@ -1,8 +1,9 @@
-import ccmodels.dataanalysis.utils as utl
-import ccmodels.dataanalysis.dfs2numpy as d2n
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
+
+import ccmodels.dataanalysis.utils as utl
+import ccmodels.dataanalysis.filters as fl 
+import ccmodels.dataanalysis.processedloader as loader
 
 
 #TODO needs to be merged with new version of the preprocssing results
@@ -158,7 +159,7 @@ def strength_tuned_untuned(v1_neurons, v1_connections):
 
     #Neurons in layer 2/3...
     #l23_neurons_id = get_neurons_in_layer(v1_neurons, "L23")["id"]
-    l23_neurons_id = utl.filter_neurons(v1_neurons, layer="L23")["id"] 
+    l23_neurons_id = fl.filter_neurons(v1_neurons, layer="L23")["id"] 
 
     #Normalization by the mean size of layer L2/3
     normcstr = np.mean(v1_connections.loc[v1_connections["pre_layer"] == "L2/3", 'size'])
@@ -182,13 +183,13 @@ def bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer, half=True, nangle
     #therefore they cannot count for the potential connections (for normalization)
     #If it's layer 4, then all neurons can form potential connections, so we use full system.
     if pre_layer == "L2/3":
-        tunedlayer = utl.filter_neurons(v1_neurons, tuned=True, layer="L2/3")
+        tunedlayer = fl.filter_neurons(v1_neurons, tuned=True, layer="L2/3")
     else:
-        tunedlayer = utl.filter_neurons(v1_neurons, tuned=True)
+        tunedlayer = fl.filter_neurons(v1_neurons, tuned=True)
 
     #Filter to the connections we want
-    conn_from_tunedpre = utl.filter_connections(v1_neurons, v1_connections, tuned=True, who="both")
-    conn_from_tunedpre = utl.filter_connections(v1_neurons, conn_from_tunedpre, layer=pre_layer, who="pre")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuned=True, who="both")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, conn_from_tunedpre, layer=pre_layer, who="pre")
 
     #Prepare variables for computing statistics 
     if half:
@@ -264,13 +265,13 @@ def prob_symmetric_links(v1_neurons, v1_connections, half=True, nangles=16):
     '''
 
     #Select connections with presynaptic neurons in the selected layer 
-    tunedlayer = utl.filter_neurons(v1_neurons, tuned=True, layer="L2/3")
-    conn_from_tunedpre = utl.filter_connections(v1_neurons, v1_connections, tuned=True, who="both")
-    conn_from_tunedpre = utl.filter_connections(v1_neurons, conn_from_tunedpre, layer="L2/3", who="pre")
+    tunedlayer = fl.filter_neurons(v1_neurons, tuned=True, layer="L2/3")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuned=True, who="both")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, conn_from_tunedpre, layer="L2/3", who="pre")
 
     #Get the double links from the adjacency matrix
     tuned_ids = tunedlayer["id"].values
-    m = d2n.get_adjacency_matrix(v1_neurons, v1_connections)
+    m = loader.get_adjacency_matrix(v1_neurons, v1_connections)
     m = m[np.ix_(tuned_ids, tuned_ids)]
 
     rows, cols = np.where(m * m.transpose() > 0)

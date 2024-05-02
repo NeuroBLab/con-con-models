@@ -9,6 +9,8 @@ from standard_transform import minnie_transform_vx
 import ccmodels.preprocessing.utils as utl
 import ccmodels.preprocessing.connectomics as conn
 import ccmodels.preprocessing.region_classifier as rcl
+import ccmodels.preprocessing.rawloader as loader
+import ccmodels.utils.angleutils as au
 
 # --- Get inhibitory/excitatory neurons for the whole list of neurons we have 
 
@@ -36,16 +38,17 @@ print("Get functional properties, such as OSI...")
 
 #Read in data with selectivity information 
 #l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
-l234_orifits = conn.read_table("orientation_fits") 
+l234_orifits = loader.read_table("orientation_fits") 
 
 # Identify the tuning types of neurons based on pvalue and r squared thresholds
 l234_orifits = utl.tuning_labeler(l234_orifits, model_col = 'tuning_type')
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
-func_neurons = conn.subset_v1l234()
+func_neurons = conn.get_func_match_subset_v1l234()
 
 #split column with position values in to three separate columns
 #func_neurons[['x_pos', 'y_pos', 'z_pos']] = func_neurons['pial_distances'].apply(lambda x: pd.Series(x))
+
 
 #Fit the orientation fits (which are in L234) to the neurons in L234
 l234_orifits = l234_orifits.merge(func_neurons, left_on=['root_id', 'session', 'scan_idx', 'cell_id'], right_on = ['pt_root_id', 'session', 'scan_idx', 'unit_id'], how = 'inner')
@@ -82,10 +85,8 @@ for id, pref_ori, tuning_type, responses in l234_orifits[['root_id', 'phi', 'tun
 l234_orifits['osi'] = osis
 
 #Add indexed version of the preferred angle
-l234_orifits['pref_ori'] = utl.angle_indexer(l234_orifits["phi"]) 
+l234_orifits['pref_ori'] = au.angle_indexer(l234_orifits["phi"]) 
 l234_orifits['cell_type'] = 'exc'
-l234_orifits["is_func_match"] = True
-
 
 
 
@@ -106,10 +107,22 @@ v1l234_neurons = ei_info[mask_region & mask_layer]
 #In contrary case, fill v1 columns with nans, except for cell_type and layer (which will coincide)
 full_table = v1l234_neurons.merge(l234_orifits, on=["pt_root_id", "cell_type", "layer"], how="outer") 
 
-#For the neurons that were no in v1, just fill the position (which is pt_position_x). 
-#Being a list, it cannot be put on the "on" field on the previous merge, so we have to deal with it manually
-only_in_orifits = full_table["pt_position_x"].isna()
-full_table.loc[only_in_orifits, "pt_position_x"] = full_table.loc[only_in_orifits, "pt_position_y"] 
+#For the neurons that weren't in v1l234 but in orifits, just fill the position manually, because 
+#being a list, it cannot be put on the "on" field on the previous merge
+only_in_orifits = full_table["pial_distances_x"].isna()
+full_table.loc[only_in_orifits, "pial_distances_x"] = full_table.loc[only_in_orifits, "pial_distances_y"] 
+del only_in_orifits #free memory
+
+#Tag all the values that are not functionally matched 
+full_table.loc[full_table["tuning_type"].isna(), "tuning_type"] = "not_matched"
+
+
+# --- The inhibitory classification sometimes fails. A blatant case is when a functionally matched
+#     neuron is classified as inhibitory. We drop these cases.
+#     This is done by putting the exc before the inh and keeping only the first. 
+
+full_table = full_table.sort_values(by="cell_type").drop_duplicates(subset="pt_root_id", keep="first") 
+
 
 
 
@@ -117,7 +130,7 @@ full_table.loc[only_in_orifits, "pt_position_x"] = full_table.loc[only_in_orifit
 
 print("Add information on neuron proofreading")
 
-proofread = conn.read_table('proofreading')
+proofread = loader.read_table('proofreading')
 full_table = conn.identify_proofreading_status(full_table, proofread)
 
 
@@ -130,8 +143,14 @@ full_table = full_table[["pt_root_id", "cell_type", "tuning_type", "layer", "pia
 full_table = full_table.rename(columns={"pt_rood_id":"root_id", "pial_distances_x":"pial_distances",
                                         "status_axon":"axon_proof", "status_dendrite":"dendr_proof"})
 
-#Sort so the functionally matched appear first
+#Set the adequate type for some of the table columns
+#Take into account that this categories is affected by the order (and its important just below)
+full_table["tuning_type"] = pd.Categorical(full_table["tuning_type"], categories=["direction", "orientation", "not_selective", "not_matched"])
+
+#Sort so the functionally matched appear first. This makes easier to construct the rate table. 
+#This works because the values are not sorted alphabetically but in the way done by the categories
 full_table = full_table.sort_values(by="tuning_type")
+
 
 full_table.to_csv('data/preprocessed/unit_table.csv', index = False)
 

@@ -15,15 +15,15 @@ from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from caveclient import CAVEclient
 from ccmodels.preprocessing.utils import constrain_act_range, constrainer
-from ccmodels.preprocessing.connectomics import client_version, connectome_constructor, subset_v1l234, connectome_feature_merger
+from ccmodels.preprocessing.connectomics import get_client, connectome_constructor, get_func_match_subset_v1l234, connectome_feature_merger
 
 
 def main():
     #define Caveclient and database version
-    client = client_version(661)
+    client = get_client(661)
     
     ############################### Exctract connectome of functionally matched L2/3/4 V1 neurons ##################################
-    v1l234_neur = subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = '../../data/raw/area_membership.csv')
+    v1l234_neur = get_func_match_subset_v1l234(client, table_name = 'coregistration_manual_v3', area_df = '../../data/raw/area_membership.csv')
 
     #Extracting all the root id of the functionally matched cells
     nv1l234 = np.array(list(set(v1l234_neur[v1l234_neur['pt_root_id'] != 0]['pt_root_id'])))

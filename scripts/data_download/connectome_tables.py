@@ -4,5 +4,5 @@ import sys
 
 sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
 import ccmodels.preprocessing.connectomics as conn
-client = conn.client_version(661)
+client = conn.get_client(661)
 conn.download_tables(client)

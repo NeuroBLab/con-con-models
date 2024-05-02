@@ -1,141 +1,41 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from caveclient import CAVEclient
 from standard_transform import minnie_transform_vx
-from .utils import layer_extractor, time_format
-import time
+import ccmodels.preprocessing.rawloader as loader
+import os
 
 
-def client_version(version = 343):
-    '''Define the version of the CAVE client database you want to access and use for the analysis'''
-    
-    client = CAVEclient('minnie65_public')
-    client.materialize.version = version
-    
-    return client
-
-def load_table(client, name, columns=[]):
-    '''Function to load a table from the CAVEclient database
+def layer_extractor(input_df, transform, column = 'pre_pt_position'):
+    '''This function assigns a layer to each neuron based on the y axis value of the pial distance
     
     Args:
-    client: CAVEclient 
-        Needed to access MICrONS connectomics data
-    name: str 
-        Name of the table to load
-    columns: list of str 
-        Name of the columns to include. If empty (default) all columns are returned
+    input_df: pandas dataframe containing the 3d coordinates
+    transform: transform object to turn the 3d coordinates in to pial distances 
+    column: string, column name containing the pial distances
     
     Returns:
-    df: pd.DataFrame with the table loaded from the database'''
+    input_df: pandas dataframe containing the pial distances and the assigned layer
+    '''
+    input_df['pial_distances'] = transform.apply(input_df[column])
 
-    if len(columns)>0: 
-        return client.materialize.query_table(name, select_columns=columns, split_positions=True)
-    else:
-        return client.materialize.query_table(name, split_positions=True)
+    #Use the y axis value to assign the corresponding layer as per Ding et al. 2023
+    layers = []
+    for i in input_df['pial_distances'].iloc[:]:
+        if 0<i[1]<=98:
+            layers.append('L1')
+        elif 98<i[1]<=283:
+            layers.append('L23')
+        elif 283<i[1]<=371:
+            layers.append('L4')
+        elif 371<i[1]<=574:
+            layers.append('L5')
+        elif 574<i[1]<=713:
+            layers.append('L6')
+        else:
+            layers.append('unidentified')
 
-
-def read_table(name, prepath="data/", splitpos=False):
-    """
-    Read an already stored raw/in-processing data table. 
-    For loading the preprocessed data, please refer to the datanalysis module.
-    """
-
-    #Get the path to the table and read it
-    path = prepath + _get_table_path(name)
-
-    if "csv" in path:
-        table = pd.read_csv(path)
-    elif "pkl" in path:
-        table = pd.read_pickle(path) 
-
-    #Merge together the positions, so the column contains a list with 3 values
-    if "pt_position_x" in table.columns and not splitpos:
-        splitpos = ["pt_position_x", "pt_position_y", "pt_position_z"]
-        table["pt_position"] = list(table[splitpos].values)  
-        table.drop(columns=splitpos, inplace=True)
-
-    #Return the thing
-    return table
-
-def _get_table_path(name):
-    """
-    Not intended for use outside of the module. 
-    Auxiliary function that indexes in which folder each file is, and return its path. 
-    """
-    folder_content = {"in_processing" : ["ei_table.csv", "orientation_fits.pkl"], 
-                      "raw" : ["aibsct.csv", "area_membership.csv", "coarsect.csv", "finect.csv", 
-                               "functionally_matched.csv", "neuronref.csv", "proofreading.csv"]}
-
-    #Check if the name is in one of the filenames...
-    for key in folder_content:
-        files_in_folder = folder_content[key]
-        for filename in files_in_folder:
-            #If it is, just return the path
-            if name in filename: 
-                return f"{key}/{filename}"
-
-
-
-
-def download_tables(client):
-
-    #--- Functional matched neurons
-    print("Download functionally matched neurons...")
-    columns_2_download = ['id','pt_root_id', 'session','scan_idx','unit_id', 'pt_position']
-    table = load_table(client, 'coregistration_manual_v3', columns=columns_2_download)
-    #Drop unlabelled neurons
-    table = table[table['pt_root_id']!=0]
-    #Drop neurons recorded in more than one scan
-    table = table.drop_duplicates(subset='pt_root_id', keep = 'first')
-    #Save the table
-    table.to_csv("data/raw/functionally_matched.csv", index=False)
-
-    #--- Are observed nuclei a neuron? 
-    print("Download nucleus classification reference...")
-    columns_2_download = ['id', 'target_id', 'pt_root_id','cell_type','pt_position']
-    table = load_table(client, 'nucleus_ref_neuron_svm', columns=columns_2_download)
-    table = table[table['pt_root_id'] !=0]
-    #table = table.drop_duplicates(subset='pt_root_id', keep = 'first')
-    table.to_csv("data/raw/neuronref.csv", index=False)
-
-    # --- Excitatory or inhibitory?
-    print("Download Baylor et al coarse cell classification...")
-    table = load_table(client, 'baylor_log_reg_cell_type_coarse_v1', columns=columns_2_download)
-    table = table[table['pt_root_id'] != 0]
-    #Some tables have some duplicates. I manually checked that all are the same objects,
-    #by checking they have the same positions. I do not want those duplicates 
-    table.drop_duplicates(subset = "target_id", inplace=True)
-    table.to_csv("data/raw/coarsect.csv", index=False)
-
-    # --- Fine-type classification
-    print("Download Baylor et all fine cell classification...")
-    table = load_table(client, 'baylor_gnn_cell_type_fine_model_v2', columns=columns_2_download)
-    table = table[table['pt_root_id'] !=0]
-    table.drop_duplicates(subset = "target_id", inplace=True)
-    table.to_csv("data/raw/finect.csv", index=False)
-
-    # --- AIBS classification  
-    print("Download AIBS classification...")
-    columns_2_download = ['id', 'target_id', 'pt_root_id', 'classification_system', 'cell_type', 'pt_position']
-    table = load_table(client, 'aibs_soma_nuc_metamodel_preds_v117', columns=columns_2_download)
-    table = table[table['pt_root_id'] !=0]
-    table.drop_duplicates(subset = "target_id", inplace=True)
-    table.to_csv("data/raw/aibsct.csv", index=False)
-
-    # --- Proofreading status 
-    print("Download proofreading status...")
-    columns_2_download = ['pt_root_id', 'valid_id', 'status_dendrite', 'status_axon', 'pt_position']
-    table = load_table(client, 'proofreading_status_public_release', columns=columns_2_download)
-    table = table[table['pt_root_id'] !=0]
-    #For this table in particular we have that these are the only valid ids. After that, we do not need that column
-    table = table[table['pt_root_id'] == table['valid_id']]
-    table = table[['pt_root_id', 'status_dendrite', 'status_axon', 'pt_position_x', 'pt_position_y', 'pt_position_z']] 
-    table.to_csv("data/raw/proofreading.csv", index=False)
-
-    print("Download completed succesfully.")
-
-
+    input_df['layer'] = layers   
+    return input_df
 
 def obtain_ei_table(prepath="data/"):
     """
@@ -146,10 +46,10 @@ def obtain_ei_table(prepath="data/"):
     """
 
     #Load all the tables
-    neuronref   = read_table("neuronref", prepath=prepath)
-    coarsedata  = read_table("coarsect", prepath=prepath)
-    finedata    = read_table("finect", prepath=prepath)
-    aibs        = read_table("aibsct", prepath=prepath)
+    neuronref   = loader.read_table("neuronref", prepath=prepath)
+    coarsedata  = loader.read_table("coarsect", prepath=prepath)
+    finedata    = loader.read_table("finect", prepath=prepath)
+    aibs        = loader.read_table("aibsct", prepath=prepath)
 
     #From aibs/neuronref, select only the ones that are neurons
     aibs_neurons = aibs[aibs["classification_system"] == "aibs_neuronal"]
@@ -194,80 +94,6 @@ def obtain_ei_table(prepath="data/"):
     return result
 
 
-def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500, max_retries=10, delay=5):
-    '''
-    Function to construct the connectome subset for the neurons specified in the presynaptic_set and postsynaptic_set.
-
-    Args:
-    client: CAVEclient needed to access MICrONS connectomics data
-    presynaptic_set: 1-d array of non repeated root_ids of presynaptic neurons for which to extract postsynaptoc connections in postynaptic_set
-    postynaptic_set: 1-d array of non repeated root_ids of postsynaptic neurons for which to extract presynaptic connections in presynaptic_set
-    neurs_per_steps: number of postsynaptic neurons for which to recover presynaptic connectivity per single call to the connectomics
-        database. Since the connectomics database has a limit on the number of connections you can query at once
-        this iterative method optimises querying multiple neurons at once, as opposed to each single neuron individually,
-        while also preventing the queries from crashing. I have tested that for a presynaptic set of around 8000 neurons
-        you can reliably extract the connectivity for around 500 postsynaptic neurons at a time.
-    '''
-    
-    #We are doing the neurons in packages of neurs_per_steps. If neurs_per_steps is not
-    #a divisor of the postsynaptic_set the last iteration has less neurons 
-    n_before_last = (postsynaptic_set.size//neurs_per_steps)*neurs_per_steps
-    
-    #Time before starting the party
-    time_0 = time.time() 
-
-    syndfs = []
-    for i in range(0, postsynaptic_set.size, neurs_per_steps):
-        #Inform about our progress
-        print(f"Postsynaptic neurons queried so far: {i}...")
-
-        #Try to query the API several times
-        for retry in range(max_retries):
-            try:
-                #Get the postids that we will be grabbing in this query. We will get neurs_per_step of them
-                post_ids = postsynaptic_set[i:i+neurs_per_steps] if i < n_before_last else postsynaptic_set[i:]
-
-                #Query the table 
-                sub_syn_df = client.materialize.query_table('synapses_pni_2',
-                                                    filter_in_dict={'pre_pt_root_id': presynaptic_set,
-                                                                    'post_pt_root_id':post_ids})
-                
-
-
-                #Sum all repeated synapses. The last reset_index is because groupby would otherwise create a 
-                #multiindex dataframe and we want to have pre_root and post_root as columns
-                sub_syn_df = sub_syn_df[["pre_pt_root_id", "post_pt_root_id", "size"]]
-                sub_syn_df = sub_syn_df.groupby(["pre_pt_root_id", "post_pt_root_id"]).sum().reset_index()
-
-                #Add the result to the table
-                syndfs.append(np.array(sub_syn_df[['pre_pt_root_id', 'post_pt_root_id', 'size']]))
-
-                #Measure how much time in total our program did run
-                elapsed_time = time.time() - time_0
-
-                #Use it to give the user an estimation of the end time.
-                neurons_done = i+neurs_per_steps
-                time_per_neuron = elapsed_time / neurons_done  
-                neurons_2_do = postsynaptic_set.size - neurons_done
-                remaining_time = time_format(neurons_2_do * time_per_neuron) 
-                print(f"Estimated remaining time: {remaining_time}")
-
-                break
-            except Exception as excep:
-                print(type(excep))
-                print(excep)
-                print(f"API error. Retry in {delay} seconds...")
-                time.sleep(delay)
-                continue
-
-        #If the above loop did not succeed for any reason, then just abort.
-        if retry >= max_retries:
-            raise TimeoutError("Exceeded the max_tries when trying to get synaptic connectivity")
-    
-    syn_df = pd.DataFrame({'pre_id':np.vstack(syndfs)[:, 0], 'post_id': np.vstack(syndfs)[:, 1], 'syn_volume': np.vstack(syndfs)[:, 2]})
-    return syn_df
-
-
 def unique_neuronal_inputs(pt_root_id, neurons, client):
     '''function to extract all the unique neuronal inputs for a postsynaptic cell
     neurons: set of ids  of cells that are neurons, utilise the nucleus_neuron_svm table from Minnie65 v343 '''
@@ -309,7 +135,7 @@ def func_pre_subsetter(client, to_keep, func_id):
     return sub
 
 
-def subset_v1l234(path="data/"):
+def get_func_match_subset_v1l234(path="data/"):
     '''This function takes a table of functionally matched neurons from the MICrONs connectomics database
     and returns a subset only containing neurons belonging to L2/3/4 of V1
     
@@ -319,12 +145,12 @@ def subset_v1l234(path="data/"):
 
     #Get the functionally matched neurons
     #funct_match = pd.read_csv(f"{path}/functionally_matched.csv")
-    funct_match = read_table("functionally_matched", prepath=path)
+    funct_match = loader.read_table("functionally_matched", prepath=path)
     funct_match_clean = funct_match[['pt_root_id', 'id', 'session', 'scan_idx', 'unit_id', 'pt_position']]
     
     #Get the neurons that live in V1
     #v1_area = pd.read_csv(f"{path}/area_membership.csv")
-    v1_area = read_table("area_membership", prepath=path)
+    v1_area = loader.read_table("area_membership", prepath=path)
     v1_area_subset = v1_area[v1_area['brain_area'] == 'V1']
 
     #Merge tables to get only functionally matched neurons in V1
@@ -335,7 +161,7 @@ def subset_v1l234(path="data/"):
     v1_neurons_layers = layer_extractor(v1_neurons, tform_vx, column = 'pt_position')
 
     #Finally return the ones in L2/3 or L4 
-    return v1_neurons_layers[v1_neurons_layers['layer'].isin(['L2/3', 'L4'])]
+    return v1_neurons_layers[v1_neurons_layers['layer'].isin(['L23', 'L4'])]
 
     
 
@@ -405,6 +231,24 @@ def identify_proofreading_status(df, proofreading_df):
     info.loc[nan_places, ["status_axon", "status_dendrite"]] = ["non", "non"]  
 
     return info 
+
+
+def merge_connection_tables(prepath="data"):
+    #Count the number of tables to merge, by checking all files in the correct folder
+    ntables = 0
+    for file in os.listdir(f"{prepath}/in_processing"):
+        if os.path.isfile(f"{prepath}/in_processing/{file}"):
+            if "connections_table_" in file:
+                ntables += 1
+
+    #Merge all of them
+    table = pd.read_csv(f"{prepath}/in_processing/connections_table_0.csv")
+    ntables
+    for i in range(1, ntables):
+        table = pd.concat([table, pd.read_csv(f"{prepath}/in_processing/connections_table_{i}.csv")])
+
+    return table
+
 
 
     

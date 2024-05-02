@@ -4,7 +4,7 @@ to functionally matched L2/3/4 V1 neurons and inhibitory L2/3 V1 neurons.'''
 import numpy as np
 import pandas as pd
 from ccmodels.preprocessing.utils import tuning_labeler, min_act, osi_calculator, angle_indexer
-from ccmodels.preprocessing.connectomics import subset_v1l234, client_version,identify_proofreading_status, load_table
+from ccmodels.preprocessing.connectomics import get_func_match_subset_v1l234, get_client,identify_proofreading_status, load_table
 
 #Read in data with selectivity infromation
 l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits_v343.pkl')
@@ -14,8 +14,8 @@ print('Assigning selectivity type to neurons')
 neur_seltype = tuning_labeler(l234_orifits)
 
 # Subset only the neurons in L2/3 and 4 of V1 to get layer, area and position labels
-client = client_version(343) #select the CaveDatabase version you are interested in 
-func_neurons = subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/area_membership_v343.csv')
+client = get_client(343) #select the CaveDatabase version you are interested in 
+func_neurons = get_func_match_subset_v1l234(client,table_name='functional_coreg', area_df = '../../data/raw/area_membership_v343.csv')
 #split column with position values in to three separate columns
 func_neurons[['x_pos', 'y_pos', 'z_pos']] = func_neurons['pial_distances'].apply(lambda x: pd.Series(x))
 

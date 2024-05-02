@@ -28,6 +28,8 @@ def min_act(max_rad, model_type):
 
 
 def constrainer(dirs, reversed = False):
+    #TODO it seems that this function does exactly the same thing that the angleutil constrainer does.
+    #check and most probably eliminate.
     '''Function that constrains given matrix of directions between [-2pi, 2pi] in to (-pi, pi]
     
     Parameters:
@@ -107,40 +109,6 @@ def constrain_act_range(post_root_col, post_root_id, directions, pre_df, current
     return reordered_act, constrained_dirs
 
 
-
-def layer_extractor(input_df, transform, column = 'pre_pt_position'):
-    '''This function assigns a layer to each neuron based on the y axis value of the pial distance
-    
-    Args:
-    input_df: pandas dataframe containing the 3d coordinates
-    transform: transform object to turn the 3d coordinates in to pial distances 
-    column: string, column name containing the pial distances
-    
-    Returns:
-    input_df: pandas dataframe containing the pial distances and the assigned layer
-    '''
-    input_df['pial_distances'] = transform.apply(input_df[column])
-
-    #Use the y axis value to assign the corresponding layer as per Ding et al. 2023
-    layers = []
-    for i in input_df['pial_distances'].iloc[:]:
-        if 0<i[1]<=98:
-            layers.append('L1')
-        elif 98<i[1]<=283:
-            layers.append('L23')
-        elif 283<i[1]<=371:
-            layers.append('L4')
-        elif 371<i[1]<=574:
-            layers.append('L5')
-        elif 574<i[1]<=713:
-            layers.append('L6')
-        else:
-            layers.append('unidentified')
-
-    input_df['layer'] = layers   
-    return input_df
-
-
 def tuning_labeler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_col = 'pvalue', model_col = 'model_type', p_sign = 0.05):
     '''This function labels the neurons according to their tuning type. It labels neurons as 'not_selective' if they are not.
     Args:
@@ -216,32 +184,6 @@ def osi_calculator(least_pref_ori, pref_ori, responses, dirs):
 
     return (maxact-minact)/(maxact+minact)
 
-def angle_indexer(pref_orientation):
-    '''This function returns the index of the preferred orientation in a 16 bin discretization of the orientation space
-    Args:
-    pref_orientation: float, preferred orientation of the neuron
-    
-    Returns:
-    indexed_angle: int, index of the preferred orientation in the 16 bin discretization of the orientation space
-    '''
-    #indexed_angle = int(round(pref_orientation/round(((2*np.pi)/16),8), 0))
-    return (pref_orientation * 8 / np.pi).astype(int) 
-
-def time_format(seconds):
-    if seconds > 3600*24: 
-        days = int(seconds//(24*3600))
-        hours = int((seconds - days*24*3600)//3600)
-        return f"{days} days, {hours}h"
-    elif seconds > 3600: 
-        hours = int(seconds//3600)
-        minutes = int((seconds - hours*3600) // 60)
-        return f"{hours}h, {minutes}min"
-    elif seconds > 60:
-        minutes = int(seconds//60)
-        rem_sec = int((seconds - 60*minutes))
-        return f"{minutes}min {rem_sec}s"
-    else:
-        return f"{seconds:.0f}s"
    
 if __name__ == '__main__':
     import os

@@ -1,172 +1,8 @@
 import pandas as pd
 import numpy as np
-import ccmodels.dataanalysis.dfs2numpy as d2n
 
-# ------------------------------------------------------------
-# ------------------ LOAD DATA     --------------------------- 
-# ------------------------------------------------------------
+import ccmodels.dataanalysis.filters as fl
 
-def load_data(half_angle=True, nangles=16, path="../con-con-models", version="343"):
-    """
-    Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
-    All returned values are inside a 3-element list.
-
-    Parameters
-    activity: bool 
-        If True (default), returns also a Nxnangles matrix containing the rates of the neurons
-    half_angle : bool 
-        If True (default) uses angles only from 0 to pi, leaving apart the directions. 
-    nangles: int
-        Gives the number of angles for the full case (default 16)
-    path : string.
-        Folder where the ccmodels package is located 
-    version : string
-        Which version of the dataset to use.
-    """
-    datasets = []
-
-    if version=="343":
-        v1_neurons = pd.read_csv(f'{path}/data/preprocessed/v1_neurons.csv')
-        v1_connections = pd.read_csv(f'{path}/data/preprocessed/v1_connections.csv')
-        rates_table = pd.read_csv(f'{path}/data/preprocessed/v1_activity.csv')
-    elif version=="661":
-        v1_neurons = pd.read_csv(f'{path}/data/preprocessed/unit_table.csv')
-        v1_connections = pd.read_csv(f'{path}/data/preprocessed/connections_table.csv')
-        rates_table = pd.read_csv(f'{path}/data/preprocessed/activity_table.csv')
-
-        #Ensure all ids are from 0 to N-1, being N number of neurons. 
-        #Rename id names.
-        d2n.remap_all_tables(v1_neurons, v1_connections, rates_table)
-
-
-    #If the half-angle thing is used, then we need to remap all of neurons's angles  
-    if half_angle:
-        v1_neurons.loc[:, "pref_ori"] = constrain_angles(v1_neurons["pref_ori"].values, nangles=8)
-
-    #Once angles have been constrained, construct the delta ori values 
-    v1_connections["delta_ori"] = construct_delta_ori(v1_neurons, v1_connections, orientation_only=half_angle)
-
-    #If we want activity, read the table and return the Nx16 matrix directly
-    if version=="343":
-        rates = d2n.get_rates_matrix(v1_neurons, rates_table)
-    elif version=="661":
-        #Here we have inhibitory neurons too
-        exc_neurons = filter_neurons(v1_neurons, cell_type="excitatory")
-        rates = d2n.get_rates_matrix(exc_neurons, rates_table)
-
-
-    #If we are working only with the orientation, assume that the rate we have for that 8 angles
-    #is just the average between both
-    if half_angle:
-        rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
-
-    return v1_neurons, v1_connections, rates
-
-
-
-
-def construct_delta_ori(v1_neurons, v1_connections, orientation_only=True):
-    """
-    Given the tables of neurons and connections, get the array of delta orientations for each link and returns it.
-    """
-
-    dtheta = np.empty(len(v1_connections))
-
-    for i, (id_pre, id_post) in enumerate(v1_connections[["pre_id", "post_id"]].values):
-        dtheta[i] = angle_diff(v1_neurons.loc[id_post, "pref_ori"], v1_neurons.loc[id_pre, "pref_ori"], half=orientation_only) 
-
-    return dtheta
-
-# ------------------------------------------------------------
-# ------------------ HANDY FILTERS --------------------------- 
-# ------------------------------------------------------------
-
-def filter_neurons(v1_neurons, layer=None, tuned=None, cell_type=None):
-    """
-    Convenience function. Filter neurons by several common characteristics at the same time.
-    Leave parameters to None to not filter for them (default). Returns the table of the 
-    neurons fulfilling the criteria.
-
-    Parameters:
-
-    v1_neurons : DataFrame
-        neuron's properties DataFrame
-    layer : string 
-        The layer we want to filter for, L2/3 or L4
-    tuned : bool 
-        whether if we want the neurons to be tuned or untuned
-    cell_type : string
-        excitatory or inhibitory neurons 
-    """
-
-
-    #All true, produces no masking
-    nomask = np.ones(len(v1_neurons), dtype=bool) 
-
-    #Get the filters for layer and cell
-    mask_layer = v1_neurons["layer"] == layer if layer != None else nomask 
-    mask_cellt = v1_neurons["cell_type"] == cell_type if cell_type != None else nomask 
-
-    #Get the filter for tuned/untuned neurons
-    if tuned == None:
-        mask_tuned = nomask
-    elif tuned:
-        mask_tuned = v1_neurons["tuning_type"] != "not_selective"
-    else:
-        mask_tuned = v1_neurons["tuning_type"] == "not_selective"
-    
-    return v1_neurons[mask_layer & mask_cellt & mask_tuned]
-
-
-def synapses_by_id(neurons_id, v1_connections, who="pre"):
-    """
-    Given the ids of the neurons we want to filter for, grab the synapses that have ids matching for
-    the pre- or post- synaptic neurons (or both).
-
-    Parameters
-
-    neurons_id : np.array
-        Array with the IDs of the neurons we are filtering for
-    v1_connections : DataFrame
-        Dataframe with connectivity information
-    who : string
-        Can be "pre" (default), "post" or "both". If pre/post, selects pre/postsynaptic neurons which are contained in 
-        the neurons_id array. If "both", it needs both IDs to be present.
-    """
-
-    if who=="pre":
-        return v1_connections[v1_connections["pre_id"].isin(neurons_id)]
-    elif who=="post":
-        return v1_connections[v1_connections["post_id"].isin(neurons_id)]
-    elif who=="both":
-        return v1_connections[v1_connections["pre_id"].isin(neurons_id) & v1_connections["post_id"].isin(neurons_id)]
-
-def filter_connections(v1_neurons, v1_connections, layer=None, tuned=None, cell_type=None, who="pre"):
-    """
-    Convenience function to call filter_neurons + synapses_by_id, i.e. filtering neurons by a criterium
-    and then returning all connections fulfilling this condition. 
-    Needs neuron table, connection table, and then filter by layer, tuned or cell_type (see filter_neurons) and 
-    filtering pre/post or both neurons (see synapses by id).
-    """
-
-    neurons_filtered = filter_neurons(v1_neurons, layer, tuned, cell_type)
-    return synapses_by_id(neurons_filtered["id"], v1_connections, who)
-
-def connections_to(post_id, v1_connections, only_id=True):
-    """
-    Get the indices of the presynaptic neurons pointing to post_id
-    """
-
-    if only_id:
-        return v1_connections[v1_connections["post_id"] == post_id]["pre_id"]
-    else:
-        return v1_connections[v1_connections["post_id"] == post_id]
-
-def connections_from(pre_id, v1_connections):
-    """
-    Get the indices of the postsynaptic to which pre_id points  
-    """
-    return v1_connections[v1_connections["pre_id"] == pre_id]["post_id"]
 
 # ---------------------------------------------------------------------------------
 # ------------------ EXTRA INFO TO THE CONNECTION TABLE --------------------------- 
@@ -192,7 +28,7 @@ def add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre"):
         #mask_l4 = v1_conn_withlayer["pre_id"].isin(l4_neurons_ids)
 
         #Then, obtained the indices of all connections with presynaptic neurons in L4 and set them in the new table
-        mask_l4 = filter_connections(v1_neurons, v1_connections, layer="L4").index.values
+        mask_l4 = fl.filter_connections(v1_neurons, v1_connections, layer="L4").index.values
         v1_conn_withlayer.loc[mask_l4, "pre_layer"] = "L4"
 
     if who == "post" or who == "both":
@@ -215,7 +51,7 @@ def tuning_encoder(v1_neurons, v1_connections):
     '''
 
     #Get the neurons which are tuned
-    tuned_neurons_ids = filter_neurons(v1_neurons, tuned=True)["id"]
+    tuned_neurons_ids = fl.filter_neurons(v1_neurons, tuned=True)["id"]
 
     #Initialize a new table with the tuning set to false by default
     v1_conn_withtuning = v1_connections.copy()
@@ -273,59 +109,6 @@ def split_by_tuning(v1_connections):
     tables["l23u_l23u"] =  v1_connections[untun_untun & l23]
 
     return tables 
-
-
-
-# ------------------------------------------------------------
-# ---------------------- WORKING WITH ANGLES -----------------
-# ------------------------------------------------------------
-
-def constrain_angles(thetas, nangles=16, negatives=True):
-    """
-    Constrain the angle indices to be in [0, nangles], which is
-    sometimes necessary to operate
-    """
-    new_thetas = thetas.copy()
-    
-    #Negatives becomes 16 - X
-    if negatives:
-        negative = thetas< 0
-        new_thetas[negative] = nangles + thetas[negative] #We put a + because they are already negative
-
-    #Large ones bounded in [0, 16]
-    large = np.abs(thetas) >= nangles 
-    new_thetas[large] = np.sign(thetas[large]) * (thetas[large] % nangles) #Python modulo always return positive, so add the sign manually 
-
-    return new_thetas
-
-def angle_diff(pre, post, nangles=16, half=True):
-    """
-    Computes a signed difference between pre a post, by taking into account periodic boundaries.
-    In this way, we get differences in [-k, ..., 0, ...k], being nangle-k mapped to -k until -nangle//2,
-    where results jump to be positive. 
-    """
-    d = post - pre
-    max_angle = nangles//4 if half else nangles//2
-
-    if d <= -max_angle:
-        return d + 2*max_angle
-    elif d > max_angle:
-        return d - 2*max_angle
-    else:
-        return d
-
-def angle_dist(pre, post, nangles=16, half=True):
-    """
-    Classic distance with boundary conditions between angles pre and post, given as integers.
-    """
-    d = abs(post - pre)
-    max_angle = nangles//4 if half else nangles//2
-    return min(d, max_angle - d)
-
-
-
-
-
 
 
 # ------------------------------------------------------------
@@ -389,7 +172,7 @@ def get_untuned_rate(v1_neurons, rates):
     """
 
     #Find the untuned neurons
-    untuned_ids = filter_neurons(v1_neurons, tuned=False)["id"]
+    untuned_ids = fl.filter_neurons(v1_neurons, tuned=False)["id"]
     rates_unt = rates.copy()
     #Substitute the not tuned ones with the mean rate accross all its angles
     #The newaxis thing allows it to be assigned doing rates[ids, :] = directly
