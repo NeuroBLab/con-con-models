@@ -10,7 +10,7 @@ import ccmodels.utils.angleutils as au
 # Functions here help to load the preprocessed data 
 #============================================================
 
-def load_data(half_angle=True, nangles=16, path="../con-con-models", version="661"):
+def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data/", version="661"):
     """
     Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
     All returned values are inside a 3-element list.
@@ -31,21 +31,21 @@ def load_data(half_angle=True, nangles=16, path="../con-con-models", version="66
 
     #TODO legacy code in case we want to use previous version... it should die soon
     if version=="343":
-        v1_neurons = pd.read_csv(f'{path}/data/preprocessed/v1_neurons.csv')
-        v1_connections = pd.read_csv(f'{path}/data/preprocessed/v1_connections.csv')
-        rates_table = pd.read_csv(f'{path}/data/preprocessed/v1_activity.csv')
+        v1_neurons = pd.read_csv(f'{path}/preprocessed/v1_neurons.csv')
+        v1_connections = pd.read_csv(f'{path}/preprocessed/v1_connections.csv')
+        rates_table = pd.read_csv(f'{path}/preprocessed/v1_activity.csv')
     elif version=="661":
         #TODO update once the list of connections is ready 
-        v1_neurons = pd.read_csv(f'{path}/data/preprocessed/unit_table.csv')
-        v1_connections = pd.read_csv(f'{path}/data/preprocessed/connections_table_emergency.csv')
-        rates_table = pd.read_csv(f'{path}/data/preprocessed/activity_table.csv')
+        v1_neurons = pd.read_csv(f'{path}/preprocessed/unit_table.csv')
+        v1_connections = pd.read_csv(f'{path}/preprocessed/connections_table_emergency.csv')
+        rates_table = pd.read_csv(f'{path}/preprocessed/activity_table.csv')
 
         #Ensure all ids are from 0 to N-1, being N number of neurons. 
         #Rename id names.
         remap_all_tables(v1_neurons, v1_connections, rates_table)
 
     #If we are only lookin at oris, then we need to remap all of neurons's angles  
-    if half_angle:
+    if orientation_only:
         v1_neurons.loc[:, "pref_ori"] = au.constrain_angles(v1_neurons["pref_ori"].values, nangles=8)
 
 
@@ -53,7 +53,7 @@ def load_data(half_angle=True, nangles=16, path="../con-con-models", version="66
     v1_neurons["pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
 
     #Once angles have been constrained, construct the delta ori values 
-    v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=half_angle)
+    v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=orientation_only)
     v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
 
     #If we want activity, read the table and return the Nx16 matrix directly
@@ -67,7 +67,7 @@ def load_data(half_angle=True, nangles=16, path="../con-con-models", version="66
 
     #If we are working only with the orientation, assume that the rate we have for that 8 angles
     #is just the average between both
-    if half_angle:
+    if orientation_only:
         rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
 
     return v1_neurons, v1_connections, rates

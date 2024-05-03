@@ -128,7 +128,7 @@ for k in "AB":
 
 #Read and process necessary data
 orientation_only = True
-v1_neurons, v1_connections, rates = loader.load_data(half_angle=orientation_only)
+v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
 
 #Very important to use only the functionally matched data for the adjacency matrix!!
 #We'll be out of RAM otherwise
