@@ -21,7 +21,7 @@ def add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre"):
     #The same thing for pre and post: add the respective columns...
     if who == "pre" or who == "both":
         #Create a new column and fill it with a default value
-        v1_conn_withlayer["pre_layer"] = "L2/3"
+        v1_conn_withlayer["pre_layer"] = "L23"
 
         #Then, search all neurons in L4 and set them in the new table
         #l4_neurons_ids = filter_neurons(v1_neurons, layer="L4")["id"]
@@ -33,7 +33,7 @@ def add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre"):
 
     if who == "post" or who == "both":
         #By definition, the way we constructed the data, no postsynaptic neuron is in L4, so just fill it up!!
-        v1_conn_withlayer["post_layer"] = "L2/3"
+        v1_conn_withlayer["post_layer"] = "L23"
 
     
     #Return result
@@ -51,7 +51,7 @@ def tuning_encoder(v1_neurons, v1_connections):
     '''
 
     #Get the neurons which are tuned
-    tuned_neurons_ids = fl.filter_neurons(v1_neurons, tuned=True)["id"]
+    tuned_neurons_ids = fl.filter_neurons(v1_neurons, tuning="tuned")["id"]
 
     #Initialize a new table with the tuning set to false by default
     v1_conn_withtuning = v1_connections.copy()
@@ -93,7 +93,7 @@ def split_by_tuning(v1_connections):
 
     #Which ones is the presynaptic thing coming from?
     l4  = v1_connections['pre_layer'] == 'L4'
-    l23 = v1_connections['pre_layer'] == 'L2/3'
+    l23 = v1_connections['pre_layer'] == 'L23'
 
 
     #L4 -> L2/3
@@ -172,7 +172,7 @@ def get_untuned_rate(v1_neurons, rates):
     """
 
     #Find the untuned neurons
-    untuned_ids = fl.filter_neurons(v1_neurons, tuned=False)["id"]
+    untuned_ids = fl.filter_neurons(v1_neurons, tuning="untuned")["id"]
     rates_unt = rates.copy()
     #Substitute the not tuned ones with the mean rate accross all its angles
     #The newaxis thing allows it to be assigned doing rates[ids, :] = directly

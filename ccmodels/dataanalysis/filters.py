@@ -74,8 +74,9 @@ def synapses_by_id(neurons_id, v1_connections, who="pre"):
     v1_connections : DataFrame
         Dataframe with connectivity information
     who : string
-        Can be "pre" (default), "post" or "both". If pre/post, selects pre/postsynaptic neurons which are contained in 
-        the neurons_id array. If "both", it needs both IDs to be present.
+        Can be "pre" (default), "post", "both" or "any". If pre/post, selects pre/postsynaptic neurons which are contained in 
+        the neurons_id array. If "both", it needs both IDs to be present. If "any", the filter selects all connections 
+        at least one ID is present. 
     """
 
     if who=="pre":
@@ -84,8 +85,10 @@ def synapses_by_id(neurons_id, v1_connections, who="pre"):
         return v1_connections[v1_connections["post_id"].isin(neurons_id)]
     elif who=="both":
         return v1_connections[v1_connections["pre_id"].isin(neurons_id) & v1_connections["post_id"].isin(neurons_id)]
+    elif who=="any":
+        return v1_connections[v1_connections["pre_id"].isin(neurons_id) | v1_connections["post_id"].isin(neurons_id)]
 
-def filter_connections(v1_neurons, v1_connections, layer=None, tuned=None, cell_type=None, proofread, who="pre"):
+def filter_connections(v1_neurons, v1_connections, layer=None, tuning=None, cell_type=None, proofread=None, who="pre"):
     """
     Convenience function to call filter_neurons + synapses_by_id, i.e. filtering neurons by a criterium
     and then returning all connections fulfilling this condition. 
@@ -93,7 +96,7 @@ def filter_connections(v1_neurons, v1_connections, layer=None, tuned=None, cell_
     filtering pre/post or both neurons (see synapses by id).
     """
 
-    neurons_filtered = filter_neurons(v1_neurons, layer, tuned, cell_type, proofread)
+    neurons_filtered = filter_neurons(v1_neurons, layer=layer, tuning=tuning, cell_type=cell_type, proofread=proofread)
     return synapses_by_id(neurons_filtered["id"], v1_connections, who)
 
 def connections_to(post_id, v1_connections, only_id=True):
@@ -111,6 +114,5 @@ def connections_from(pre_id, v1_connections):
     Get the indices of the postsynaptic to which pre_id points  
     """
     return v1_connections[v1_connections["pre_id"] == pre_id]["post_id"]
-
 
     
