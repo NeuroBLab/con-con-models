@@ -28,8 +28,7 @@ print(f"Number of neurons: {len(neuron_ids)}")
 
 #Extract connectome
 print("Querying API for connections. Might take a while...")
-#connections = down.connectome_constructor(client, neuron_ids, neuron_ids)
-down.connectome_constructor(client, neuron_ids, neuron_ids)
+down.connectome_constructor(client, neuron_ids, neuron_ids, start_index=0)
 
 #Save it
 #connections.to_csv(f'data/preprocessed/connections_table.csv', index = False)

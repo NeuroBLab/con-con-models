@@ -193,7 +193,7 @@ axes["right"] = subfigs[2].subplots(nrows=2, ncols=1)
 
 #Load the data
 orientation_only = True 
-v1_neurons, v1_connections, rates = loader.load_data(half_angle=orientation_only)
+v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
 
 #Se we can easily filter synapses by the layer in which the presynaptic neuron lives directly
 #without having to call .isin(...) all the time.
