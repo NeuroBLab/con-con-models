@@ -167,7 +167,7 @@ def get_adjacency_matrix(v1_neurons, v1_connections):
 
     #Fill the weighted matrix
     vij = np.zeros((N,N))
-    for i,j,v in v1_connections[["post_id", "pre_id", "size"]].values:
+    for i,j,v in v1_connections[["post_id", "pre_id", "syn_volume"]].values:
         vij[i,j] = v
     
     return vij

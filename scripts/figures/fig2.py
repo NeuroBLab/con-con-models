@@ -14,6 +14,16 @@ import ccmodels.plotting.styles as sty
 import ccmodels.plotting.color_reference as cr
 import ccmodels.plotting.utils as plotutils
 
+import ccmodels.dataanalysis.processedloader as loader
+import ccmodels.dataanalysis.filters as fl
+
+
+# ======================================================
+# --------------- FUNCTIONS TO DRAW --------------------
+# Each function draws a panel/subpanel of the figure. 
+# It takes the axis to draw and draws there. In this way
+# our figure code is "modular".
+# ======================================================
 
 
 
@@ -21,8 +31,7 @@ import ccmodels.plotting.utils as plotutils
 def plot_dist(ax, v1_neurons, layer):
 
     #Select tuned neurons in the desired layer
-    tuned_neurons = utl.filter_neurons(v1_neurons, tuned=True, layer=layer)
-    #neurons_layer = utl.get_neurons_in_layer(v1_neurons, layer)
+    tuned_neurons = fl.filter_neurons(v1_neurons, tuning="tuned", layer=layer)
 
     #Create bins and compute their centers, which is useful for plotting
     bins = np.linspace(0, 1, 20)
@@ -45,14 +54,18 @@ def fraction_tuned(ax, data):
     #Create a Pandas Series which contains the number of tuned neurons in a layer
     #The value is accesed by the key of the pandas dataframe, e.g. n_tuned["L2/3"]
     #tuned_neurons = utl.get_tuned_neurons(data)
-    tuned_neurons = utl.filter_neurons(v1_neurons, tuned=True)
+    tuned_neurons = fl.filter_neurons(data, tuning="tuned") 
     n_tuned = tuned_neurons.groupby("layer").size()
     total_neurons = data.groupby("layer").size() 
 
-    layers = ["L2/3", "L4"]
+    #TODO check
+    #matched_neurons = fl.filter_neurons(data, tuning="matched") 
+    #total_neurons = matched_neurons.groupby("layer").size() 
+
+    layers = ["L23", "L4"]
 
     #Plot those fractions
-    for i,layer in enumerate(["L2/3", "L4"]):
+    for i,layer in enumerate(["L23", "L4"]):
         perc_tuned = n_tuned[layer]/total_neurons[layer]
         ax.barh(ybars[i], perc_tuned, color=cr.lcolor[layer], height=barw)
         ax.text(perc_tuned + offset, ybars[i], f"{round(100*perc_tuned)}%", va="center", ha="left")
@@ -100,12 +113,12 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L2/3"], conprob["L4"]= ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
+    conprob["L23"], conprob["L4"]= ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
 
     #Plot it!
     angles = plotutils.get_angles(kind="diff", half=orientation_only)
 
-    for layer in ["L2/3", "L4"]:
+    for layer in ["L23", "L4"]:
         p = conprob[layer]
         c = cr.lcolor[layer]
 
@@ -149,7 +162,16 @@ def plot_cumulative(ax, v1_neurons, v1_connections):
     ax.legend(loc=(0.05, 0.65))
 
 
-# ----------------------------------------------------------------------------------------
+
+
+# ======================================================
+# --------------- FIGURE STRUCTURE ---------------------
+# THis is the code that loads the data, structures the 
+# location of the panels, and then call the analysis 
+# functions to fill in the panels, via the functions above.
+# ======================================================
+
+
 
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
@@ -171,13 +193,16 @@ axes["right"] = subfigs[2].subplots(nrows=2, ncols=1)
 
 #Load the data
 orientation_only = True 
-v1_neurons, v1_connections, rates = utl.load_data(half_angle=orientation_only)
+v1_neurons, v1_connections, rates = loader.load_data(half_angle=orientation_only)
 
 #Se we can easily filter synapses by the layer in which the presynaptic neuron lives directly
 #without having to call .isin(...) all the time.
 #Adds two extra columns to v1_connections
 v1_connections = utl.add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre") 
 
+#For many things in this figure we need only the functionally matched neurons, the others are not useful
+matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
+matched_connections = fl.synapses_by_id(matched_neurons["id"], v1_connections, who="both")
 
 # --- First panel
 
@@ -187,12 +212,12 @@ axes["center"][0].axis("off")
 
 
 #Plot the data for both layer in the same axis. Then format it. 
-fraction_tuned(axes["left"][1], v1_neurons)
+fraction_tuned(axes["left"][1], matched_neurons)
 
 #Plot the data for both layer in the same axis. Then format it. 
 ax = axes["left"][2]
-plot_dist(ax, v1_neurons, "L2/3")
-plot_dist(ax, v1_neurons, "L4")
+plot_dist(ax, matched_neurons, "L23")
+plot_dist(ax, matched_neurons, "L4")
 
 #Nice labels
 ax.set_ylabel('Fraction')
@@ -202,8 +227,8 @@ ax.set_ylim(bottom = 0)
 # ----
 
 #Get the dictinoarie sof both probability and strength
-conn_probability_dict = ste.prob_conectivity_tuned_untuned(v1_neurons, v1_connections)
-strength_dict = ste.strength_tuned_untuned(v1_neurons, v1_connections)
+conn_probability_dict = ste.prob_conectivity_tuned_untuned(matched_neurons, matched_connections)
+strength_dict = ste.strength_tuned_untuned(matched_neurons, matched_connections)
 
 #Make the plots
 plot_matrix_tuneuntune(axes["center"][1], conn_probability_dict, title="Conn. Probability", addticks=True)
@@ -212,11 +237,11 @@ plot_matrix_tuneuntune(axes["center"][2], strength_dict, title="Conn. Strength")
 # --------- 
 
 #Probability as a function of the dtheta
-conn_prob_osi(axes["right"][0], v1_neurons, v1_connections, half=orientation_only)
+conn_prob_osi(axes["right"][0], matched_neurons, matched_connections, half=orientation_only)
 
 # --------
 
-plot_cumulative(axes["right"][1], v1_neurons, v1_connections)
+plot_cumulative(axes["right"][1], matched_neurons, matched_connections)
 
 
 

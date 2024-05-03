@@ -4,6 +4,7 @@ import pandas as pd
 import ccmodels.dataanalysis.utils as utl
 import ccmodels.dataanalysis.filters as fl 
 import ccmodels.dataanalysis.processedloader as loader
+import ccmodels.utils.angleutils as au
 
 
 #TODO needs to be merged with new version of the preprocssing results
@@ -93,14 +94,13 @@ def prob_conectivity_tuned_untuned(v1_neurons, v1_connections, nsamples=100):
     #Get the tuning for each synapse and add it to the table.
     #We add it instead of keeping because for the sampling it is simpler & faster to have them in 
     #the columns already.
-    v1_connections = utl.tuning_encoder(v1_neurons, v1_connections)
+    connections_encoded = utl.tuning_encoder(v1_neurons, v1_connections)
 
     #Sampl from the table
     for i in range(nsamples):
 
         #Bootstrap a number of connections with repetitions
-        v1_connections_samp = v1_connections.sample(len(v1_connections), replace = True)
-
+        v1_connections_samp = connections_encoded.sample(len(connections_encoded), replace = True)
 
         #Separate the samples in both tuned/untuned and layer.
         tuning_tables = utl.split_by_tuning(v1_connections_samp)
@@ -115,12 +115,11 @@ def prob_conectivity_tuned_untuned(v1_neurons, v1_connections, nsamples=100):
 
         #And for L2/3
         layer_23_tuned_out = len(v1_connections_samp[v1_connections_samp['post_tuned'] 
-                                                 & (v1_connections_samp["pre_layer"]=="L2/3")])
+                                                 & (v1_connections_samp["pre_layer"]=="L23")])
 
 
         layer_23_untuned_out = len(v1_connections_samp[~v1_connections_samp['post_tuned']
-                                                & (v1_connections_samp["pre_layer"]=="L2/3")])
-
+                                                & (v1_connections_samp["pre_layer"]=="L23")])
 
         #Get the normalizing constants in a handy dictionary so we can compute the 
         #probability of "how much we have in each tuning_table" divided by the total number of links
@@ -162,11 +161,11 @@ def strength_tuned_untuned(v1_neurons, v1_connections):
     l23_neurons_id = fl.filter_neurons(v1_neurons, layer="L23")["id"] 
 
     #Normalization by the mean size of layer L2/3
-    normcstr = np.mean(v1_connections.loc[v1_connections["pre_layer"] == "L2/3", 'size'])
+    normcstr = np.mean(v1_connections.loc[v1_connections["pre_layer"] == "L23", 'syn_volume'])
 
     #Fill our matrix accordingly. See also the previous function
     for combination in sampled_strenghts:
-        sampled_strenghts[combination] = np.mean(tuning_tables[combination]['size']) / normcstr
+        sampled_strenghts[combination] = np.mean(tuning_tables[combination]['syn_volume']) / normcstr
 
     return sampled_strenghts
 
@@ -182,13 +181,13 @@ def bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer, half=True, nangle
     #If layer is 2/3 we want to avoid L4, because all neurons there are presyanptic and 
     #therefore they cannot count for the potential connections (for normalization)
     #If it's layer 4, then all neurons can form potential connections, so we use full system.
-    if pre_layer == "L2/3":
-        tunedlayer = fl.filter_neurons(v1_neurons, tuned=True, layer="L2/3")
+    if pre_layer == "L23":
+        tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23")
     else:
-        tunedlayer = fl.filter_neurons(v1_neurons, tuned=True)
+        tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned")
 
     #Filter to the connections we want
-    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuned=True, who="both")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuning="tuned", who="both")
     conn_from_tunedpre = fl.filter_connections(v1_neurons, conn_from_tunedpre, layer=pre_layer, who="pre")
 
     #Prepare variables for computing statistics 
@@ -229,7 +228,7 @@ def bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer, half=True, nangle
             #If they are not equal, the number of potential links is just multiplying the 
             #number of elements in each group
             if i != j:
-                dtheta = utl.angle_diff(i, j, half=half)
+                dtheta = au.angle_diff(i, j, half=half)
                 normalization[dtheta+offset] += n_units_by_angle[i] * n_units_by_angle[j]
             else:
                 #for delta=0, however, we exhaust one link per each node we visit, 
@@ -257,17 +256,22 @@ def bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer, half=True, nangle
     #Return the results as a dataframe
     return pd.DataFrame({'mean':p_mean/np.max(p_mean) , 'std':np.sqrt(p_std - p_mean**2)/np.max(p_mean)})
 
-def prob_symmetric_links(v1_neurons, v1_connections, half=True, nangles=16):
+def prob_symmetric_links(v1_neurons_, v1_connections_, half=True, nangles=16):
     ''' 
     Computes the relative probability of having symmetric links for each angle
 
     half_dirs: if true directions between 0 and pi else between 0 and pi
     '''
 
+    #Ensure we are using only the matched neurons. If this does not happen, the
+    #adjacency matrix will be tooooo large
+    v1_neurons = fl.filter_neurons(v1_neurons_, tuning="matched")
+    v1_connections = fl.filter_connections(v1_connections_, tuning="matched")
+
     #Select connections with presynaptic neurons in the selected layer 
-    tunedlayer = fl.filter_neurons(v1_neurons, tuned=True, layer="L2/3")
-    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuned=True, who="both")
-    conn_from_tunedpre = fl.filter_connections(v1_neurons, conn_from_tunedpre, layer="L2/3", who="pre")
+    tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuning="tuned", who="both")
+    conn_from_tunedpre = fl.filter_connections(v1_neurons, conn_from_tunedpre, layer="L23", who="pre")
 
     #Get the double links from the adjacency matrix
     tuned_ids = tunedlayer["id"].values
@@ -330,7 +334,7 @@ def prob_symmetric_links(v1_neurons, v1_connections, half=True, nangles=16):
         #number of elements in each group
         for j in range(limit_angle):
             if i != j:
-                dtheta = abs(utl.angle_diff(i, j))
+                dtheta = abs(au.angle_diff(i, j))
                 normalization[dtheta] += n_units_by_angle[i] * n_units_by_angle[j]
 
     #Last distance is computed twice
@@ -356,13 +360,9 @@ def prob_conn_diffori(v1_neurons, v1_connections, half=True):
     Parameters: requires the dataframe of neurons's properties, as well as the synapses' properties. 
     """
 
-    #Identify tuned neurons
-    synapse_tuning = utl.tuning_encoder(v1_neurons, v1_connections)
-    tuned_connections = v1_connections[synapse_tuning['pre_tuned'] & synapse_tuning["post_tuned"]]
-
     #Extract bootstrapped stats
-    l23_boots = bootstrap_conn_prob(v1_neurons, tuned_connections, pre_layer='L2/3', half=half)
-    l4_boots = bootstrap_conn_prob(v1_neurons, tuned_connections, pre_layer='L4', half=half)
+    l23_boots = bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer='L23', half=half)
+    l4_boots = bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer='L4', half=half)
 
     return l23_boots, l4_boots
 
@@ -382,16 +382,16 @@ def cumulative_probconn(v1_neurons, v1_connections, angles_list):
     synapse_tuning = utl.tuning_encoder(v1_neurons, v1_connections)
     tuned_connections = v1_connections[synapse_tuning['pre_tuned'] & synapse_tuning["post_tuned"]]
     
-    normcstr = np.mean(v1_connections[v1_connections['pre_layer'] == 'L2/3']['size'])
+    normcstr = np.mean(v1_connections[v1_connections['pre_layer'] == 'L23']['syn_volume'])
     
     sub1l4 =tuned_connections[(tuned_connections['delta_ori'] == angles_list[0])& 
-                          (tuned_connections['pre_layer'] == 'L4')]['size'].values/normcstr 
+                          (tuned_connections['pre_layer'] == 'L4')]['syn_volume'].values/normcstr 
     sub2l4 =tuned_connections[(tuned_connections['delta_ori'] == angles_list[1])& 
-                          (tuned_connections['pre_layer'] == 'L4')]['size'].values/normcstr 
+                          (tuned_connections['pre_layer'] == 'L4')]['syn_volume'].values/normcstr 
     sub1l23 =tuned_connections[(tuned_connections['delta_ori'] == angles_list[2])& 
-                           (tuned_connections['pre_layer'] == 'L2/3')]['size'].values/normcstr 
+                           (tuned_connections['pre_layer'] == 'L23')]['syn_volume'].values/normcstr 
     sub2l23 =tuned_connections[(tuned_connections['delta_ori'] == angles_list[3])& 
-                           (tuned_connections['pre_layer'] == 'L2/3')]['size'].values/normcstr 
+                           (tuned_connections['pre_layer'] == 'L23')]['syn_volume'].values/normcstr 
     
     logbins = np.logspace(-2.3, 1.5, 100) 
 

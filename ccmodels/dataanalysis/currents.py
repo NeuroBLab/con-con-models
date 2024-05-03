@@ -95,7 +95,7 @@ def get_input_virtual_presynaptic(v1_neurons, selected_connections, rates):
     #Get the indices and the synapses' weight
     pre_ids = selected_connections["pre_id"]
     post_ids = selected_connections["post_id"]
-    volumes = selected_connections["size"].values
+    volumes = selected_connections["syn_volume"].values
 
     #Just shift every presynaptic rate by each postsynaptic neuron's pref ori 
     angle_post = v1_neurons.loc[post_ids, "pref_ori"]
@@ -127,8 +127,8 @@ def compute_inpt_curr_by_layer(v1_neurons, vij, rates):
     rates_unt = utl.get_untuned_rate(v1_neurons, rates) 
 
     #Get the indices of L2/3 and L4 postsynaptic neurons 
-    l23ids = fl.filter_neurons(v1_neurons, layer="L2/3", tuned=True)["id"]
-    l4ids = fl.filter_neurons(v1_neurons, layer="L4", tuned=True)["id"]
+    l23ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
+    l4ids = fl.filter_neurons(v1_neurons, layer="L4", tuning="tuned")["id"]
 
     #Get the currents and the fractions from the total
     curr_l23 = get_currents_subset(v1_neurons, vij, rates_unt, post_ids=l23ids, pre_ids=l23ids)
@@ -146,7 +146,7 @@ def compute_inpt_curr_by_layer(v1_neurons, vij, rates):
     #Store all of these results in a handy dictionary and return them
     results = {}
 
-    results["L2/3"] = {"av_curr": mean_curr23, "std_curr" : curr_l23.std(axis=0), "frac":frac_l23}
+    results["L23"] = {"av_curr": mean_curr23, "std_curr" : curr_l23.std(axis=0), "frac":frac_l23}
     results["L4"] = {"av_curr": mean_curr4, "std_curr" : curr_l4.std(axis=0), "frac":frac_l4}
 
     #Same for the total current, which is normalized to be 1 at the highest point
@@ -164,11 +164,11 @@ def single_synapse_current(v1_neurons, v1_connections, vij, rates, shifted=True)
     """
 
     #Find pairs of tuned neurons, with presynaptic ones coming from layer L2/3
-    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuned="true", who="both")
-    tuned_outputs = fl.filter_connections(v1_neurons, tuned_outputs, layer="L2/3", who="pre")
+    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuning="tuned", who="both")
+    tuned_outputs = fl.filter_connections(v1_neurons, tuned_outputs, layer="L23", who="pre")
 
     #Find tuned neurons in L2/3 
-    tuned_neurons = fl.filter_neurons(v1_neurons, layer="L2/3", tuned=True) 
+    tuned_neurons = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned") 
 
     #Select a random postsynaptic neuron and its presynaptic ones 
     selected_neuron = tuned_neurons.sample(1)["id"].values[0]
@@ -192,8 +192,8 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
         index_pihalf = nangles//4 
 
     #Find pairs of tuned neurons, with presynaptic ones coming from specific layer 
-    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuned="true", who="both")
-    l23_conns = fl.filter_connections(v1_neurons, tuned_outputs, layer="L2/3")
+    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuning="tuned", who="both")
+    l23_conns = fl.filter_connections(v1_neurons, tuned_outputs, layer="L23")
     l4_conns  = fl.filter_connections(v1_neurons, tuned_outputs, layer="L4")
 
     #Substitute the untuned neurons with the average rate
@@ -201,7 +201,7 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
 
     #Get number of angles, and set up a Dataframe based on it, that we will fill
     #Keep each result in a separate table depending on layer of presynaptic
-    diffs = {"L2/3" : [], "L4"   : []} 
+    diffs = {"L23" : [], "L4"   : []} 
 
     #Compute the currents
     maxcurr = get_current_normalization(v1_neurons, vij, rates_untuned)
@@ -209,7 +209,7 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
     curr_l4  = get_currents_subset(v1_neurons, vij, rates_untuned, post_ids=l4_conns["post_id"], shift=shifted)
 
     #Compute the inputs for all the selected neurons. Do it separately for each layer
-    for layer, currlayer in zip(["L2/3", "L4"], [curr_l23, curr_l4]):
+    for layer, currlayer in zip(["L23", "L4"], [curr_l23, curr_l4]):
         for current in currlayer: 
 
             #Normalize currents
