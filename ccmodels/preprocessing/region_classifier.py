@@ -9,8 +9,6 @@ from sklearn.metrics import classification_report
 import sys
 
 sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
-import ccmodels.preprocessing.utils as utl
-import ccmodels.preprocessing.connectomics as conn
 import ccmodels.preprocessing.rawloader as loader
 from standard_transform import minnie_transform_vx
 

@@ -143,6 +143,11 @@ full_table = full_table[["pt_root_id", "cell_type", "tuning_type", "layer", "pia
 full_table = full_table.rename(columns={"pt_rood_id":"root_id", "pial_distances_x":"pial_distances",
                                         "status_axon":"axon_proof", "status_dendrite":"dendr_proof"})
 
+#Separate x,y,z positions for the pial distances
+full_table[["pial_dist_x", "pial_dist_y", "pial_dist_z"]] = full_table["pial_distances"].tolist()
+full_table.drop(columns="pial_distances", inplace=True)
+
+
 #Set the adequate type for some of the table columns
 #Take into account that this categories is affected by the order (and its important just below)
 full_table["tuning_type"] = pd.Categorical(full_table["tuning_type"], categories=["direction", "orientation", "not_selective", "not_matched"])
@@ -150,6 +155,9 @@ full_table["tuning_type"] = pd.Categorical(full_table["tuning_type"], categories
 #Sort so the functionally matched appear first. This makes easier to construct the rate table. 
 #This works because the values are not sorted alphabetically but in the way done by the categories
 full_table = full_table.sort_values(by="tuning_type")
+
+
+
 
 
 full_table.to_csv('data/preprocessed/unit_table.csv', index = False)
