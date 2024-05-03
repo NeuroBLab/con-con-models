@@ -13,20 +13,17 @@ For any problem regarding the code, please contact us.
 
 ## Dependencies 
 
-Apart from standard scientific Python packages, such as `numpy`, `pandas` or `scikit` (which can be obtained through the Conda distribution) we rely on the following dependencies:
-
-- [Standard transform](https://pypi.org/project/standard-transform/) to transform neurons position's coordinates. 
-
-If you are willing to re-download the data or query the API yourself, you'll need 
+We rely only on standard scientific Python packages, such as `numpy`, `pandas` or `scikit` (which can be obtained through the Conda distribution). For replicating our paper or using our preprocessed data there is no more dependencies. However, if you want to re-download or re-analyse new data you'll need 
 
 - [CAVEclient](https://github.com/CAVEconnectome/CAVEclient) to query the connectomics data.
+- [Standard transform](https://pypi.org/project/standard-transform/) to transform neurons position's coordinates. 
 - Configure the [Microns NDA](https://github.com/cajal/microns-nda-access) to access functional data.
 
-We recommend installing packages in a virtual environment for safety. Note that we provide pre-processed data to replicate our analysis without having to query the database, which can be complicated.
+and their potential dependencies. We recommend installing packages in a virtual environment for safety. Note that we provide pre-processed data to replicate our analysis without having to query the database, which can be complicated. 
 
 ## Install
 
-Just `git clone` this repository. We will refer to the `con-con-models` as the _base_ directory. If you wish, you can install the package in editable mode by being in base directory and running:
+Just `git clone` this repository. We will refer to the `con-con-models/` folder as the _base_ directory. If you wish, you can install the package in editable mode by being in base directory and running:
 
 `pip install -e` 
 
@@ -131,6 +128,14 @@ In order to use the module
 
 The `ccmodels` is composed by several modules. 
 
+
+> **Note:** for running code, you need to either install the package in editable mode (see above) or add `ccmodels` folder to your path. If you are not willing to do so, it's also possible to add the following **before** importing any of the `ccmodels` modules:
+> ```python
+> import sys
+> sys.path.append("path/to/base/folder")
+> ```
+> This line adds the package to the path temporarily. 
+
 ### Preprocessing
 
 The first one, `preprocessing`, has utilities dedicated to download the data and generate the tables for final use. Most users would not want to mess with this and would do better directly jumping to the analysis given the preprocessed data that we provide. The most relevant thing of this module might be the `rawloader` file, which allows one to quickly load all the raw/semiprocessed data just by knowing the name of the desired table. 
@@ -142,7 +147,7 @@ import ccmodels.preprocessing.rawloader as rawl
 fm = rawl.read_table("aibs", prepath="path/to/data/") 
 ```
 
-The names do not the format. The `prepath` variable is used to indicate where the `data` folder is. It is not needed if the Python files are executed from the base folder, but if you something like `basefolder/notebooks/mynotebook.ipynb` then you'll need `prepath=../data/`. 
+The format is not needed. The `prepath` variable is used to indicate where the `data` folder is. It is not needed if the Python files are executed from the base folder, but if you are working in a notebook `basefolder/notebooks/mynotebook.ipynb` then you'll need `prepath=../data/`. 
 Other interesting files inside the module are the `region_classifier.py`, which allow you to train a classifier to predict the brain region of the selected neurons, or the `connectomics.py` file that merges all the tables.
 
 ### Data Analysis
@@ -152,7 +157,7 @@ Other interesting files inside the module are the `region_classifier.py`, which 
 
 ```python
 
-import ccmodels.datanalysis.processedloader as loader 
+import ccmodels.dataanalysis.processedloader as loader 
 
 units, connections, activity = loader.read_tables(orientation_only=True, prepath="path/to/data")
 ```
@@ -162,8 +167,8 @@ units, connections, activity = loader.read_tables(orientation_only=True, prepath
 Once that we have loaded our data, a very common task is to **filter** it correctly. For this, we have the `filters` file, which contain several functions which are very handy to filter complex cases in one line. For neurons, for example, 
 
 ```python
-import ccmodels.datanalysis.processedloader as loader 
-import ccmodels.datanalysis.filters as fl
+import ccmodels.dataanalysis.processedloader as loader
+import ccmodels.dataanalysis.filters as fl
 
 units, connections, activity = loader.read_tables(orientation_only=True, prepath="path/to/data")
 
@@ -180,7 +185,7 @@ units_inh = fl.filter_neurons(units, layer="L23", cell_type="inh")
 units_t = fl.filter_neurons(units, tuning="tuned", proofread="decent")
 ```
 
-The most relevant filter is the `tuning` one. It can take several values, `tuned` (functionally matched neurons that are either orientation or direction selective), `untuned` (not selective neurons), `matched` (neurons that have been functionally matched, including non selective ones) and `unmatched` (non-functionally matched). Additionally, the `proofread` parameter uses [indications from Allen's institute on proofreading](https://allenswdb.github.io/microns-em/em-background.html) to indicate the level of proofread of the neurons, having `minimum`, `decent`, `good` and `perfect`. The `minimum` category stands for clean axons, and `decent` for extended axons. The `decent` level should give close to complete connectivity already. The next two levels include dendrite proofreading. 
+The most relevant filter is the `tuning` one. It can take several values, `'tuned'` (functionally matched neurons that are either orientation or direction selective), `'untuned'` (not selective neurons), `'matched'` (neurons that have been functionally matched, including non selective ones) and `'unmatched'` (non-functionally matched). Additionally, the `'proofread'` parameter uses [indications from Allen's institute on proofreading](https://allenswdb.github.io/microns-em/em-background.html) to indicate the level of proofread of the neurons, having `'minimum'`, `'decent'`, `'good'` and `'perfect'`. The `'minimum'` category stands for clean axons, and `'decent'` for extended axons. The `'decent'` level should give close to complete connectivity already. The next two levels include dendrite proofreading. 
 
 
 Selecting connections is also easy with `filters`. One way to do it is from the function `synapses_by_id`, which allows us to get the connections whose presynaptic or postsynaptic neuron is in a list of given ids. The shortcut function `filter_connections` helps for the most common tasks.
@@ -201,9 +206,9 @@ conn7 = fl.synapses_by_id([7,77,777], connections, who="any")
 conn_tuned = fl.filter_connections(units, connections, tuning="tuned", who="both")
 ```
 
-The `who` parameter indicates if `pre` or `post` synaptic neurons are affected by the filtering. It is possible to demand that `both` neurons fulfill the filter, or that `any` of them does.
+The `who` parameter indicates if either `'pre'` or `'post'` synaptic neurons are affected by the filtering. It is possible to demand that `'both'` neurons fulfill the filter, or that `'any'` of them does.
 
-> Notice that there is no way to apply conditions on presynaptic and postsynaptic neurons, for now. So if one would like to have inhibitory presynaptic neurons and excitatory postsynaptic ones, it go as 
+> Notice that there is no way to apply different conditions on presynaptic and postsynaptic neurons, for now. So if one would like to have inhibitory presynaptic neurons and excitatory postsynaptic ones, it goes as 
 >```python
 >conn_preinh = fl.filter_connections(units, connections, cell_type="inh", who="pre")
 >conn_postexc= fl.filter_connections(units, conn_preinh, cell_type="exc", who="post")
