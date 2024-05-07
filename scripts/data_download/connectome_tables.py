@@ -3,6 +3,7 @@
 import sys
 
 sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
-import ccmodels.preprocessing.connectomics as conn
-client = conn.get_client(661)
-conn.download_tables(client)
+import ccmodels.preprocessing.downloader as down 
+
+client = down.get_client(661)
+down.download_tables(client)

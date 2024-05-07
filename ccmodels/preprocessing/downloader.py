@@ -43,7 +43,7 @@ def download_tables(client):
     #Drop unlabelled neurons
     table = table[table['pt_root_id']!=0]
     #Drop neurons recorded in more than one scan
-    table = table.drop_duplicates(subset='pt_root_id', keep = 'first')
+    #table = table.drop_duplicates(subset='pt_root_id', keep = 'first')
     #Save the table
     table.to_csv("data/raw/functionally_matched.csv", index=False)
 
