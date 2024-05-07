@@ -170,7 +170,7 @@ Once that we have loaded our data, a very common task is to **filter** it correc
 import ccmodels.dataanalysis.processedloader as loader
 import ccmodels.dataanalysis.filters as fl
 
-units, connections, activity = loader.read_tables(orientation_only=True, prepath="path/to/data")
+units, connections, activity = loader.load_data(orientation_only=True, prepath="path/to/data")
 
 #Units in L23
 units23 = fl.filter_neurons(units, layer="L23")
@@ -194,7 +194,7 @@ Selecting connections is also easy with `filters`. One way to do it is from the 
 #Get ids of neurons in layer L23, and then check presynaptic neurons in this list...
 units23 = fl.filter_neurons(units, layer="L23")
 ids23 = units23["id"]
-conn23 = fl.synapses_by_id(ids23, connections, who="pre") 
+conn23 = fl.synapses_by_id(ids23, pre_ids=connections, who="pre") 
 
 #A simpler way to do the above is
 conn23 = fl.filter_connections(units, connections, layer="L23", who="pre")
@@ -204,15 +204,13 @@ conn7 = fl.synapses_by_id([7,77,777], connections, who="any")
 
 #Check connections between neurons which are both tuned
 conn_tuned = fl.filter_connections(units, connections, tuning="tuned", who="both")
+
+#Different conditions for pre and post synaptic neurons in one line!
+#Get tuned-to-untuned connections looking for presynaptic proofread axons
+filterprepost = fl.filter_connections_prepost(units, connections, tuning=["tuned", "untuned"], proofread=["decent", None], who="both")
 ```
 
-The `who` parameter indicates if either `'pre'` or `'post'` synaptic neurons are affected by the filtering. It is possible to demand that `'both'` neurons fulfill the filter, or that `'any'` of them does.
-
-> Notice that there is no way to apply different conditions on presynaptic and postsynaptic neurons, for now. So if one would like to have inhibitory presynaptic neurons and excitatory postsynaptic ones, it goes as 
->```python
->conn_preinh = fl.filter_connections(units, connections, cell_type="inh", who="pre")
->conn_postexc= fl.filter_connections(units, conn_preinh, cell_type="exc", who="post")
->```
+The `who` parameter indicates if either `'pre'` or `'post'` synaptic neurons are affected by the filtering. It is possible to demand that `'both'` neurons fulfill the filter, or that `'any'` of them does. Observe that `filter_connections_prepost` only admits `both` or `any`.
 
 These are probably some of the most useful functions on the codebase. Then, `statistics_extraction` has functions devoted to obtain the connection probabilities between different kinds of neurons, while `currents` computes the input synaptic current in different scenarios. The functions in those files are called by Figures 2 and 3, respectively.
 

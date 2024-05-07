@@ -6,6 +6,7 @@ data_full
 todos.md
 ccmodels.egg-info/
 scripts/figures/output/
+data/in_processing/connections_table_*
 
 #Virtual environment folders
 virtual/

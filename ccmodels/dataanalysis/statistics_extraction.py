@@ -187,8 +187,11 @@ def bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer, half=True, nangle
         tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned")
 
     #Filter to the connections we want
-    conn_from_tunedpre = fl.filter_connections(v1_neurons, v1_connections, tuning="tuned", who="both")
-    conn_from_tunedpre = fl.filter_connections(v1_neurons, conn_from_tunedpre, layer=pre_layer, who="pre")
+    conn_from_tunedpre = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[pre_layer, "L23"], tuning=["tuned", "tuned"], 
+                                                       proofread=["decent", None])
+
+    #conn_from_tunedpre = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[pre_layer, "L23"], tuning=["tuned", "tuned"]) 
+    conn_from_tunedpre = conn_from_tunedpre[conn_from_tunedpre["pre_id"] != conn_from_tunedpre["post_id"]]
 
     #Prepare variables for computing statistics 
     if half:
@@ -228,13 +231,16 @@ def bootstrap_conn_prob(v1_neurons, v1_connections, pre_layer, half=True, nangle
             #If they are not equal, the number of potential links is just multiplying the 
             #number of elements in each group
             if i != j:
-                dtheta = au.angle_diff(i, j, half=half)
+                dtheta = au.signed_angle_dist(i, j, half=half)
                 normalization[dtheta+offset] += n_units_by_angle[i] * n_units_by_angle[j]
+
             else:
                 #for delta=0, however, we exhaust one link per each node we visit, 
                 #giving always (n-1) + (n+2) + ... + 2 + 1 potential links. Links can 
                 #be back and forward, so multiply by 2.
                 normalization[offset] += (n_units_by_angle[i]-1) * n_units_by_angle[i] 
+
+
 
     #Bootstrap sampling
     for i in range(n_samps):
@@ -334,7 +340,7 @@ def prob_symmetric_links(v1_neurons_, v1_connections_, half=True, nangles=16):
         #number of elements in each group
         for j in range(limit_angle):
             if i != j:
-                dtheta = abs(au.angle_diff(i, j))
+                dtheta = au.angle_dist(i, j)
                 normalization[dtheta] += n_units_by_angle[i] * n_units_by_angle[j]
 
     #Last distance is computed twice

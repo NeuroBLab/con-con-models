@@ -31,14 +31,14 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
 
     #TODO legacy code in case we want to use previous version... it should die soon
     if version=="343":
-        v1_neurons = pd.read_csv(f'{path}/preprocessed/v1_neurons.csv')
-        v1_connections = pd.read_csv(f'{path}/preprocessed/v1_connections.csv')
-        rates_table = pd.read_csv(f'{path}/preprocessed/v1_activity.csv')
+        v1_neurons = pd.read_csv(f'{prepath}/preprocessed/v1_neurons.csv')
+        v1_connections = pd.read_csv(f'{prepath}/preprocessed/v1_connections.csv')
+        rates_table = pd.read_csv(f'{prepath}/preprocessed/v1_activity.csv')
     elif version=="661":
         #TODO update once the list of connections is ready 
-        v1_neurons = pd.read_csv(f'{path}/preprocessed/unit_table.csv')
-        v1_connections = pd.read_csv(f'{path}/preprocessed/connections_table_emergency.csv')
-        rates_table = pd.read_csv(f'{path}/preprocessed/activity_table.csv')
+        v1_neurons = pd.read_csv(f'{prepath}/preprocessed/unit_table.csv')
+        v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table.csv')
+        rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table.csv')
 
         #Ensure all ids are from 0 to N-1, being N number of neurons. 
         #Rename id names.
@@ -48,9 +48,8 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     if orientation_only:
         v1_neurons.loc[:, "pref_ori"] = au.constrain_angles(v1_neurons["pref_ori"].values, nangles=8)
 
-
     #Angles are integers to avoid any roundoff error
-    v1_neurons["pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
+    v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
 
     #Once angles have been constrained, construct the delta ori values 
     v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=orientation_only)
@@ -137,7 +136,7 @@ def remap_all_tables(v1_neurons, v1_connections, v1_activity):
 
     v1_neurons.rename(columns={"pt_root_id":"id"}, inplace=True)
     v1_activity.rename(columns={"neuron_id":"id"}, inplace=True)
-    #v1_connections.rename(columns={"pre_pt_root_id":"pre_id", "post_pt_root_id":"post_id"}, inplace=True)
+    v1_connections.rename(columns={"pre_pt_root_id":"pre_id", "post_pt_root_id":"post_id"}, inplace=True)
 
     #Get a dictionary matchking the new ids with the pt_root ones 
     idx_remap = get_id_map(v1_neurons)
@@ -180,6 +179,7 @@ def get_rates_matrix(v1_neurons, v1_activity, nangles=16):
 
     #Number of neurons
     N = len(v1_neurons)
+
 
     #Fill the rates
     rates = np.empty((N, nangles))

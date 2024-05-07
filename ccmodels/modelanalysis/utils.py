@@ -153,7 +153,7 @@ def opendata(i, j, returnact=False, path="."):
 
 
 
-def get_matrix_properties(k_EE, p_EE = 0.1, assign_chi=False, path_2_propdata='data/sample_data.pkl'):
+def get_matrix_properties(k_EE, p_EE = 0.1, assign_chi=False, path_2_propdata='data/data_old/sample_data.pkl'):
     """
     Read the data stored in path_2_propdata, which contains all the statistical data (fractions of neurons and connections
     of each type), and from the two free parameters reconstruct all the missing parameters (number of neurons, average

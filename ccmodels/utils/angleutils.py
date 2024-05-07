@@ -32,7 +32,7 @@ def constrain_angles(thetas, nangles=16, negatives=True):
     return new_thetas
 
 
-def angle_diff(pre, post, nangles=16, half=True):
+def signed_angle_dist(pre, post, nangles=16, half=True):
     """
     Computes a signed difference between pre a post, by taking into account periodic boundaries.
     In this way, we get differences in [-k, ..., 0, ...k], being nangle-k mapped to -k until -nangle//2,
@@ -60,7 +60,7 @@ def angle_dist(pre, post, nangles=16, half=True):
     Classic distance with boundary conditions between angles pre and post, given as integers.
     """
     d = abs(post - pre)
-    max_angle = nangles//4 if half else nangles//2
+    max_angle = nangles//2 if half else nangles
     return min(d, max_angle - d)
 
 

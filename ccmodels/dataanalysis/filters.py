@@ -46,7 +46,6 @@ def filter_neurons(v1_neurons, layer=None, tuning=None, cell_type=None, proofrea
     elif tuning == "unmatched":
         mask_tuned = v1_neurons["tuning_type"] == "not_matched"
 
-
     if proofread == None:
         mask_proof = nomask
     elif proofread == "minimum":
@@ -62,7 +61,7 @@ def filter_neurons(v1_neurons, layer=None, tuning=None, cell_type=None, proofrea
     return v1_neurons[mask_layer & mask_cellt & mask_tuned & mask_proof]
 
 
-def synapses_by_id(neurons_id, v1_connections, who="pre"):
+def synapses_by_id(v1_connections, pre_ids=None, post_ids=None, who="pre"):
     """
     Given the ids of the neurons we want to filter for, grab the synapses that have ids matching for
     the pre- or post- synaptic neurons (or both).
@@ -80,13 +79,14 @@ def synapses_by_id(neurons_id, v1_connections, who="pre"):
     """
 
     if who=="pre":
-        return v1_connections[v1_connections["pre_id"].isin(neurons_id)]
+        return v1_connections[v1_connections["pre_id"].isin(pre_ids)]
     elif who=="post":
-        return v1_connections[v1_connections["post_id"].isin(neurons_id)]
+        return v1_connections[v1_connections["post_id"].isin(post_ids)]
     elif who=="both":
-        return v1_connections[v1_connections["pre_id"].isin(neurons_id) & v1_connections["post_id"].isin(neurons_id)]
+        return v1_connections[v1_connections["pre_id"].isin(pre_ids) & v1_connections["post_id"].isin(post_ids)]
     elif who=="any":
-        return v1_connections[v1_connections["pre_id"].isin(neurons_id) | v1_connections["post_id"].isin(neurons_id)]
+        return v1_connections[v1_connections["pre_id"].isin(pre_ids) | v1_connections["post_id"].isin(post_ids)]
+
 
 def filter_connections(v1_neurons, v1_connections, layer=None, tuning=None, cell_type=None, proofread=None, who="pre"):
     """
@@ -97,7 +97,20 @@ def filter_connections(v1_neurons, v1_connections, layer=None, tuning=None, cell
     """
 
     neurons_filtered = filter_neurons(v1_neurons, layer=layer, tuning=tuning, cell_type=cell_type, proofread=proofread)
-    return synapses_by_id(neurons_filtered["id"], v1_connections, who)
+    return synapses_by_id(v1_connections, pre_ids=neurons_filtered["id"], post_ids=neurons_filtered["id"], who=who)
+
+def filter_connections_prepost(v1_neurons, v1_connections, layer=[None,None], tuning=[None,None], cell_type=[None,None], proofread=[None,None], who="both"):
+    """
+    Convenience function to call filter_neurons + synapses_by_id, i.e. filtering neurons by a criterium
+    and then returning all connections fulfilling this condition. 
+    Needs neuron table, connection table, and then filter by layer, tuned or cell_type (see filter_neurons) and 
+    filtering pre/post or both neurons (see synapses by id).
+    """
+
+    neurons_pre = filter_neurons(v1_neurons, layer=layer[0], tuning=tuning[0], cell_type=cell_type[0], proofread=proofread[0])
+    neurons_post = filter_neurons(v1_neurons, layer=layer[1], tuning=tuning[1], cell_type=cell_type[1], proofread=proofread[1])
+    return synapses_by_id(v1_connections, pre_ids=neurons_pre["id"], post_ids=neurons_post["id"], who=who)
+
 
 def connections_to(post_id, v1_connections, only_id=True):
     """
