@@ -1,180 +1,58 @@
 import numpy as np
+import math
 
-##################################################################
-##### Matrix Sampling 
-##################################################################
+import functions as fun
 
-def gammaDTheta_EE(data, x):
-    if np.isscalar(x):  # Check if x is a single value
-        closest_index = np.argmin(np.abs(data["delta_PO"] - x))
-        closest_value = data["delta_PO"][closest_index]
-        proximity_check = abs(closest_value - x) <= 0.01
-        result = data["gammaDTheta_EE"][closest_index] if proximity_check else np.nan
-    else:
-        closest_indices = np.argmin(np.abs(data["delta_PO"][:, None] - x), axis=0)
-        closest_values = data["delta_PO"][closest_indices]
-        proximity_check = np.abs(closest_values - x) <= 0.01
-        result = np.where(proximity_check, data["gammaDTheta_EE"][closest_indices], np.nan)
-    return result
+import random
+import pandas as pd
+from scipy.interpolate import interp1d
+from scipy import stats
+from scipy.optimize import curve_fit
+from scipy.stats import mannwhitneyu, ttest_ind, pearsonr, ks_2samp
 
-def gammaDTheta_EX(data, x):
-    if np.isscalar(x):  # Check if x is a single value
-        closest_index = np.argmin(np.abs(data["delta_PO"] - x))
-        closest_value = data["delta_PO"][closest_index]
-        proximity_check = abs(closest_value - x) <= 0.01
-        result = data["gammaDTheta_EX"][closest_index] if proximity_check else np.nan
-    else:
-        closest_indices = np.argmin(np.abs(data["delta_PO"][:, None] - x), axis=0)
-        closest_values = data["delta_PO"][closest_indices]
-        proximity_check = np.abs(closest_values - x) <= 0.01
-        result = np.where(proximity_check, data["gammaDTheta_EX"][closest_indices], np.nan)
-    return result
+# load files
+def get_fractions(unit_table, connections_table, Labels):
 
-def sample_matrix(data, m_props):
-    """
-    Given matrix properties, get a sample of the matrix
-    """
+    Frac_tables_data=fun.measure_fractions_of_neurons(unit_table,Labels)
+    Conn_stat_measured_on_data=fun.measure_connection_stats(connections_table, unit_table,Labels)
+    return Frac_tables_data, Conn_stat_measured_on_data 
 
-    #Handy notation
-    N = [m_props[n] for n in ["N_E", "N_I", "N_X"]]
-    ne, ni, nx = N 
+#TODO this has to be called from the parent script between the previous two functions
+#N=1000, target_K_EE=200
+#scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections_table, unit_table,target_K_EE,N)
 
-    #Connection probabilities in each block
-    P=np.empty((2, 3));
-    P[0,:] = [m_props[pAB] for pAB in ["p_EE", "p_EI" , "p_EX"]]
-    P[1,:] = [m_props[pAB] for pAB in ["p_IE", "p_II" , "p_IX"]]
+def generate_functions(scaling_prob, Frac_tables_data, Conn_stat_measured_on_data, Labels, N=1000):
 
-    Q=np.nan*np.ones((ne + ni, ne+ni+nx))
-    idx=[np.arange(0,ne,1), np.arange(ne, ne+ni, 1), np.arange(ne+ni, ne+ni+nx,1)]
+    # sample and measure stats on sampled quantities
+    neurons_sampled=fun.sample_neurons_with_tuning(Frac_tables_data,N,Labels)
+    Frac_tables_sampled=fun.measure_fractions_of_neurons(neurons_sampled,Labels)
+    sampled_connections=fun.sample_connections(Conn_stat_measured_on_data,neurons_sampled,scaling_prob,Labels)
 
-    # Fill matrix only based on the neurons types
-    for A in range(2):
-        for B in range(3):
-            idx_Post = idx[A]
-            idx_Pre  = idx[B]
-            Q[idx_Post[:, None], idx_Pre] = np.random.binomial(1, P[A,B], (N[A],N[B]))
-    
-    #Tuned-untuned neurons
-    P=np.zeros((2, 2));
-    P[0,:] = [m_props[pAB] for pAB in ["pTT_EE", "pTU_EE"]]
-    P[1,:] = [m_props[pAB] for pAB in ["pUT_EE", "pUU_EE"]]
+    return neurons_sampled,Frac_tables_sampled, sampled_connections
 
-    N=[m_props[n] for n in ["NT_E", "NU_E"]]
-    nte, nue = N
-    idx=[np.arange(0, nte, 1), np.arange(nte, ne, 1)]
+    #Conn_stat_measured_on_sampled=fun.measure_connection_stats(sampled_connections,neurons_sampled,Labels)
 
-    for A in range(2):
-        for B in range(2):
-            idx_Post = idx[A]
-            idx_Pre  = idx[B]
-            Q[idx_Post[:, None],idx_Pre] = np.random.binomial(1, P[A,B], (N[A], N[B]))
+def generate_conn_matrix(neurons_sampled, sampled_connections, J, g):
+    # Initialize QJ array with zeros
+    QJ = np.zeros((len(neurons_sampled), len(neurons_sampled)))
 
+    # Get the necessary data from sampled_connections
+    pre_pt_root_ids = sampled_connections['pre_pt_root_id']
+    post_pt_root_ids = sampled_connections['post_pt_root_id']
+    syn_volumes = sampled_connections['syn_volume']
 
-    P=np.zeros((2, 2));
-    P[0,:] = [m_props[pAB] for pAB in ["pTT_EX", "pTU_EX"]]
-    P[1,:] = [m_props[pAB] for pAB in ["pUT_EX", "pUU_EX"]]
+    # Assign synapse volumes to QJ array based on pre and post synaptic root IDs and scale by factor J
+    QJ[post_pt_root_ids, pre_pt_root_ids] = J*syn_volumes
 
+    # scale inhibitory connections and make them negative
+    num_L23_neurons_E = len(neurons_sampled[(neurons_sampled['layer'] == 'L23')&(neurons_sampled['cell_type'] =='exc')])
+    num_L23_neurons_I = len(neurons_sampled[(neurons_sampled['layer'] == 'L23')&(neurons_sampled['cell_type'] =='inh')])
+    QJ[:, num_L23_neurons_E:(num_L23_neurons_E+num_L23_neurons_I)]=-g*QJ[:, num_L23_neurons_E:(num_L23_neurons_E+num_L23_neurons_I)]
 
-    #Tuned-untuned from layer 4
-    N_1=[m_props[n] for n in ["NT_E", "NU_E"]]
-    N_2=[m_props[n] for n in ["NT_X", "NU_X"]]
+    # Remove post synaptic neurons in L4
+    num_L23_neurons = len(neurons_sampled[neurons_sampled['layer'] == 'L23'])
+    QJ = QJ[:num_L23_neurons, :]
+    Q = QJ.copy()
+    Q[QJ!=0]=1
 
-    nte, nue = N_1
-    ntx, nux = N_2
-
-    idx_1=[np.arange(0, nte, 1),np.arange(nte, ne, 1)]
-    idx_2=[np.arange(ne+ni, ne+ni+ntx,1), np.arange(ne+ni+ntx, ne+ni+nx, 1)]
-
-    for A in range(2):
-        for B in range(2):
-            idx_Post=idx_1[A]
-            idx_Pre=idx_2[B]
-            Q[idx_Post[:, None],idx_Pre]=np.random.binomial(1, P[A,B], (N_1[A],N_2[B]))
-        
-
-    #Modify connectivity based on tuning properties...
-    Theta = data["Theta"] 
-    ntheta = len(Theta)
-
-    #Assign preferred orientation to each neuron
-    Assigned_PO=np.nan*np.ones(ne+ni+nx)
-    NhatTheta_E = int(nte/ntheta)
-    NhatTheta_X = int(ntx/ntheta)
-    for i in range(ntheta):
-        start_index = i * NhatTheta_E
-        end_index = (i + 1) * NhatTheta_E
-        Assigned_PO[start_index:end_index] = Theta[i]
-        
-        start_index = ne+ni + i * NhatTheta_X
-        end_index = ne+ni + (i + 1) * NhatTheta_X
-        Assigned_PO[start_index:end_index] = Theta[i]
-
-    #Perform the modification
-    for i in range(ntheta):
-        for j in range(ntheta):
-
-            #Get the difference in PO between this two and normalize
-            dPO=np.round(Theta[i]-Theta[j], 3)
-
-            if dPO>=np.pi:
-                dPO -= 2 * np.pi      
-            if dPO<-np.pi*(1.001):
-                dPO += 2 * np.pi      
-                
-            #Change the matrix
-            PhatDTheta_E = gammaDTheta_EE(data, dPO)* m_props["kTT_EE"]/ NhatTheta_E
-            idx_Post=np.arange(i * NhatTheta_E,(i + 1) * NhatTheta_E,1)
-            idx_Pre=np.arange(j * NhatTheta_E,(j + 1) * NhatTheta_E,1)
-            Q[idx_Post[:, None],idx_Pre]=np.random.binomial(1,PhatDTheta_E, (NhatTheta_E,NhatTheta_E))
-            
-            PhatDTheta_X=gammaDTheta_EX(data, dPO) * m_props["kTT_EX"]/NhatTheta_X
-            idx_Post=np.arange(i * NhatTheta_E,(i + 1) * NhatTheta_E,1)
-            idx_Pre=np.arange(ne+ni+j * NhatTheta_X,ne+ni+(j + 1) * NhatTheta_X,1)
-            Q[idx_Post[:, None],idx_Pre]=np.random.binomial(1,PhatDTheta_X, (NhatTheta_E,NhatTheta_X))
-
-    
-
-    return Q, Assigned_PO
-
-
-def get_rateX(data, m_props, Assigned_PO):
-    nx = m_props["N_X"]
-    Theta = data["Theta"]
-    ntheta = len(Theta)
-    NhatTheta_X = int(m_props["NT_X"]/ntheta)
-
-    rate_X_of_Theta=np.nan*np.ones((nx, ntheta))
-    # firing rates of tuned neurons
-    for idx_Theta in range(ntheta):
-
-        idx=np.where(Assigned_PO==Theta[idx_Theta])[0]
-        idx=np.arange(NhatTheta_X*idx_Theta,NhatTheta_X*(idx_Theta+1),1)
-        
-        idx_sample=np.random.randint(0, np.shape(data["sampled_ratesT_X"])[0] , size=len(idx))
-
-        rate_X_of_Theta[idx,:]=np.roll(data["sampled_ratesT_X"][idx_sample,:],idx_Theta,axis=1)
-    # firing rates of untuned neurons
-    idx_sample=np.random.randint(0, np.shape(data["sampled_ratesU_X"])[0] , size=len(np.arange(idx[-1]+1, nx,1)))
-    rate_X_of_Theta[(idx[-1]+1)::,:]=data["sampled_ratesU_X"][idx_sample,:]
-
-    return rate_X_of_Theta
-
-
-def sample_J(data, m_props, Q, J, g):
-    #J=3.;g=1.5;
-    ne, ni, nx = [m_props[n] for n in ["N_E", "N_I", "N_X"]]
-    idx_E=np.arange(0,ne, 1)
-    idx_I=np.arange(ne, ne+ni, 1)
-    idx_X=np.arange(ne + ni, ne+ni+nx,1)
-
-    J_ij=np.nan*np.ones(np.shape(Q))
-
-    J_ij[np.ix_(idx_E,idx_E)] = J  * np.random.choice(data["sampled_J_EE"], size=np.shape(Q[np.ix_(idx_E,idx_E)]))
-    J_ij[np.ix_(idx_E,idx_I)] = -J*g*np.random.choice(data["sampled_J_EI"], size=np.shape(Q[np.ix_(idx_E,idx_I)]))
-    J_ij[np.ix_(idx_E,idx_X)] = J  * np.random.choice(data["sampled_J_EX"], size=np.shape(Q[np.ix_(idx_E,idx_X)]))
-
-    J_ij[np.ix_(idx_I,idx_E)] = J  * np.random.choice(data["sampled_J_IE"], size=np.shape(Q[np.ix_(idx_I,idx_E)]))
-    J_ij[np.ix_(idx_I,idx_I)] = -J*g*np.random.choice(data["sampled_J_II"], size=np.shape(Q[np.ix_(idx_I,idx_I)]))
-    J_ij[np.ix_(idx_I,idx_X)] = J  * np.random.choice(data["sampled_J_IX"], size=np.shape(Q[np.ix_(idx_I,idx_X)]))
-
-    return J_ij
+    return Q, QJ

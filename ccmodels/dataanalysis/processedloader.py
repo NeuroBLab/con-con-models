@@ -171,6 +171,21 @@ def get_adjacency_matrix(v1_neurons, v1_connections):
     
     return vij
 
+def get_adjacency_matrix2(v1_neurons, v1_connections):
+    """
+    Returns the weightedconnectivity matrix from neurons and connections.
+    """
+
+    #Number of neurons
+    N = len(v1_neurons)
+
+    #Fill the weighted matrix
+    vij = np.zeros((N,N))
+    for i,j,v in v1_connections[["post_id", "pre_id", "syn_volume"]].values:
+        vij[i,j] += v
+    
+    return vij
+
 def get_rates_matrix(v1_neurons, v1_activity, nangles=16):
     """
     Get a matrix in which the i-th row contains the i-th rate as a function of the angle, i.e., r(theta).

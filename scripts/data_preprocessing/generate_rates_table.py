@@ -6,31 +6,33 @@ import sys
 sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
 import ccmodels.preprocessing.rawloader as rawload
 import ccmodels.utils.angleutils as au
+import ccmodels.dataanalysis.filters as fl
+import ccmodels.preprocessing.utils as utl
 
-#Read in data with selectivity infromation
-#l234_orifits = pd.read_pickle('../../data/in_processing/orientation_fits.pkl')
+#Read in data with selectivity information and take the correct activities 
 l234_orifits = rawload.read_table("orientation_fits") 
+orifits = utl.tuning_labeler(l234_orifits, model_col="tuning_type")
+
+#Get functionally matched units from the table
 units = pd.read_csv("data/preprocessed/unit_table.csv") 
+matched = fl.filter_neurons(units, tuning="matched")
 
-l234_clean = l234_orifits[['root_id', 'activity', 'orientations' ]].drop_duplicates('root_id')
-l234_clean = l234_clean.sort_values("root_id")
+#This merge is important to be done from orifits TO matched, not the contrary, since in this 
+#way the order of the root_ids is the order of the matched neurons. The rates table shall be in 
+#the same order, so the i-th functionally matched neuron of the table is also the i-th row in the matrix
+merged = matched.merge(orifits, right_on=["root_id"], left_on=["pt_root_id"], how="inner")
 
-#Extract the root_id
-#ids = np.array(l234_clean['root_id'])
-#ids_reps = np.repeat(ids, 16)
-#TODO filtering for now because we are not matching all neurons in l234 orifits
-#but probably that's wrong. So let's check how it goes.
-ids = units.loc[units["tuning_type"] != "not_matched",  "pt_root_id"]
-ids_reps = np.repeat(ids, 16)
-l234_clean = l234_clean[l234_clean["root_id"].isin(ids)]
+
+#Repeat each id, in the order it appears, 16 times
+ids_reps = np.repeat(merged["pt_root_id"].values, 16)
 
 #Extract orientations shown in the visual stimuli
-oris = l234_clean['orientations'].values
+oris = merged['orientations'].values
 oris_ravelled = np.array(list(oris)).ravel()
 angles_indexes = np.array(list(map(au.angle_indexer, oris_ravelled)))
 
 #Extract corresponding activity rate
-acts = l234_clean['activity'].values
+acts = merged['activity'].values
 acts_ravelled = np.array(list(acts)).ravel()
 
 activity_table = pd.DataFrame({'neuron_id': ids_reps,

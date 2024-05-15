@@ -247,7 +247,8 @@ def merge_connection_tables(prepath="data"):
     for i in range(1, ntables):
         table = pd.concat([table, pd.read_csv(f"{prepath}/in_processing/connections_table_{i}.csv")])
 
-    return table
+    
+    return table.rename(columns={"size":"syn_volume"})
 
 
 

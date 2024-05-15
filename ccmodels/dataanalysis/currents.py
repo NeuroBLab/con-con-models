@@ -117,45 +117,6 @@ def get_current_normalization(v1_neurons, vij, rates):
 # --------- COMPUTATION OF OBSERVABLES --------------
 # ===================================================
 
-def compute_inpt_curr_by_layer(v1_neurons, vij, rates):
-    """
-    Computes the average input current to neurons in the L2/3, as well as the proportion of it
-    arriving from recurrent interactions and L4
-    """
-
-    #Shuffle the rate of untuned neurons
-    rates_unt = utl.get_untuned_rate(v1_neurons, rates) 
-
-    #Get the indices of L2/3 and L4 postsynaptic neurons 
-    l23ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
-    l4ids = fl.filter_neurons(v1_neurons, layer="L4", tuning="tuned")["id"]
-
-    #Get the currents and the fractions from the total
-    curr_l23 = get_currents_subset(v1_neurons, vij, rates_unt, post_ids=l23ids, pre_ids=l23ids)
-    curr_l4  = get_currents_subset(v1_neurons, vij, rates_unt, post_ids=l23ids, pre_ids=l4ids)
-    total    = get_currents_subset(v1_neurons, vij, rates_unt, post_ids=l23ids)
-
-    #Get the average currents and the fraction of the total current
-    mean_curr23 = curr_l23.mean(axis=0)
-    mean_curr4  = curr_l4.mean(axis=0)
-    mean_total = total.mean(axis=0)
-
-    frac_l23 = mean_curr23 / mean_total 
-    frac_l4  = mean_curr4  / mean_total 
-
-    #Store all of these results in a handy dictionary and return them
-    results = {}
-
-    results["L23"] = {"av_curr": mean_curr23, "std_curr" : curr_l23.std(axis=0), "frac":frac_l23}
-    results["L4"] = {"av_curr": mean_curr4, "std_curr" : curr_l4.std(axis=0), "frac":frac_l4}
-
-    #Same for the total current, which is normalized to be 1 at the highest point
-    #This is included in the dict, just in case.
-    normalization = np.max(mean_total)
-    results["Total"] = {"av_curr": mean_total, "std_curr" : total.std(axis=0), "frac":1.0, "norm":normalization}
-
-    return results 
-
 
 
 def single_synapse_current(v1_neurons, v1_connections, vij, rates, shifted=True):
@@ -192,9 +153,8 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
         index_pihalf = nangles//4 
 
     #Find pairs of tuned neurons, with presynaptic ones coming from specific layer 
-    tuned_outputs = fl.filter_connections(v1_neurons, v1_connections, tuning="tuned", who="both")
-    l23_conns = fl.filter_connections(v1_neurons, tuned_outputs, layer="L23")
-    l4_conns  = fl.filter_connections(v1_neurons, tuned_outputs, layer="L4")
+    l23_conns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=["L23", "L23"], tuning=["tuned", "matched"])
+    l4_conns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=["L4", "L23"], tuning=["tuned", "matched"])
 
     #Substitute the untuned neurons with the average rate
     rates_untuned = utl.get_untuned_rate(v1_neurons, rates) 
@@ -204,23 +164,25 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
     diffs = {"L23" : [], "L4"   : []} 
 
     #Compute the currents
-    maxcurr = get_current_normalization(v1_neurons, vij, rates_untuned)
-    curr_l23 = get_currents_subset(v1_neurons, vij, rates_untuned, post_ids=l23_conns["post_id"], shift=shifted)
-    curr_l4  = get_currents_subset(v1_neurons, vij, rates_untuned, post_ids=l4_conns["post_id"], shift=shifted)
+    #maxcurr = get_current_normalization(v1_neurons, vij, rates_untuned)
+    curr_l23 = get_currents_subset(v1_neurons, vij, rates_untuned, pre_ids=l23_conns["pre_id"], post_ids=l23_conns["post_id"], shift=shifted)
+    curr_l4  = get_currents_subset(v1_neurons, vij, rates_untuned, pre_ids=l4_conns["pre_id"], post_ids=l4_conns["post_id"], shift=shifted)
+
+    maxcurr = max(curr_l23.max(), curr_l4.max())
+
+    #Normalize currents
+    curr_l23 /= maxcurr
+    curr_l4  /= maxcurr
 
     #Compute the inputs for all the selected neurons. Do it separately for each layer
     for layer, currlayer in zip(["L23", "L4"], [curr_l23, curr_l4]):
+        #Difference between pi/half and 0
         for current in currlayer: 
-
-            #Normalize currents
-            norm_curr = current/maxcurr 
-
-            #Difference between pi/half and 0
-            diffs[layer].append(norm_curr[index_zero] - norm_curr[index_pihalf]) 
+            diffs[layer].append(current[index_zero] - current[index_pihalf]) 
 
     return diffs
 
-def compute_inpt_bootstrap(v1_neurons, tuned_connections, nexperiments, rates, nsamples=250):
+def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples=450):
     """
     Assume a virtual presynaptic neuron. Sample connections to it and compute the current. Determine the 
     preferred orientation from the current maximum. Repeat for nexperiments, and compute the probability
@@ -232,7 +194,7 @@ def compute_inpt_bootstrap(v1_neurons, tuned_connections, nexperiments, rates, n
 
     #Get the untuned rates
     rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
-    
+
     #Prepare to do experiments...
     prob_pref_ori = np.zeros(nangles) 
     for i in range(nexperiments): 
@@ -249,5 +211,127 @@ def compute_inpt_bootstrap(v1_neurons, tuned_connections, nexperiments, rates, n
     #Normalize
     prob_pref_ori /= np.sum(prob_pref_ori)
 
-    #Return (transform to numpy array)
-    return prob_pref_ori 
+    #Return probabilities and the first two moments of the bootstrap distribution  
+    return prob_pref_ori
+
+def bootstrap_mean_current(v1_neurons, tuned_connections, rates, nexperiments):
+    """
+    Computes the average input current to neurons in the L2/3, as well as the proportion of it
+    arriving from recurrent interactions and L4
+    """
+
+    #The number of columns of the rates variables give the number of angles
+    nangles = rates.shape[1]
+
+    #Get the untuned rates
+    rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
+
+    #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
+    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
+    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
+
+    layers = ["Total", "L23", "L4"]
+
+    #Initialize the currents 
+    avr_cur = {}
+    std_cur = {}
+    for key in layers: 
+        avr_cur[key] = np.zeros(nangles)
+        std_cur[key] = np.zeros(nangles)
+
+    #Prepare to do experiments...
+    for i in range(nexperiments): 
+        #Bootstrap sample the entire table. If only one experiment is used, we do not bootstrap, just use the 
+        #table as it is.
+        con_boots_total = tuned_connections.sample(frac=1, replace=nexperiments==1) 
+
+        #In this bootstrap, get the connections from the presynaptic layer to L23
+        con_boots_l23 = fl.synapses_by_id(con_boots_total, pre_ids=l23_ids, post_ids=l23_ids, who="both")
+        con_boots_l4  = fl.synapses_by_id(con_boots_total, pre_ids=l4_ids, post_ids=l23_ids, who="both")
+
+        #Compute the currents we get from those 
+        current = {}
+        current["Total"] = get_input_virtual_presynaptic(v1_neurons, con_boots_total, rates_untuned) 
+        current["L23"]   = get_input_virtual_presynaptic(v1_neurons, con_boots_l23,   rates_untuned) 
+        current["L4"]    = get_input_virtual_presynaptic(v1_neurons, con_boots_l4,    rates_untuned) 
+
+        #Get the average and error of the current for each angle
+        for key in layers: 
+            avr_cur[key] += current[key]
+            std_cur[key] += current[key]**2 
+
+    #Finish averages
+    for key in layers: 
+        avr_cur[key] /= nexperiments
+        std_cur[key] /= nexperiments
+        std_cur[key] = np.sqrt(std_cur[key] - avr_cur[key]**2)
+
+    #Normalize accordingly
+    maxcur = np.max(avr_cur["Total"])
+    for key in layers: 
+        avr_cur[key] /= maxcur
+        std_cur[key]/= maxcur
+
+    #Return first two moments of the bootstrap average estimator. 
+    return avr_cur, std_cur 
+
+import ccmodels.dataanalysis.processedloader as loader
+
+def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments, shift=True):
+    """
+    Computes the average input current to neurons in the L2/3, as well as the proportion of it
+    arriving from recurrent interactions and L4
+    """
+
+    #The number of columns of the rates variables give the number of angles
+    nangles = rates.shape[1]
+
+    #Get the untuned rates
+    rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
+
+    #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
+    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
+    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
+    allids = fl.filter_neurons(v1_neurons, tuning="matched")["id"]
+
+    layers = ["Total", "L23", "L4"]
+
+    #Initialize the currents 
+    avr_cur = {}
+    std_cur = {}
+    for key in layers: 
+        avr_cur[key] = np.zeros(nangles)
+        std_cur[key] = np.zeros(nangles)
+
+    #Prepare to do experiments...
+    for i in range(nexperiments): 
+        #Bootstrap sample the entire table. If only one experiment is used, we do not bootstrap, just use the 
+        #table as it is.
+        con_boots_total = tuned_connections.sample(frac=1, replace=nexperiments==1) 
+
+        vij = loader.get_adjacency_matrix2(v1_neurons, con_boots_total)
+
+        #Compute the currents we get from those 
+        current = {}
+        current["Total"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=allids, shift=shift)
+        current["L23"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=l23_ids, shift=shift)
+        current["L4"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=l4_ids, shift=shift)
+
+        #Get the average and error of the current for each angle
+        for key in layers: 
+            avr_cur[key] += np.mean(current[key], axis=0) 
+            std_cur[key] += np.std(current[key], axis=0) 
+
+    #Finish averages
+    for key in layers: 
+        avr_cur[key] /= nexperiments
+        std_cur[key] /= nexperiments
+
+    #Normalize accordingly
+    maxcur = np.max(avr_cur["Total"])
+    for key in layers: 
+        avr_cur[key] /= maxcur
+        std_cur[key]/= maxcur
+
+    #Return first two moments of the bootstrap average estimator. 
+    return avr_cur, std_cur 

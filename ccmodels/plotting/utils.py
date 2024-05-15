@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from scipy.stats import ttest_ind_from_stats
 
 # ------------------------------------------------------------
 # ---------------------- PLOTTING HELP-----------------
@@ -74,3 +75,37 @@ def get_xticks(ax, max=np.pi, half=True):
         ax.set_xticks([-2*np.pi, 0, 2*np.pi], ["-2π", "0", "2π"])
 
     return None
+
+# ------------------------------------------------------------
+# ----------------------------- TESTS ------------------------
+# ------------------------------------------------------------
+
+#TODO can be improved so we don't have to manually set the size of the whiskers
+def test_compare(ax, stats_a, stats_b, pos_a, pos_b, ybase, yfrac=0.03, yoffset = 0.05):
+    result = ttest_ind_from_stats(mean1=stats_a["mean"], std1=stats_a["std"], nobs1=stats_a["size"],
+                                  mean2=stats_b["mean"], std2=stats_b["std"], nobs2=stats_b["size"], 
+                                  alternative="greater")
+
+    ymax = ybase + yfrac 
+    ax.plot([pos_a, pos_a, pos_b, pos_b], [ymax, ybase, ybase, ymax], color="black")
+
+    midpoint = 0.5*(pos_a+pos_b) 
+
+    if result.pvalue > 0.05:
+        result = "n.s."
+        text_offset = 0.01 * midpoint
+    elif result.pvalue > 0.01:
+        result = "*"
+        text_offset = 0.01 * midpoint
+    elif result.pvalue > 0.001:
+        result = "* *"
+        text_offset = 0.01 * midpoint
+    else:
+        result = "* * *" 
+        text_offset = 0.015 * midpoint
+
+
+    ytext = ybase - yoffset 
+    ax.text(midpoint - text_offset, ytext, result)
+
+    return
