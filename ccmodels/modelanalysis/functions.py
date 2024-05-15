@@ -56,7 +56,6 @@ def measure_fractions_of_neurons(neurons,Labels):
     # number of neurons in the dataset, used for normalization in the stimate of probability  of neurons belonging to a label
     norm = len(neurons)
     for label_info in Labels:
-        #print(label_info)
         
         area = label_info['area']
         layer = label_info['layer']
@@ -69,7 +68,6 @@ def measure_fractions_of_neurons(neurons,Labels):
 
         mask_cell_type_matched=mask_cell_type&mask_matched
         norm_matched=len(neurons[mask_cell_type_matched])
-        print(layer,cell_type,', N neurons=%d'%(count))
         
         if norm_matched==0:
             # no neuron of that type is functionally matched
@@ -85,7 +83,6 @@ def measure_fractions_of_neurons(neurons,Labels):
                 fraction_of_neurons_pref_ori = np.zeros((len(pref_ori),2))
                 fraction_of_neurons_pref_ori[0,0]=1
 
-            print('N matched=%d, N tuning=%d'%(norm_matched,count))
         if norm_matched>0:
             # some neurons of that type are functionally matched
             if tuning_type=='not_selective':
@@ -96,13 +93,11 @@ def measure_fractions_of_neurons(neurons,Labels):
                 fraction_of_neurons_pref_ori = np.zeros((len(pref_ori),2))
                 fraction_of_neurons_pref_ori[0,0]=1
 
-                print('N matched=%d, N tuning=%d'%(norm_matched,count))
             if tuning_type=='selective':
                 mask_cell_type_selective=mask_cell_type&mask_selective
                 count = len(neurons[mask_cell_type_selective])
                 fraction_of_neurons_tuning =count/norm_matched
 
-                print('N matched=%d, N tuning=%d'%(norm_matched,count))
                 
                 #compute fraction of selective neurons with given preferred orientaiton 
                 norm_selective=count
@@ -391,9 +386,6 @@ def sample_connections(Conn_stat,neurons,scaling_prob,Labels):
             prob_conn[0]=scaling_prob*prob_conn[0]
             prob_conn_vs_dist[:,0]=scaling_prob*prob_conn_vs_dist[:,0]
 
-            #print(label_key_post)
-            #print(label_key_pre)
-            #print(possible_ori_pre)
                 
             if (tuning_type_post=='selective')&(tuning_type_pre=='selective')&(len(possible_ori_post)>0)&(len(possible_ori_pre)>0):
                 Lmax=np.max(possible_ori_pre)+1

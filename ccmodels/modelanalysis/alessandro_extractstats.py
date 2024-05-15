@@ -13,7 +13,7 @@ from scipy.stats import mannwhitneyu, ttest_ind, pearsonr, ks_2samp
 def statsextract(prepath='data'):
     # load files
     path_to_folder=f"{prepath}/preprocessed/"
-    #activity_table = pd.read_csv(path_to_folder+"activity_table.csv")
+    activity_table = pd.read_csv(path_to_folder+"activity_table.csv")
     connections_table = pd.read_csv(path_to_folder+"connections_table.csv")
     unit_table = pd.read_csv(path_to_folder+"unit_table.csv")
 
@@ -53,4 +53,4 @@ def statsextract(prepath='data'):
                     Labels.append(label_info)
 
     #pd.to_pickle(Labels, 'data/model/aledata.pkl')
-    return unit_table, connections_table, Labels
+    return unit_table, connections_table, activity_table, Labels

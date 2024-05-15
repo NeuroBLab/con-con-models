@@ -51,8 +51,9 @@ def generate_conn_matrix(neurons_sampled, sampled_connections, J, g):
 
     # Remove post synaptic neurons in L4
     num_L23_neurons = len(neurons_sampled[neurons_sampled['layer'] == 'L23'])
+    num_L4_neurons = len(neurons_sampled[(neurons_sampled['layer'] == 'L4')&(neurons_sampled['cell_type'] =='exc')])
     QJ = QJ[:num_L23_neurons, :]
     Q = QJ.copy()
     Q[QJ!=0]=1
 
-    return Q, QJ
+    return Q, QJ, num_L23_neurons_E, num_L23_neurons_I, num_L4_neurons 
