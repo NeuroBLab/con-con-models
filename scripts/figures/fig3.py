@@ -17,18 +17,20 @@ import ccmodels.plotting.utils as plotutils
 import ccmodels.dataanalysis.filters as fl
 import ccmodels.dataanalysis.processedloader as loader
 
-def plot_input_current(ax, angles, currents, half=True):
-    norm_c = currents["Total"]["norm"]
-
+def plot_input_current(ax, angles, avr_cur, std_cur, nexps, half=True):
     #Normalization constants
     for layer in ["Total", "L23", "L4"]:
-        av_cur = currents[layer]["av_curr"] / norm_c
-        yerror = currents[layer]["std_curr"] / norm_c
+        current = avr_cur[layer]
+        curerror = std_cur[layer]
 
-        ax.fill_between(angles, plotutils.shift(av_cur - yerror), plotutils.shift(av_cur + yerror), color=cr.lcolor[layer], alpha=0.2)
+        ax.fill_between(angles, plotutils.shift(current - curerror), plotutils.shift(current + curerror), color=cr.lcolor[layer], alpha=0.2)
 
-        ax.plot(angles, plotutils.shift(av_cur), lw = 1, color = cr.lcolor[layer], zorder = 2, label = layer)
-        ax.scatter(angles, plotutils.shift(av_cur), color = 'black', s = 5, zorder = 3)
+        ax.plot(angles, plotutils.shift(current), lw = 1, color = cr.lcolor[layer], zorder = 2, label = layer)
+        ax.scatter(angles, plotutils.shift(current), color = 'black', s = 5, zorder = 3)
+
+        stats_a =  {"mean":avr_cur[layer][0], "std":std_cur[layer][0], "size":nexps}
+        stats_b =  {"mean":avr_cur[layer][4], "std":std_cur[layer][4], "size":nexps}
+        plotutils.test_compare(ax, stats_a, stats_b, angles[4], angles[8], stats_b["mean"]-0.1)
 
     plotutils.get_xticks(ax, half=half)
 
@@ -48,6 +50,7 @@ def plot_single_current(ax, angles, inputs, nangles=16, half=True):
 
 def plot_distrib_diffrates(ax, diffs):
 
+    """
     nbins = 70 
     bins = np.linspace(-10, 10, nbins)
 
@@ -58,9 +61,20 @@ def plot_distrib_diffrates(ax, diffs):
         ax.hist(diffs[layer], bins, density=True, cumulative=False, histtype='step', lw=2, color = cr.lcolor[layer])
         #ax.axvline(np.mean(diffs[layer]), color=cr.lcolor[layer], ls=":")
 
-
-
     ax.hist(total_diffs, bins, density=True, cumulative=False, histtype='step', lw=2, color =cr.lcolor["Total"])
+    """
+    nbins = 100 
+    bins = np.linspace(-0.3, 0.5, nbins)
+
+    diffs["Total"] = diffs["L23"] + diffs["L4"]  
+
+    for layer in ["Total", "L23", "L4"]:
+        hist, edges = np.histogram(diffs[layer], density=True, bins=bins)
+        cedges = 0.5*(edges[1:]+edges[:-1])
+        
+        ax.plot(cedges, hist, color=cr.lcolor[layer])
+
+    ax.axvline(0, color="black", ls=":")
 
     ax.set_yscale("log")
     ax.set_xlabel("Δ")
@@ -133,7 +147,8 @@ v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientatio
 #Very important to use only the functionally matched data for the adjacency matrix!!
 #We'll be out of RAM otherwise
 matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-matched_connections = fl.synapses_by_id(matched_neurons["id"], v1_connections, who="both")
+matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+matched_connections = fl.remove_autapses(matched_connections)
 
 
 vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
@@ -141,11 +156,11 @@ angles = plotutils.get_angles(kind="centered", half=orientation_only)
 
 # --------------------
 
-#TODO changing this rn 
-#avg_input_l23, avg_input_l4, fraction_l3, fraction_l4 = dcr.compute_inpt_curr_by_layer(v1_neurons, vij, rates) 
-#plot_input_current(axes["A"], angles, avg_input_l23, fraction_l3, avg_input_l4, fraction_l4)
-currents = dcr.compute_inpt_curr_by_layer(matched_neurons, vij, rates)
-plot_input_current(axes["A"], angles, currents)
+print("Getting mean current")
+nexperiments = 100 
+avr_cur, std_cur = dcr.bootstrap_mean_current(matched_neurons, matched_connections, rates, nexperiments=nexperiments)
+
+plot_input_current(axes["A"], angles, avr_cur, std_cur, nexperiments)
 axes["A"].legend(loc=(0.1, 0.25))
 
 
@@ -166,12 +181,14 @@ plot_distrib_diffrates(axes["C"], diffrate)
 
 tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="tuned", who="pre") 
 
-nexperiments = 1000
+nexperiments = 10000
 
-prob_pref_ori = dcr.compute_inpt_bootstrap(matched_neurons, tuned_outputs, nexperiments, rates)
+print("Sample pref ori ")
+prob_pref_ori  = dcr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates)
 plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, label="Only tuned")
 
-prob_pref_ori = dcr.compute_inpt_bootstrap(matched_neurons, matched_connections, nexperiments, rates)
+print("Sample pref ori ")
+prob_pref_ori = dcr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates)
 plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, color="red", label="All neurons")
 
 #axes["D"].set_ylim(0, 0.08)

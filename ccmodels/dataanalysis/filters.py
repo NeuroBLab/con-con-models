@@ -112,6 +112,9 @@ def filter_connections_prepost(v1_neurons, v1_connections, layer=[None,None], tu
     return synapses_by_id(v1_connections, pre_ids=neurons_pre["id"], post_ids=neurons_post["id"], who=who)
 
 
+def remove_autapses(v1_connections):
+    return v1_connections[v1_connections["pre_id"] != v1_connections["post_id"]]
+
 def connections_to(post_id, v1_connections, only_id=True):
     """
     Get the indices of the presynaptic neurons pointing to post_id

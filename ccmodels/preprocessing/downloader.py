@@ -93,7 +93,7 @@ def download_tables(client):
 
 
 
-def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500, start_index=0, max_retries=10, delay=5):
+def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_steps = 500, start_index=0, max_retries=10, delay=5, drop_synapses_duplicates=True):
     '''
     Function to construct the connectome subset for the neurons specified in the presynaptic_set and postsynaptic_set.
 
@@ -140,7 +140,9 @@ def connectome_constructor(client, presynaptic_set, postsynaptic_set, neurs_per_
 
                 #Sum all repeated synapses. The last reset_index is because groupby would otherwise create a 
                 #multiindex dataframe and we want to have pre_root and post_root as columns
-                sub_syn_df = sub_syn_df.groupby(["pre_pt_root_id", "post_pt_root_id"]).sum().reset_index()
+                if drop_synapses_duplicates:
+                    sub_syn_df = sub_syn_df.groupby(["pre_pt_root_id", "post_pt_root_id"]).sum().reset_index()
+
                 sub_syn_df.to_csv(f'data/in_processing/connections_table_{part}.csv', index = False)
                 part += 1
 

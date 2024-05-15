@@ -113,7 +113,8 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"]= ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
+
 
     #Plot it!
     angles = plotutils.get_angles(kind="diff", half=orientation_only)
@@ -121,6 +122,9 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         c = cr.lcolor[layer]
+
+        #Normalize by p(delta=0), which is at index 3
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
 
         low_band  = p['mean'] - p['std']
         high_band = p['mean'] + p['std']
@@ -202,7 +206,7 @@ v1_connections = utl.add_layerinfo_to_connections(v1_neurons, v1_connections, wh
 
 #For many things in this figure we need only the functionally matched neurons, the others are not useful
 matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-matched_connections = fl.synapses_by_id(matched_neurons["id"], v1_connections, who="both")
+matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
 
 # --- First panel
 
