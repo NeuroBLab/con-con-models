@@ -4,7 +4,7 @@ from scipy.special import erf
 from scipy.optimize import root
 from scipy.interpolate import interp1d
 
-import ccmodels.modelanalysis.matrixsampler as msa
+import ccmodels.modelanalysis.matrixsampler_old as msa
 import ccmodels.modelanalysis.utils as mut 
 
 
@@ -123,6 +123,33 @@ def do_dynamics(tau_E, tau_I, QJ, m_props, rate_X_of_Theta, phi, dt=0.01, use_sc
 
     return aE_t, rate_E_of_Theta, rate_I_of_Theta
 
+#def do_dynamics(Q, J_ij, m_props, rate_X_of_Theta, phi):
+def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, use_scipy=True):
+
+    #Initialize arguments for the solve_ivp function
+    conn=[QJ, ne, ni, nx]
+
+    Theta = np.arange(0, 2*np.pi, np.pi/8.)
+    ntheta = len(Theta)
+
+    ResultsALL=[]
+    rate_E_of_Theta=np.zeros((ne, ntheta))
+    rate_I_of_Theta=np.zeros((ni, ntheta))
+
+    #Results for each stimuli
+    for idx_Theta in range(ntheta):
+        aX=rate_X_of_Theta[:,idx_Theta]
+
+        Results=solve_dynamical_system(tau_E, tau_I, aX,conn, phi, use_scipy=use_scipy, dt=dt)
+        ResultsALL=ResultsALL+[Results]
+
+        aE,aI,MU_E,MU_I,aE_t,aI_t, Convergence_aE, Convergence_aI=Results[:]
+
+        rate_E_of_Theta[:,idx_Theta]=aE
+        rate_I_of_Theta[:,idx_Theta]=aI
+
+    return aE_t, rate_E_of_Theta, rate_I_of_Theta
+
 
 def make_simulation(k_ee, p_ee, J, g, tau_E=0.02, tau_I=0.01, theta=20, V_r=10, dt=0.005, use_scipy=False):
     """
@@ -168,9 +195,66 @@ def make_simulation(k_ee, p_ee, J, g, tau_E=0.02, tau_I=0.01, theta=20, V_r=10, 
     return aE_t, rate_etheta, rate_itheta, rate_xtheta
 
 
+import ccmodels.modelanalysis.alessandro_extractstats as ale
+import ccmodels.modelanalysis.functions as fun 
+import ccmodels.modelanalysis.matrixsampler as msa2 
 
+def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20, V_r=10, dt=0.005, use_scipy=False):
+    """
+    This function makes an entire simulation for a set of parameters. It returns a sample time series for a
+    single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
 
+    Parameters
+    ==========
+    k_ee : float
+        Average number of exc to exc connections per neuron
+    p_ee : float
+        Probability of connection between exc neurons
+    J : float
+        Coupling constant
+    g : float
+        Balance parameter
+    tau_E, tau_I : float
+        Timescale of the excitatory and inhibitory neurons
+    theta : float
+    V_r : float
+        Reset potential
+    dt : float
+        Timestep (default 5e-3)
+    use_scipy : float
+        Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
+    """
 
+    units, connections, activity, labels = ale.statsextract(prepath="../../data")
+    frac_stat, conn_stat = msa2.get_fractions(units, connections, labels)
+
+    scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
+    units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
+    Q, QJ, ne, ni, nx = msa2.generate_conn_matrix(units_sampled, connections_sampled, J, g)
+
+    print(ne, ni, nx)
+    #Get the rates for L4
+    #rate_xtheta = msa.get_rateX(data, mprops, neurons_PO)
+
+    neurons_L4 = units.loc[units['layer']=='L4', 'pt_root_id']
+    act4 = activity[activity['neuron_id'].isin(neurons_L4)]
+
+    n = len(act4)//16
+
+    act_matrix = np.empty((n, 16))
+
+    for i in range(n):
+        for theta in range(16):
+            act_matrix[i,theta] = act4.iloc[theta+i*16,2] 
+
+    rate_xtheta = act_matrix[:nx, :16]
+    
+    #Compute the response function for the used parameters
+    phi = mut.tabulate_response(tau_E, tau_I, theta, V_r)
+
+    #Make simulation and do the result
+    aE_t, rate_etheta, rate_itheta = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, use_scipy=use_scipy)
+    return aE_t, rate_etheta, rate_itheta, rate_xtheta
 
 
 
