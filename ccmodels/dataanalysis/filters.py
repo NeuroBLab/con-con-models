@@ -38,7 +38,7 @@ def filter_neurons(v1_neurons, layer=None, tuning=None, cell_type=None, proofrea
     if tuning == None:
         mask_tuned = nomask
     elif tuning == "tuned":
-        mask_tuned = (v1_neurons["tuning_type"] == "direction") | (v1_neurons["tuning_type"] == "orientation")
+        mask_tuned = (v1_neurons["tuning_type"] == "direction") | (v1_neurons["tuning_type"] == "orientation") | (v1_neurons['tuning_type']=='selective')
     elif tuning == "untuned":
         mask_tuned = v1_neurons["tuning_type"] == "not_selective"
     elif tuning == "matched":

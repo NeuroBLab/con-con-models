@@ -20,7 +20,7 @@ def min_act(max_rad, model_type):
     # NOTE: here we treat those neurons that are not selective as orientation selective 
     # for the purpose of calculating an osi value also for them
     else:
-        #TODO is this constraining necessary??
+        #TODO is this constraining necessary?? Is it even correct?
         #max_rad = max_rad - 8 if max_rad >= 8 else max_rad
         min_rad = max_rad-4 if max_rad >=12 else max_rad +4
     

@@ -149,8 +149,7 @@ def shift_multi(rates, rollamount):
     rollamount : numpy array N
         rollamount[i] says how much to roll rates[i, :]
     """
-
-    return np.array([np.roll(rates[i, :], -r) for i,r in enumerate(rollamount)])
+    return np.array([np.roll(rates[i, :], -int(r)) for i,r in enumerate(rollamount)])
 
 
 

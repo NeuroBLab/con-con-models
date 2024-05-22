@@ -3,6 +3,7 @@ import numpy as np
 
 import ccmodels.dataanalysis.filters as fl
 import ccmodels.utils.angleutils as au
+import ccmodels.dataanalysis.utils as utl
 
 #============================================================
 # ---------------------- LOAD UTILITIES ---------------------
@@ -10,7 +11,7 @@ import ccmodels.utils.angleutils as au
 # Functions here help to load the preprocessed data 
 #============================================================
 
-def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data/", version="661"):
+def load_data_deprecated(orientation_only=True, nangles=16, prepath="../con-con-models/data/", version="661"):
     """
     Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
     All returned values are inside a 3-element list.
@@ -72,6 +73,61 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     return v1_neurons, v1_connections, rates
 
 
+def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data/", version="661"):
+    """
+    Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
+    All returned values are inside a 3-element list.
+
+    Parameters
+    activity: bool 
+        If True (default), returns also a Nxnangles matrix containing the rates of the neurons
+    half_angle : bool 
+        If True (default) uses angles only from 0 to pi, leaving apart the directions. 
+    nangles: int
+        Gives the number of angles for the full case (default 16)
+    path : string.
+        Folder where the ccmodels package is located 
+    version : string
+        Which version of the dataset to use.
+    """
+
+    v1_neurons = pd.read_csv(f'{prepath}/preprocessed/unit_table.csv')
+    v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table.csv')
+    rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table.csv')
+
+    #Ensure all ids are from 0 to N-1, being N number of neurons. 
+    #Rename id names.
+    remap_all_tables(v1_neurons, v1_connections, rates_table)
+
+
+    #Get the matrix only for functionally matched neurons
+    func_matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
+    rates = get_rates_matrix(func_matched_neurons, rates_table)
+
+    #If we are only lookin at oris, then we need to remap all of neurons's angles  
+    if orientation_only:
+        #Move the rates to 0
+        rates = utl.shift_multi(rates, func_matched_neurons['pref_ori'])
+
+        #In that position it is possible to average the rates 
+        rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
+
+        #Now get the actual pref ori in orientation space
+        v1_neurons.loc[:, "pref_ori"] = v1_neurons.loc[:, 'pref_ori'] % (nangles//2)
+        func_matched_neurons.loc[:, "pref_ori"] = func_matched_neurons.loc[:, 'pref_ori'] % (nangles//2)
+
+        #Put back all the rates
+        rates = utl.shift_multi(rates, -func_matched_neurons['pref_ori'])
+
+    #Angles are integers to avoid any roundoff error
+    v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
+
+    #Once angles have been constrained, construct the delta ori values 
+    v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=orientation_only)
+    v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
+
+    return v1_neurons, v1_connections, rates
+
 #============================================================
 # ---------------------- TABLE REMAPPING---------------------
 #
@@ -121,7 +177,7 @@ def remap_table(idx_remap, table, columns):
 
     #Perform the remapping by mappling the dictionary to the 
     #corresponding columns
-    table[columns] = table[columns].map(idx_remap.get)
+    table.loc[:, columns] = table[columns].map(idx_remap.get)
 
 def remap_all_tables(v1_neurons, v1_connections, v1_activity):
     """
@@ -167,6 +223,7 @@ def get_adjacency_matrix(v1_neurons, v1_connections):
     #Fill the weighted matrix
     vij = np.zeros((N,N))
     for i,j,v in v1_connections[["post_id", "pre_id", "syn_volume"]].values:
+        i,j = int(i), int(j)
         vij[i,j] = v
     
     return vij
