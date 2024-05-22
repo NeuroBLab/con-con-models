@@ -1,16 +1,11 @@
 import numpy as np
-import math
-
 import functions as fun
-
-import random
 import pandas as pd
-from scipy.interpolate import interp1d
-from scipy import stats
-from scipy.optimize import curve_fit
-from scipy.stats import mannwhitneyu, ttest_ind, pearsonr, ks_2samp
 
-def statsextract(prepath='data'):
+#TODO this is a temporary file. It should go into statistics extraction, and we actually a function that already does what this code does
+#(and most of the functions.py are included). This should be deleted, as the format used is probably too much.
+
+def statsextract(prepath='data', orionly=True):
     # load files
     path_to_folder=f"{prepath}/preprocessed/"
     activity_table = pd.read_csv(path_to_folder+"activity_table.csv")
@@ -20,8 +15,13 @@ def statsextract(prepath='data'):
     # put pref orientation of not-selective neurons to nan
     mask_not_selective=(unit_table['tuning_type']=='not_selective')
     unit_table.loc[mask_not_selective, 'pref_ori'] = np.nan
+
     # focus on orientation, take preferred orientation mod pi
-    unit_table.loc[:,'pref_ori']=np.mod(unit_table.loc[:,'pref_ori'],8)
+    if orionly:
+        unit_table.loc[:,'pref_ori'] = np.mod(unit_table.loc[:,'pref_ori'], 8)
+    else:
+        unit_table.loc[:,'pref_ori'] = np.mod(unit_table.loc[:,'pref_ori'], 16)
+
     mask_selective=(unit_table['tuning_type']=='orientation')|(unit_table['tuning_type']=='direction')
     unit_table.loc[mask_selective, 'tuning_type'] ='selective'
 

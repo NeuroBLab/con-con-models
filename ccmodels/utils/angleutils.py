@@ -54,6 +54,27 @@ def signed_angle_dist(pre, post, nangles=16, half=True):
     else:
         return d
 
+#TODO: this might definitely substitute the code in construct_delta_ori and maybe even depcreate the function above
+def signed_angle_dist_vectorized(pre, post, nangles=16, half=True):
+    """
+    Computes a signed difference between pre a post, by taking into account periodic boundaries.
+    In this way, we get differences in [-k, ..., 0, ...k], being nangle-k mapped to -k until -nangle//2,
+    where results jump to be positive. 
+    """
+    dtheta = post - pre
+    max_angle = nangles//4 if half else nangles//2
+
+    mask1 = dtheta <= -max_angle
+    mask2 = dtheta > max_angle
+
+    dtheta[mask1] = dtheta[mask1] + 2*max_angle
+    dtheta[mask2] = dtheta[mask2] - 2*max_angle
+
+    return dtheta
+
+
+
+
 
 def angle_dist(pre, post, nangles=16, half=True):
     """
@@ -61,7 +82,7 @@ def angle_dist(pre, post, nangles=16, half=True):
     """
     d = abs(post - pre)
     max_angle = nangles//2 if half else nangles
-    return min(d, max_angle - d)
+    return np.minimum(d, max_angle - d)
 
 
 def construct_delta_ori(v1_neurons, v1_connections, nangles=16, half=True):

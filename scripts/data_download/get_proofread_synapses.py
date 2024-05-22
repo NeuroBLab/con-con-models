@@ -15,6 +15,7 @@ sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
 import numpy as np
 import pandas as pd 
 import ccmodels.preprocessing.downloader as down
+import ccmodels.dataanalysis.filters as fl
 
 #define Caveclient and database version
 client = down.get_client(661)
@@ -22,13 +23,15 @@ client = down.get_client(661)
 #Load unit table containing information on desired neurons
 neurons = pd.read_csv('data/preprocessed/unit_table.csv')
 
+neurons
+
 #Extracting all the root id of the desired neurons
 neuron_ids = np.sort(neurons["pt_root_id"].unique())
 print(f"Number of neurons: {len(neuron_ids)}")
 
 #Extract connectome
 print("Querying API for connections. Might take a while...")
-down.connectome_constructor(client, neuron_ids, neuron_ids, start_index=0)
+down.connectome_constructor(client, neuron_ids, neuron_ids, start_index=0, drop_synapses_duplicates=False)
 
 #Save it
 #connections.to_csv(f'data/preprocessed/connections_table.csv', index = False)
