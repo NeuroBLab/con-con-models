@@ -8,14 +8,31 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 
-def master_format(**kwargs):
+def master_format(style='custom', **kwargs):
     """
     Just a function that applies aaaaall the formats below!
     """
 
-    format_axes(**kwargs)
-    format_text(**kwargs)
-    format_legend(**kwargs)
+    if style == 'custom':
+        format_axes(**kwargs)
+        format_text(**kwargs)
+        format_legend(**kwargs)
+        format_plots(**kwargs)
+    elif style == 'paper':
+        format_axes()
+        format_text()
+        format_legend()
+        format_plots()
+    elif style == 'poster':
+        format_axes(tickpad=1.5, axes_lw=1.6, tick_maj_size=6, tick_min_size=4)
+        format_text(label_fs=26, legend_fs=18, tick_fs=18, title_fs=26)
+        format_legend(legend_fs=18, labspacing=0.1, hdlText=0.4)
+        format_plots(lw=2.5)
+    elif style == 'slides':
+        format_axes(tickpad=1.5, axes_lw=2.5, tick_maj_size=8, tick_min_size=5)
+        format_text(label_fs=20, legend_fs=18, tick_fs=18, title_fs=22)
+        format_legend(legend_fs=20, labspacing=0.1, hdlText=0.4)
+        format_plots(lw=3.)
 
 # -------------------------
 # Axes format and styling
@@ -132,13 +149,15 @@ def aux_annotate_axes(ax, text, fontsize=18, textpos=[0.5,0.5]):
 class Measures:
     fig_w_1col = 9.0  #cm
     fig_w_2col = 18.0 #cm
+    fig_w_slide_impress = 28    #cm
+    fig_w_slide_pwp     = 33.85 #cm
 
 
 def to_inches(cm):
     """
     Convert cm to inches
     """
-    return cm/2.54
+    return np.array(cm)/2.54
 
 def one_col_size(ratio=1.618, height=None):
     """
@@ -181,16 +200,38 @@ def two_col_size(ratio=1.618, height=None):
     return (width, height)
 
 
+def slide_size(fraction_w, fraction_h, software='powerpoint', ratio=16/9):
+    """
+    Returns a tuple (w,h) with an adequate size for a presentation slide.
+    Figure is measured in fraction on an entire slide
+
+    Parameters:
+    - fraction_w: float
+        fraction of the slide width to take
+    - fraction_h: float
+        fraction of the slide height to take
+    """
+
+    if software=='powerpoint':
+        width = to_inches(Measures.fig_w_slide_pwp)
+    else:
+        width = to_inches(Measures.fig_w_slide_impress)
+
+    height = width/ratio
+
+    return (width*fraction_w, height*fraction_h)
+
 # -------------------------
 # Text styles 
 # -------------------------
 
 #Does all text formatting at once
-def format_text(usetex=False, font="Helvetica", label_fs=12, tick_fs=10, legend_fs=10, pdffonttype=3, **kwargs):
+def format_text(usetex=False, font="Helvetica", label_fs=12, tick_fs=10, legend_fs=10, pdffonttype=3, title_fs=12, **kwargs):
     #Font and sizes
     mpl.rcParams["font.family"] = font
 
     mpl.rcParams["axes.labelsize"] = label_fs 
+    mpl.rcParams["axes.titlesize"] = title_fs 
     mpl.rcParams["xtick.labelsize"] = tick_fs 
     mpl.rcParams["ytick.labelsize"] = tick_fs 
     mpl.rcParams["legend.fontsize"] = legend_fs 
@@ -233,3 +274,12 @@ def format_legend(legend_fs=10, frame=False, backcolor="#eeeeee", hdlLength=1.0,
     mpl.rcParams["legend.handleheight"] = hdlHeigth
     mpl.rcParams["legend.labelspacing"] = labspacing 
     mpl.rcParams["legend.columnspacing"] = colspacing 
+
+# -------------------------
+# Legend 
+# -------------------------
+
+def format_plots(lw=1.5, errorbarcapsize=3):
+
+    mpl.rcParams['lines.linewidth'] = lw
+    mpl.rcParams['errorbar.capsize'] = errorbarcapsize

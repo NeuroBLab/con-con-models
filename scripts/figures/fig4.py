@@ -151,97 +151,105 @@ def compare_rates(ax, re_model, re_exp):
 
 # ----------------------------------------------------------------------------------------
 
-#Defining Parser
-parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
+# ======================================================
+# --------------- FIGURE STRUCTURE ---------------------
+# THis is the code that loads the data, structures the 
+# location of the panels, and then call the analysis 
+# functions to fill in the panels, via the functions above.
+# ======================================================
 
-#Adding and parsing arguments
-parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
-args = parser.parse_args()
+def plot_figure():
+    #Defining Parser
+    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
-
-OSI = {}
-
-#Load data and get the best fits
-OSI["model"], J_values, g_values = load_sim_data("ccmodels/victor/proteus2")
-OSI["exp"], re_exp = load_exp_data()
-best_per_g, best_per_g_ix, idx_best = get_best_fits(OSI["model"], OSI["exp"].mean(), J_values)
-
-best = (J_values[idx_best[0]], g_values[idx_best[1]])
-print("Best fit = ", best)
-re_best, ri, rx = funcs.opendata(idx_best[0], idx_best[1], path="ccmodels/victor/proteus2", returnact=False)
-Theta = np.arange(0, 2*np.pi, np.pi/8.)
-OSI["best"] = funcs.compute_orientation_selectivity_index(re_best ,Theta)    
-del ri, rx
-
-re_other, ri, rx = funcs.opendata(idx_best[0], 1, path="ccmodels/victor/proteus2", returnact=False)
-OSI["best_glow"] = funcs.compute_orientation_selectivity_index(re_other, Theta)    
-del ri, rx
-
-ix_low = 50
-re, ri, rx = funcs.opendata(ix_low, 7, path="ccmodels/victor/proteus2", returnact=False)
-OSI["Jlow"]  = funcs.compute_orientation_selectivity_index(re, Theta)    
-del re, ri, rx
-
-ix_high = 80
-re, ri, rx = funcs.opendata(ix_high, 7, path="ccmodels/victor/proteus2", returnact=False)
-OSI["Jhigh"] = funcs.compute_orientation_selectivity_index(re, Theta)    
-del re, ri, rx
-
-sty.master_format()
+    #Adding and parsing arguments
+    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+    args = parser.parse_args()
 
 
-fig, axes = plt.subplot_mosaic(
-    """
-    AB
-    CD
-    """, 
-    figsize=sty.two_col_size(ratio=1.5), layout="constrained", gridspec_kw={"height_ratios":[1,1]})
+    OSI = {}
+
+    #Load data and get the best fits
+    OSI["model"], J_values, g_values = load_sim_data("ccmodels/victor/proteus2")
+    OSI["exp"], re_exp = load_exp_data()
+    best_per_g, best_per_g_ix, idx_best = get_best_fits(OSI["model"], OSI["exp"].mean(), J_values)
+
+    best = (J_values[idx_best[0]], g_values[idx_best[1]])
+    print("Best fit = ", best)
+    re_best, ri, rx = funcs.opendata(idx_best[0], idx_best[1], path="ccmodels/victor/proteus2", returnact=False)
+    Theta = np.arange(0, 2*np.pi, np.pi/8.)
+    OSI["best"] = funcs.compute_orientation_selectivity_index(re_best ,Theta)    
+    del ri, rx
+
+    re_other, ri, rx = funcs.opendata(idx_best[0], 1, path="ccmodels/victor/proteus2", returnact=False)
+    OSI["best_glow"] = funcs.compute_orientation_selectivity_index(re_other, Theta)    
+    del ri, rx
+
+    ix_low = 50
+    re, ri, rx = funcs.opendata(ix_low, 7, path="ccmodels/victor/proteus2", returnact=False)
+    OSI["Jlow"]  = funcs.compute_orientation_selectivity_index(re, Theta)    
+    del re, ri, rx
+
+    ix_high = 80
+    re, ri, rx = funcs.opendata(ix_high, 7, path="ccmodels/victor/proteus2", returnact=False)
+    OSI["Jhigh"] = funcs.compute_orientation_selectivity_index(re, Theta)    
+    del re, ri, rx
+
+    sty.master_format()
 
 
-
-plot_imshow(axes["A"], OSI["model"], best_per_g, g_values)
-plot_lines(axes["C"], J_values, OSI["model"], OSI["exp"].mean(), [1, 7], g_values, best_per_g, best_per_g_ix)
-
-
-# -----------------
-
-labels = {}
-labels["best"]      = f"g = {g_values[idx_best[1]]:.2f}"
-labels["best_glow"] = f"g = {g_values[1]:.2f}"
-labels["exp"]       = f"Experiment"
-labels["Jlow"]      = f"J = {J_values[ix_low]:.2f}"
-labels["Jhigh"]      = f"J = {J_values[ix_high]:.2f}"
-
-colors = {}
-colors["best"]      = "red" 
-colors["best_glow"] = "green" 
-colors["exp"]       = "blue" 
-colors["Jlow"]      = "teal" 
-colors["Jhigh"]     = "mediumvioletred" 
-
-ls = {}
-ls["best"]      = "-." 
-ls["best_glow"] = ":" 
-ls["exp"]       = ":" 
-ls["Jlow"]      = ":" 
-ls["Jhigh"]     = ":" 
-#compare_OSI(axes["C"], OSI["best"], , [best[1], g_values[1]], OSI_exp, nbins=40)
-compare_OSI(axes["B"], ["best", "best_glow", "exp"], OSI, labels, colors, ls) 
+    fig, axes = plt.subplot_mosaic(
+        """
+        AB
+        CD
+        """, 
+        figsize=sty.two_col_size(ratio=1.5), layout="constrained", gridspec_kw={"height_ratios":[1,1]})
 
 
 
-OSI["original"] = np.load("ccmodels/victor/osie_original.npy")
-OSI["reshuffled"] = np.load("ccmodels/victor/osie_reshuffled.npy")
-ls["original"]      = ":" 
-ls["reshuffled"]     = ":" 
-colors["original"]      = "red" 
-colors["reshuffled"]     = "fuchsia" 
-labels["original"] = "Best"
-labels["reshuffled"] = "Exc Reshuffle"
-
-compare_OSI(axes["D"], ["original", "reshuffled"], OSI, labels, colors, ls)
-
-#compare_rates(axes["D"], re_best.mean(axis=0), re_exp)
+    plot_imshow(axes["A"], OSI["model"], best_per_g, g_values)
+    plot_lines(axes["C"], J_values, OSI["model"], OSI["exp"].mean(), [1, 7], g_values, best_per_g, best_per_g_ix)
 
 
-fig.savefig(args.save_destination+"fig4b.pdf", bbox_inches="tight")
+    # -----------------
+
+    labels = {}
+    labels["best"]      = f"g = {g_values[idx_best[1]]:.2f}"
+    labels["best_glow"] = f"g = {g_values[1]:.2f}"
+    labels["exp"]       = f"Experiment"
+    labels["Jlow"]      = f"J = {J_values[ix_low]:.2f}"
+    labels["Jhigh"]      = f"J = {J_values[ix_high]:.2f}"
+
+    colors = {}
+    colors["best"]      = "red" 
+    colors["best_glow"] = "green" 
+    colors["exp"]       = "blue" 
+    colors["Jlow"]      = "teal" 
+    colors["Jhigh"]     = "mediumvioletred" 
+
+    ls = {}
+    ls["best"]      = "-." 
+    ls["best_glow"] = ":" 
+    ls["exp"]       = ":" 
+    ls["Jlow"]      = ":" 
+    ls["Jhigh"]     = ":" 
+    #compare_OSI(axes["C"], OSI["best"], , [best[1], g_values[1]], OSI_exp, nbins=40)
+    compare_OSI(axes["B"], ["best", "best_glow", "exp"], OSI, labels, colors, ls) 
+
+
+
+    OSI["original"] = np.load("ccmodels/victor/osie_original.npy")
+    OSI["reshuffled"] = np.load("ccmodels/victor/osie_reshuffled.npy")
+    ls["original"]      = ":" 
+    ls["reshuffled"]     = ":" 
+    colors["original"]      = "red" 
+    colors["reshuffled"]     = "fuchsia" 
+    labels["original"] = "Best"
+    labels["reshuffled"] = "Exc Reshuffle"
+
+    compare_OSI(axes["D"], ["original", "reshuffled"], OSI, labels, colors, ls)
+
+    #compare_rates(axes["D"], re_best.mean(axis=0), re_exp)
+
+
+    fig.savefig(args.save_destination+"fig4b.pdf", bbox_inches="tight")

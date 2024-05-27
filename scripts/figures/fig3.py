@@ -117,81 +117,92 @@ def plot_dist_bootstrap(ax, angles, prob_pref_ori, color=cr.lcolor["Total"], lab
 
 # ----------------------------------------------------------------------------------------
 
-#Defining Parser
-parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
-#Adding and parsing arguments
-parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
-args = parser.parse_args()
-
-
-sty.master_format()
-
-fig, axes = plt.subplot_mosaic(
-    """
-    AB
-    CD
-    """, 
-    figsize=sty.two_col_size(ratio=1.5), layout="constrained", gridspec_kw={"height_ratios":[1,1]})
-
-for k in "AB":
-    ax = axes[k]
-    ax.axvline(0.0, color="black")
-    ax.axvline(1.57, color="black", ls=":")
+# ======================================================
+# --------------- FIGURE STRUCTURE ---------------------
+# THis is the code that loads the data, structures the 
+# location of the panels, and then call the analysis 
+# functions to fill in the panels, via the functions above.
+# ======================================================
 
 
-#Read and process necessary data
-orientation_only = True
-v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
+def plot_figure():
 
-#Very important to use only the functionally matched data for the adjacency matrix!!
-#We'll be out of RAM otherwise
-matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
-matched_connections = fl.remove_autapses(matched_connections)
+    #Defining Parser
+    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
-
-vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
-angles = plotutils.get_angles(kind="centered", half=orientation_only)
-
-# --------------------
-
-print("Getting mean current")
-nexperiments = 100 
-avr_cur, std_cur = dcr.bootstrap_mean_current(matched_neurons, matched_connections, rates, nexperiments=nexperiments)
-
-plot_input_current(axes["A"], angles, avr_cur, std_cur, nexperiments)
-axes["A"].legend(loc=(0.1, 0.25))
+    #Adding and parsing arguments
+    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+    args = parser.parse_args()
 
 
-# ------------
+    sty.master_format()
 
-n_neurons = 3
-inputs_single = [dcr.single_synapse_current(matched_neurons, matched_connections, vij, rates) for i in range(n_neurons)]
-plot_single_current(axes["B"], angles, inputs_single)
-for angle in [np.pi/2, -np.pi/2]:
-    axes["B"].axvline(angle, color="black", ls=":")
+    fig, axes = plt.subplot_mosaic(
+        """
+        AB
+        CD
+        """, 
+        figsize=sty.two_col_size(ratio=1.5), layout="constrained", gridspec_kw={"height_ratios":[1,1]})
 
-# ------------
+    for k in "AB":
+        ax = axes[k]
+        ax.axvline(0.0, color="black")
+        ax.axvline(1.57, color="black", ls=":")
 
-diffrate = dcr.compute_distrib_diffrate_allsynapses(matched_neurons, matched_connections, vij, rates)
-plot_distrib_diffrates(axes["C"], diffrate)
 
-# ------------
+    #Read and process necessary data
+    orientation_only = True
+    v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
 
-tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="tuned", who="pre") 
+    #Very important to use only the functionally matched data for the adjacency matrix!!
+    #We'll be out of RAM otherwise
+    matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
+    matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+    matched_connections = fl.remove_autapses(matched_connections)
 
-nexperiments = 10000
 
-print("Sample pref ori ")
-prob_pref_ori  = dcr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates)
-plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, label="Only tuned")
+    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+    angles = plotutils.get_angles(kind="centered", half=orientation_only)
 
-print("Sample pref ori ")
-prob_pref_ori = dcr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates)
-plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, color="red", label="All neurons")
+    # --------------------
 
-#axes["D"].set_ylim(0, 0.08)
-axes["D"].legend(loc=(0.1, 0.9))
+    print("Getting mean current")
+    nexperiments = 100 
+    avr_cur, std_cur = dcr.bootstrap_mean_current(matched_neurons, matched_connections, rates, nexperiments=nexperiments)
 
-fig.savefig(args.save_destination+"fig3.pdf", bbox_inches="tight")
+    plot_input_current(axes["A"], angles, avr_cur, std_cur, nexperiments)
+    axes["A"].legend(loc=(0.1, 0.25))
+
+
+    # ------------
+
+    n_neurons = 3
+    inputs_single = [dcr.single_synapse_current(matched_neurons, matched_connections, vij, rates) for i in range(n_neurons)]
+    plot_single_current(axes["B"], angles, inputs_single)
+    for angle in [np.pi/2, -np.pi/2]:
+        axes["B"].axvline(angle, color="black", ls=":")
+
+    # ------------
+
+    diffrate = dcr.compute_distrib_diffrate_allsynapses(matched_neurons, matched_connections, vij, rates)
+    plot_distrib_diffrates(axes["C"], diffrate)
+
+    # ------------
+
+    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="tuned", who="pre") 
+
+    nexperiments = 10000
+
+    print("Sample pref ori ")
+    prob_pref_ori  = dcr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates)
+    plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, label="Only tuned")
+
+    print("Sample pref ori ")
+    prob_pref_ori = dcr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates)
+    plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, color="red", label="All neurons")
+
+    #axes["D"].set_ylim(0, 0.08)
+    axes["D"].legend(loc=(0.1, 0.9))
+
+    fig.savefig(args.save_destination+"fig3.pdf", bbox_inches="tight")

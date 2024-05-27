@@ -11,10 +11,13 @@ import ccmodels.dataanalysis.processedloader as loader
 #TODO this is a WIP sampler made from Alessandro's code
 
 # load files
-def get_fractions(unit_table, connections_table, Labels):
+def get_fractions(unit_table, connections_table, Labels, local_connectivity=True):
 
     Frac_tables_data=fun.measure_fractions_of_neurons(unit_table,Labels)
     Conn_stat_measured_on_data=fun.measure_connection_stats(connections_table, unit_table,Labels)
+
+    Conn_stat_measured_on_data=fun.modify_Conn_stat_measured_on_data(Conn_stat_measured_on_data, local_connectivity)
+
     return Frac_tables_data, Conn_stat_measured_on_data 
 
 #TODO this has to be called from the parent script between the previous two functions
