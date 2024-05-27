@@ -46,7 +46,7 @@ def plot_dist(ax, v1_neurons, layer):
     ax.step(bins_centered, hist, color = cr.lcolor[layer])
 
 
-def fraction_tuned(ax, data):
+def fraction_tuned(ax, data, fstitle=8):
     barw = 0.1
     ybars = [0, barw] 
     offset = 0.05 #To display text
@@ -68,7 +68,7 @@ def fraction_tuned(ax, data):
     for i,layer in enumerate(["L23", "L4"]):
         perc_tuned = n_tuned[layer]/total_neurons[layer]
         ax.barh(ybars[i], perc_tuned, color=cr.lcolor[layer], height=barw)
-        ax.text(perc_tuned + offset, ybars[i], f"{round(100*perc_tuned)}%", va="center", ha="left")
+        ax.text(perc_tuned + offset, ybars[i], f"{round(100*perc_tuned)}%", va="center", ha="left", fontsize=fstitle)
     
     #Configure the axis in a nice way  
     #No spine below, but mark the 100% with a vertical line
@@ -77,7 +77,7 @@ def fraction_tuned(ax, data):
     ax.tick_params(length=0)
     ax.spines["bottom"].set_visible(False)
     ax.axvline(1, color="black", lw=3)
-    ax.set_xlabel("% of tuned neurons", fontsize=8)
+    ax.set_xlabel("% of tuned neurons", labelpad=-2., fontsize=fstitle)
     
 
 def plot_matrix_tuneuntune(ax, averages_dict, addticks=False, title=""):
@@ -117,7 +117,7 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
 
     #Plot it!
-    angles = plotutils.get_angles(kind="diff", half=orientation_only)
+    angles = plotutils.get_angles(kind="centered", half=half)
 
     for layer in ["L23", "L4"]:
         p = conprob[layer]
@@ -143,10 +143,10 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
-    ax.set_xlabel('∆ori')
-    ax.set_ylabel("Conn. Probability")
+    ax.set_xlabel('∆θ')
+    ax.set_ylabel("p/p(0)")
 
-    plotutils.get_xticks(ax, max=2*np.pi, half=True)
+    plotutils.get_xticks(ax, max=np.pi, half=True)
 
     ax.legend(loc = 'upper right')
 
@@ -176,79 +176,80 @@ def plot_cumulative(ax, v1_neurons, v1_connections):
 # ======================================================
 
 
+def plot_figure():
 
-#Defining Parser
-parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
+    #Defining Parser
+    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
-#Adding and parsing arguments
-parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
-args = parser.parse_args()
+    #Adding and parsing arguments
+    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+    args = parser.parse_args()
 
-sty.master_format()
+    sty.master_format()
 
-fig = plt.figure(layout="constrained", figsize=sty.two_col_size(ratio=1.5))
-subfigs = fig.subfigures(1, 3)
+    fig = plt.figure(layout="constrained", figsize=sty.two_col_size(ratio=1.5))
+    subfigs = fig.subfigures(1, 3)
 
-axes = {}
+    axes = {}
 
-axes["left"] = subfigs[0].subplots(nrows=3, ncols=1, height_ratios=[1, 0.15, 0.85])
-axes["center"] = subfigs[1].subplots(nrows=3, ncols=1, height_ratios=[1, 0.5, 0.5])
-axes["right"] = subfigs[2].subplots(nrows=2, ncols=1)
+    axes["left"] = subfigs[0].subplots(nrows=3, ncols=1, height_ratios=[1, 0.15, 0.85])
+    axes["center"] = subfigs[1].subplots(nrows=3, ncols=1, height_ratios=[1, 0.5, 0.5])
+    axes["right"] = subfigs[2].subplots(nrows=2, ncols=1)
 
-#Load the data
-orientation_only = True 
-v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
+    #Load the data
+    orientation_only = True 
+    v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
 
-#Se we can easily filter synapses by the layer in which the presynaptic neuron lives directly
-#without having to call .isin(...) all the time.
-#Adds two extra columns to v1_connections
-v1_connections = utl.add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre") 
+    #Se we can easily filter synapses by the layer in which the presynaptic neuron lives directly
+    #without having to call .isin(...) all the time.
+    #Adds two extra columns to v1_connections
+    v1_connections = utl.add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre") 
 
-#For many things in this figure we need only the functionally matched neurons, the others are not useful
-matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+    #For many things in this figure we need only the functionally matched neurons, the others are not useful
+    matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
+    matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
 
-# --- First panel
+    # --- First panel
 
-#Leave space for the diagram
-axes["left"][0].axis("off")
-axes["center"][0].axis("off")
-
-
-#Plot the data for both layer in the same axis. Then format it. 
-fraction_tuned(axes["left"][1], matched_neurons)
-
-#Plot the data for both layer in the same axis. Then format it. 
-ax = axes["left"][2]
-plot_dist(ax, matched_neurons, "L23")
-plot_dist(ax, matched_neurons, "L4")
-
-#Nice labels
-ax.set_ylabel('Fraction')
-ax.set_xlabel('OSI')
-ax.set_ylim(bottom = 0)
-
-# ----
-
-#Get the dictinoarie sof both probability and strength
-conn_probability_dict = ste.prob_conectivity_tuned_untuned(matched_neurons, matched_connections)
-strength_dict = ste.strength_tuned_untuned(matched_neurons, matched_connections)
-
-#Make the plots
-plot_matrix_tuneuntune(axes["center"][1], conn_probability_dict, title="Conn. Probability", addticks=True)
-plot_matrix_tuneuntune(axes["center"][2], strength_dict, title="Conn. Strength")
-
-# --------- 
-
-#Probability as a function of the dtheta
-conn_prob_osi(axes["right"][0], matched_neurons, matched_connections, half=orientation_only)
-
-# --------
-
-plot_cumulative(axes["right"][1], matched_neurons, matched_connections)
+    #Leave space for the diagram
+    axes["left"][0].axis("off")
+    axes["center"][0].axis("off")
 
 
+    #Plot the data for both layer in the same axis. Then format it. 
+    fraction_tuned(axes["left"][1], matched_neurons)
+
+    #Plot the data for both layer in the same axis. Then format it. 
+    ax = axes["left"][2]
+    plot_dist(ax, matched_neurons, "L23")
+    plot_dist(ax, matched_neurons, "L4")
+
+    #Nice labels
+    ax.set_ylabel('Fraction')
+    ax.set_xlabel('OSI')
+    ax.set_ylim(bottom = 0)
+
+    # ----
+
+    #Get the dictinoarie sof both probability and strength
+    conn_probability_dict = ste.prob_conectivity_tuned_untuned(matched_neurons, matched_connections)
+    strength_dict = ste.strength_tuned_untuned(matched_neurons, matched_connections)
+
+    #Make the plots
+    plot_matrix_tuneuntune(axes["center"][1], conn_probability_dict, title="Conn. Probability", addticks=True)
+    plot_matrix_tuneuntune(axes["center"][2], strength_dict, title="Conn. Strength")
+
+    # --------- 
+
+    #Probability as a function of the dtheta
+    conn_prob_osi(axes["right"][0], matched_neurons, matched_connections, half=orientation_only)
+
+    # --------
+
+    plot_cumulative(axes["right"][1], matched_neurons, matched_connections)
 
 
 
-fig.savefig(args.save_destination+"fig2.pdf", bbox_inches="tight")
+
+
+    fig.savefig(args.save_destination+"fig2.pdf", bbox_inches="tight")

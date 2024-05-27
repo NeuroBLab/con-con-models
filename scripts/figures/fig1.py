@@ -77,28 +77,36 @@ def fractional_statistics(ax):
       ax.set_title("Median input proportion")
 
 
-sty.master_format()
-fig, axes = plt.subplot_mosaic(
-    """
-    ABF
-    CDD
-    CDD
-    """,
-    figsize=sty.two_col_size(ratio=2), layout="constrained",
-    gridspec_kw={"width_ratios":[1, 0.7, 0.7], "height_ratios":[1.2,1,1]}
-)
 
-show_image(axes["A"], "network_schema.png")
-show_image(axes["C"], "3d_reconstruction.png")
-show_image(axes["D"], "fig1_plotE.png")
 
-input_statistics(axes["B"])
-fractional_statistics(axes["F"])
 
-#Separation between axes
-fig.get_layout_engine().set(wspace=1/72, w_pad=0)
 
-fig.savefig(args.save_destination+"fig1.pdf",  bbox_inches="tight")
+
+
+
+def plot_figure():
+    sty.master_format()
+    fig, axes = plt.subplot_mosaic(
+        """
+        ABF
+        CDD
+        CDD
+        """,
+        figsize=sty.two_col_size(ratio=2), layout="constrained",
+        gridspec_kw={"width_ratios":[1, 0.7, 0.7], "height_ratios":[1.2,1,1]}
+    )
+
+    show_image(axes["A"], "network_schema.png")
+    show_image(axes["C"], "3d_reconstruction.png")
+    show_image(axes["D"], "fig1_plotE.png")
+
+    input_statistics(axes["B"])
+    fractional_statistics(axes["F"])
+
+    #Separation between axes
+    fig.get_layout_engine().set(wspace=1/72, w_pad=0)
+
+    fig.savefig(args.save_destination+"fig1.pdf",  bbox_inches="tight")
 
 
 

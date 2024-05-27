@@ -15,7 +15,7 @@ def get_model_prefori(units_sampled, rates_sampled, vij):
     sampled23 = fl.filter_neurons(units_sampled, layer='L23', tuning='tuned')
 
     #Make the untuned rates go to the average
-    rates_sampled = utl.get_untuned_rate(units_sampled, rates_sampled) 
+    #rates_sampled = utl.get_untuned_rate(units_sampled, rates_sampled) 
 
     #Get the currents from presynaptic to postsynaptic
     currents = cur.get_currents_subset(units_sampled, vij, rates_sampled, pre_ids=units_sampled['id'], post_ids=sampled23['id'])

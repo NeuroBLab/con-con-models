@@ -48,6 +48,24 @@ def Compute_scaling_factor_for_target_K_EE(connections,neurons,target_K_EE,new_N
     return scaling_prob
 
 
+def modify_Conn_stat_measured_on_data(Conn_stat_measured_on_data,
+                                      local_connectivity):
+    Conn_stat=Conn_stat_measured_on_data.copy()
+    if local_connectivity==True:
+        Labels_L23exc={'area': 'V1', 'layer': 'L23', 'cell_type': 'exc', 'tuning_type': 'selective'}
+        label_key = tuple(sorted(Labels_L23exc.items()))
+        dist_values=Conn_stat[label_key,label_key]['dist_values']
+        sampled_J_vs_dist=Conn_stat[label_key,label_key]['sampled_J_vs_dist'].copy()
+        mean=np.mean(Conn_stat[label_key,label_key]['sampled_J_vs_dist'][:,0])
+        for dist in dist_values:
+            mask=sampled_J_vs_dist[:,1]==dist
+            sampled_J_vs_dist[mask,0]=sampled_J_vs_dist[mask,0]*(1-0.14*dist)
+        
+        sampled_J_vs_dist[:,0]=sampled_J_vs_dist[:,0]/np.mean(sampled_J_vs_dist[:,0])*mean
+        Conn_stat[label_key,label_key]['sampled_J_vs_dist']=sampled_J_vs_dist
+
+    return Conn_stat
+
 def measure_fractions_of_neurons(neurons,Labels):
     # function to measure fraction of neurons with given characteristics
 
@@ -268,3 +286,109 @@ def measure_connection_stats(connections,neurons,Labels):
     return Conn_table_with_tuning_stat
 
 
+def measure_connection_stats_plotting(connections,neurons,Labels,post_proof_status, pre_proof_status):
+
+    mask_selective=(neurons['tuning_type']=='selective')
+    mask_not_selective=(neurons['tuning_type']=='not_selective')
+    mask_matched=mask_selective|mask_not_selective
+
+    Conn_table_with_tuning_stat = {}
+
+
+    for label_post in Labels:
+        label_key_post = tuple(sorted(label_post.items()))
+        area_post = label_post['area']
+        layer_post = label_post['layer']
+        cell_type_post = label_post['cell_type']
+        tuning_type_post = label_post['tuning_type']
+
+        mask_cell_type_post = (neurons['cell_type'] == cell_type_post) & \
+                         (neurons['layer'] == layer_post)&\
+                        neurons['dendr_proof'].isin(post_proof_status)
+
+        if len(neurons[mask_cell_type_post&mask_matched])>0:
+            if tuning_type_post=='selective':
+                mask_cell_type_post_tuning = mask_cell_type_post&mask_selective   
+            if tuning_type_post=='not_selective':  
+                mask_cell_type_post_tuning = mask_cell_type_post&mask_not_selective   
+        
+        if len(neurons[mask_cell_type_post&mask_matched])==0:
+            # there are no neurons matched of that type, 
+            # I consider all neurons as not selective and that is it
+            if tuning_type_post=='selective':
+                mask_cell_type_post_tuning = mask_cell_type_post&mask_matched #(False for everyone) 
+            if tuning_type_post=='not_selective':
+                mask_cell_type_post_tuning = mask_cell_type_post #(True for everyone) 
+            
+        post_id_list = neurons.loc[mask_cell_type_post_tuning, 'pt_root_id'].values
+        
+        for label_pre in Labels:
+            label_key_pre = tuple(sorted(label_pre.items()))
+            area_pre = label_pre['area']
+            layer_pre = label_pre['layer']
+            cell_type_pre = label_pre['cell_type']
+            tuning_type_pre = label_pre['tuning_type']
+
+            mask_cell_type_pre = (neurons['cell_type'] == cell_type_pre) & \
+                            (neurons['layer'] == layer_pre) & \
+                            (neurons['axon_proof'].isin(pre_proof_status))
+
+
+            if len(neurons[mask_cell_type_pre&mask_matched])>0:
+                if tuning_type_pre=='selective':
+                    mask_cell_type_pre_tuning = mask_cell_type_pre&mask_selective   
+                if tuning_type_pre=='not_selective':  
+                    mask_cell_type_pre_tuning = mask_cell_type_pre&mask_not_selective   
+            
+            if len(neurons[mask_cell_type_pre&mask_matched])==0:
+                # there are no neurons matched of that type, 
+                # I consider all neurons as not selective and that is it
+                if tuning_type_pre=='selective':
+                    mask_cell_type_pre_tuning = mask_cell_type_pre&mask_matched #(False for everyone) 
+                if tuning_type_pre=='not_selective':
+                    mask_cell_type_pre_tuning = mask_cell_type_pre #(True for everyone) 
+                
+            pre_id_list = neurons.loc[mask_cell_type_pre_tuning, 'pt_root_id'].values
+
+            # Focus on connections between neurons of specific pre and post tuning
+            mask_conn = connections['pre_pt_root_id'].isin(pre_id_list) & \
+                        connections['post_pt_root_id'].isin(post_id_list)
+
+            # First I compute connection probability based on the difference in cell type and tuning
+            # I do not consider preferred orientation here
+            sampled_J = connections[mask_conn]['syn_volume'].values
+            conn_obs=len(sampled_J)
+
+            # I neglect the -1 in len(pre_id_list) for symmetric connections
+            norm = len(post_id_list)*len(pre_id_list)
+            prob_conn=np.zeros(2)
+            if norm>0:
+                prob_conn[0]=conn_obs/norm
+                prob_conn[1]=np.sqrt(prob_conn[0]*(1-prob_conn[0])/norm)
+
+
+            '''
+            print(label_post)
+            print(label_pre)
+            print(prob_conn[0], prob_conn[1])
+            print(np.mean(sampled_J), stats.sem(sampled_J))
+            print()
+            '''
+            # For  selective post and pre I differentitate for prob as a funciton of distance in tuning
+            dist_values=np.nan*np.ones(1)
+            prob_conn_vs_dist=np.nan*np.ones((1,3))
+            sampled_J_vs_dist=np.nan*np.ones((1,2))
+            if (tuning_type_post=='selective')&(tuning_type_pre=='selective')&(len(post_id_list)>0)&(len(pre_id_list)>0):
+                dist_values,prob_conn_vs_dist,sampled_J_vs_dist=measure_P_of_dist_ell(neurons[mask_cell_type_post_tuning],
+                                                                                       neurons[mask_cell_type_pre_tuning], 
+                                                                  connections[mask_conn],)
+                
+
+            Conn_table_with_tuning_stat[label_key_post,label_key_pre,] = {
+                            'prob_conn':prob_conn,
+                            'sampled_J':sampled_J,
+                            'dist_values':dist_values,
+                            'prob_conn_vs_dist':prob_conn_vs_dist,
+                            'sampled_J_vs_dist':sampled_J_vs_dist,
+                            }
+    return Conn_table_with_tuning_stat

@@ -1,6 +1,7 @@
 import numpy as np
-import functions as fun
 import pandas as pd
+
+import ccmodels.modelanalysis.functions as fun
 
 #TODO this is a temporary file. It should go into statistics extraction, and we actually a function that already does what this code does
 #(and most of the functions.py are included). This should be deleted, as the format used is probably too much.

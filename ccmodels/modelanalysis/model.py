@@ -39,7 +39,7 @@ def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I
 
     return aR
 
-def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01):#
+def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01, random_init=False):#
 
     T = np.arange(0, 100*tau_E, tau_I/3)
 
@@ -48,8 +48,9 @@ def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01):#
 
     # This function compute the dynamics of the rate model
     #Solve the model
-    aR_t=np.zeros((N_E+N_I, int(np.max(T)//dt)));
-    aR_t[:,0] = np.random.rand(N_E+N_I) 
+    aR_t=np.zeros((N_E+N_I, int(np.max(T)//dt)))
+    if random_init:
+        aR_t[:,0] = np.random.rand(N_E+N_I) 
 
     aR_t = system_euler(np.max(T), aR_t, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi[0], phi[1], aX, dt)
 
@@ -78,7 +79,7 @@ def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01):#
     return Results
 
 #def do_dynamics(Q, J_ij, m_props, rate_X_of_Theta, phi):
-def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, orionly=False):
+def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, orionly=False, random_init=False):
 
     #Initialize arguments for the solve_ivp function
     conn=[QJ, ne, ni, nx]
@@ -99,7 +100,7 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, ori
     for idx_Theta in range(ntheta):
         aX=rate_X_of_Theta[:,idx_Theta]
 
-        Results=solve_dynamical_system(tau_E, tau_I, aX,conn, phi, dt=dt)
+        Results=solve_dynamical_system(tau_E, tau_I, aX,conn, phi, dt=dt, random_init=random_init)
         ResultsALL=ResultsALL+[Results]
 
         aE,aI,MU_E,MU_I,aE_t,aI_t,aE_std, aI_std=Results[:]
@@ -110,7 +111,7 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, ori
 
     return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
 
-def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data"):
+def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -137,7 +138,7 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
     """
 
     units, connections, activity, labels = ale.statsextract(prepath=prepath, orionly=orionly)
-    frac_stat, conn_stat = msa.get_fractions(units, connections, labels)
+    frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
 
     scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
     #units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
@@ -165,7 +166,7 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=False)
 
 
     rates_sample = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
@@ -183,7 +184,7 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
 
 
 
-def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, reshuffle=False, prepath="data"):
+def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, local_connectivity=True, orionly=False, reshuffle='no', prepath="data"):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -210,7 +211,7 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
     """
 
     units, connections, activity, labels = ale.statsextract(prepath=prepath, orionly=orionly)
-    frac_stat, conn_stat = msa.get_fractions(units, connections, labels)
+    frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
 
     scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
     #units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
@@ -224,10 +225,20 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
     units = units.rename(columns={'pt_root_id':'id'})
     connections = connections.rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
 
-    if reshuffle:
+    if reshuffle=='alltuned':
         ix= np.arange(0, ne+ni+nx)
         ix[0:ne] = np.random.choice(ix[0:ne], size=ne, replace=False)
         ix[ne+ni:] = np.random.choice(ix[ne+ni:], size=nx, replace=False)
+
+        QJ_copy = QJ[:, ix]
+    elif reshuffle=='L4tuned':
+        ix= np.arange(0, ne+ni+nx)
+        ix[ne+ni:] = np.random.choice(ix[ne+ni:], size=nx, replace=False)
+
+        QJ_copy = QJ[:, ix]
+    elif reshuffle=='L23tuned':
+        ix= np.arange(0, ne+ni+nx)
+        ix[0:ne] = np.random.choice(ix[0:ne], size=ne, replace=False)
 
         QJ_copy = QJ[:, ix]
     else:
@@ -237,7 +248,7 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=True)
 
     rates = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
     units_sampled.loc[:, 'pref_ori'] = np.argmax(rates, axis=1)
@@ -251,7 +262,7 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
     return aE_t, rate_etheta, rate_itheta, stddev_rates, units_sampled
 
 
-def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, orionly=False, prepath="data"):
+def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, local_connectivity=True, orionly=False, prepath="data"):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -278,7 +289,7 @@ def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.0
     """
 
     units, connections, activity, labels = ale.statsextract(prepath=prepath, orionly=orionly)
-    frac_stat, conn_stat = msa.get_fractions(units, connections, labels)
+    frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
 
     scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
     #units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
@@ -301,6 +312,6 @@ def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.0
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=False)
 
     return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates 
