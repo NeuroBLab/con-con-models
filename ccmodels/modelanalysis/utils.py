@@ -196,11 +196,18 @@ def compute_circular_variance(rates, orionly=False):
     else:
         angles = np.arange(0, 2*np.pi, np.pi/8)
 
-    norma = rates.sum(axis=1)
-    num_ori = rates * np.exp(2.0j * angles)
-    num_dir = rates * np.exp(1.0j * angles)
 
-    r_ori = np.abs(num_ori.sum(axis=1)/norma)
-    r_dir = np.abs(num_dir.sum(axis=1)/norma)
+    if len(rates.shape) > 1:
+        norma = rates.sum(axis=1)
+        num_ori = rates * np.exp(2.0j * angles)
+        num_dir = rates * np.exp(1.0j * angles)
+        r_ori = np.abs(num_ori.sum(axis=1)/norma)
+        r_dir = np.abs(num_dir.sum(axis=1)/norma)
+    else:
+        norma = rates.sum()
+        num_ori = rates * np.exp(2.0j * angles)
+        num_dir = rates * np.exp(1.0j * angles)
+        r_ori = np.abs(num_ori.sum()/norma)
+        r_dir = np.abs(num_dir.sum()/norma)
 
     return r_ori, r_dir

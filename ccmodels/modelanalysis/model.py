@@ -314,4 +314,4 @@ def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.0
     #Make simulation and do the result
     aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=False)
 
-    return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates 
+    return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, QJ
