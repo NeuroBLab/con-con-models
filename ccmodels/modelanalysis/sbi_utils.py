@@ -17,7 +17,6 @@ import pickle
 from KDEpy import FFTKDE
 
 def get_simulations_summarystats(path, features, average_disorder=False, nsims=None):
-    path = "k400_disorder"
     average_disorder = False 
     onlyfiles = [f for f in listdir(path) if isfile(join(path, f))]
 
@@ -48,7 +47,7 @@ def get_simulations_summarystats(path, features, average_disorder=False, nsims=N
 
         return params, summary_stats
 
-def get_data_summarystats(features, prepath=".", orionly=True):
+def get_data_summarystats(features, prepath="data/", orionly=True):
     orionly = True
     units, connections, rates = loader.load_data(orientation_only=True, prepath=prepath) 
 
@@ -134,4 +133,4 @@ def get_estimation_parameters(post_samples, npars, bw='ISJ', joint_posterior=Tru
             x, y = FFTKDE(kernel='gaussian', bw=bw).fit(post_samples[:,i].numpy()).evaluate()
             most_common.append(x[np.argmax(y)])
         
-        return torch.tensor(most_common)
+        return most_common

@@ -7,6 +7,7 @@ import ccmodels.modelanalysis.sbi_utils as msbi
 
 features = ['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']
 params, summary_stats = msbi.get_simulations_summarystats("k400_disorder", features, nsims=None)
+print(summary_stats.shape)
 summary_data = msbi.get_data_summarystats(features, prepath="../../data")
 prior, intervals = msbi.setup_prior()
 
