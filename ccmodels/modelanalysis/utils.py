@@ -49,12 +49,11 @@ def tabulate_response(tau_E, tau_I, theta, V_r, sigma_t = 10, tau_rp = 2e-3, xf=
         phi_tab_I[idx] = comp_phi_tab(mu_tab[idx], tau_I, tau_rp, sigma_t, V_r, theta)
 
     #Interpolate for finer distribution
-    phi_int_E = interp1d(mu_tab, phi_tab_E, kind='linear')  
-    phi_int_I = interp1d(mu_tab, phi_tab_I, kind='linear')
+    phi_int_E = interp1d(mu_tab, phi_tab_E, kind='linear', copy=False)  
+    phi_int_I = interp1d(mu_tab, phi_tab_I, kind='linear', copy=False)
 
     #Return 
     return [phi_int_E, phi_int_I]
-
 
 
 def comp_phi_tab(mu, tau, tau_rp, sigma, V_r, theta, u_thres=10):
@@ -103,7 +102,6 @@ def integrand(x, thres = -5.5):
         return np.exp(x*x)*(1 + erf(x))
     else:
         return (0.5*x**(-2) - 0.75*x**(-4) - 1) / (np.sqrt(np.pi) * x)  
-
 
 def compute_integral(min, max, thres=11.):
     """

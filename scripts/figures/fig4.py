@@ -5,8 +5,11 @@ import pandas as pd
 import argparse
 from tqdm.auto import tqdm
 from PIL import Image
+
 import sys
-sys.path.append(".")
+import os 
+sys.path.append(os.getcwd())
+
 import cmasher as cmr
 import ccmodels.analysis.functions as ccf
 import ccmodels.plotting.utils as ccu

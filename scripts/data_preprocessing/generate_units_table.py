@@ -2,7 +2,9 @@
 to functionally matched L2/3/4 V1 neurons and inhibitory L2/3 V1 neurons.'''
 
 import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
+import os 
+sys.path.append(os.getcwd())
+
 import numpy as np
 import pandas as pd
 from standard_transform import minnie_transform_vx

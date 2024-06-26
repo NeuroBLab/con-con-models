@@ -4,8 +4,10 @@ import pandas as pd
 import argparse
 from tqdm.auto import tqdm
 from PIL import Image
+
 import sys
-sys.path.append(".")
+import os 
+sys.path.append(os.getcwd())
 
 import ccmodels.dataanalysis.currents as dcr
 import ccmodels.dataanalysis.utils as utl

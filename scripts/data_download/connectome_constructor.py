@@ -7,11 +7,13 @@ For each connection you also have the size of the synapse and the difference in 
 Estimated runtime: 5 minutes
 '''
 
+import sys
+import os 
+sys.path.append(os.getcwd())
+
 #TODO
 #add argparser option to specify where to read and write files to and which version of the Caveclient database to use
 
-import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
 import numpy as np
 import pandas as pd 
 import ccmodels.preprocessing.downloader as down

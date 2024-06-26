@@ -74,16 +74,17 @@ def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01, random_init=Fal
     MU_E = tau_E * MU_over_tau[0:N_E]
     MU_I = tau_I * MU_over_tau[N_E::]
 
-    Results=[aE, aI, MU_E, MU_I, aE_t, aI_t, aEstd, aIstd];
+    results=[aE, aI, MU_E, MU_I, aE_t, aI_t, aEstd, aIstd];
 
-    return Results
+    return results
 
 #def do_dynamics(Q, J_ij, m_props, rate_X_of_Theta, phi):
 def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, orionly=False, random_init=False):
 
-    #Initialize arguments for the solve_ivp function
+    #Initialize arguments 
     conn=[QJ, ne, ni, nx]
 
+    #Get the angles
     if orionly:
         Theta = np.arange(0, np.pi, np.pi/8.)
     else:
@@ -91,6 +92,7 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, ori
 
     ntheta = len(Theta)
 
+    #Initialize rates to measure
     ResultsALL=[]
     rate_E_of_Theta=np.zeros((ne, ntheta))
     stddev_rate_E_of_Theta=np.zeros((ne, ntheta))
@@ -137,7 +139,7 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units, connections, activity, labels = ale.statsextract(prepath=prepath, orionly=orionly)
+    units, connections, activity, labels = fun.statsextract(prepath=prepath, orionly=orionly)
     frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
 
     scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)

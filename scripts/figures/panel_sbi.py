@@ -1,8 +1,10 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
+import os 
+sys.path.append(os.getcwd())
 
 import ccmodels.modelanalysis.model as md
 import ccmodels.modelanalysis.sbi_utils as msbi
@@ -19,24 +21,26 @@ import ccmodels.plotting.color_reference as cr
 import ccmodels.plotting.styles as sty
 
 
-disorder_average = True 
-network = "allpars"
+disorder_average = False 
+network = "5pars"
 
 ncols = 4 
 
 bw = 'silverman'
 sty.master_format()
-fig = plt.figure(layout='constrained', figsize=(10,16))
-subfigs = fig.subfigures(3, 1, hspace=0.1, height_ratios = [0.5, 1., 1.])
+fig = plt.figure(layout='constrained', figsize=(10, 20))
+subfigs = fig.subfigures(4, 1, hspace=0.1, height_ratios = [0.5, 1., 1., 1.])
 
 if network == "5pars":
     features = ['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']
     posterior_path = "data/model/sbi_networks/k400_disordered_5pars"
     output_path = "scripts/figures/output/panel_5pars"
+    sims_path = "data/model/5pars"
 elif network == "allpars":
     features = ['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'cv_curl23', 'cv_curl4', 'indiv_traj_std']
     posterior_path = "data/model/sbi_networks/k400_disordered_allpars"
     output_path = "scripts/figures/output/panel_allpars"
+    sims_path = "data/model/allpars"
 
 
 # ---- SBI panel
@@ -60,6 +64,28 @@ sbiplot.plot_posterior_distrib(axes, posterior_samples, intervals, inferred, bw=
 for i in range(ncols):
     axes[i].axvline(inferred_joint[i], color="gray", ls=":")
 
+
+params = np.empty((0,4)) 
+summary_stats = np.empty((0,5)) 
+
+for file in [f"params_{i}.csv" for i in range(12)]:
+    filecontent = pd.read_csv(f'{sims_path}/{file}')
+
+    p = filecontent[['J', 'g', 'theta', 'sigma']]
+    sumstats = filecontent[['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']]
+
+    if disorder_average:
+        p        = p.groupby(np.arange(len(p))//10).mean()
+        summary_stats= summary_stats.groupby(np.arange(len(summary_stats))//10).mean()
+    
+    params = np.vstack([params, p])
+    summary_stats = np.vstack([summary_stats, sumstats]) 
+
+imin = np.argmin(np.sum((summary_stats - summary_data.numpy())**2, axis=1))
+indiv_pars = params[imin]
+
+
+
 # --- Do a simulation with parameters-
 
 print("Do a simulation at most probable parameters.")
@@ -72,7 +98,7 @@ if disorder_average:
 
     nrepetitions = 10 
 
-    for ax_ind, (pars, title) in enumerate(zip([inferred, inferred_joint], ["Simulation most probable", "Simulation max joint posterior"])):
+    for ax_ind, (pars, title) in enumerate(zip([inferred, inferred_joint, indiv_pars], ["Simulation most probable", "Simulation max joint posterior", "Best individual pars"])):
         dist_re = np.empty(0) 
         dist_ri = np.empty(0)
         dist_osi_e = np.empty(0) 
@@ -204,7 +230,7 @@ if disorder_average:
     fig.savefig(f"{output_path}_disorderavg.pdf")
 
 else:
-    for ax_ind, (pars, title) in enumerate(zip([inferred, inferred_joint], ["Simulation most probable", "Simulation max joint posterior"])):
+    for ax_ind, (pars, title) in enumerate(zip([inferred, inferred_joint, indiv_pars], ["Simulation most probable", "Simulation max joint posterior", "Best individual pars"])):
 
         aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(400, 8000, pars[0], pars[1],  theta=pars[2], sigma_t=pars[3], local_connectivity=local_connectivity, orionly=orionly, prepath='data')
         units_sample = units_sample.rename(columns={'pt_root_id':'id'})

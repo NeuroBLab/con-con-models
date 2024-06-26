@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 
 import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
+import os 
+sys.path.append(os.getcwd())
+
 import ccmodels.dataanalysis.processedloader as loader
 import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.filters as fl

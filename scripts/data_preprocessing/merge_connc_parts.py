@@ -1,5 +1,7 @@
 import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
+import os 
+sys.path.append(os.getcwd())
+
 import ccmodels.preprocessing.connectomics as conn
 
 #Just call the merger.

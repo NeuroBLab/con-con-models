@@ -16,55 +16,70 @@ import pickle
 
 from KDEpy import FFTKDE
 
-def get_simulations_summarystats(path, features, average_disorder=False, nsims=None):
-    average_disorder = False 
+def get_simulations_summarystats(path, features, average_disorder=False, nfiles_avgdis=10, nsims=None):
+    #Get all files in the specified path
     onlyfiles = [f for f in listdir(path) if isfile(join(path, f))]
 
     params = np.empty((0,4)) 
     summary_stats = np.empty((0, len(features))) 
     for file in onlyfiles:
+        #Read the file
         filecontent = pd.read_csv(f'{path}/{file}')
 
+        #Get the parameters and the desired summary statistics
         p = filecontent[['J', 'g', 'theta', 'sigma']]
         sumstats = filecontent[features]
 
+        #Average over the disorder, when specified
         if average_disorder:
-            p        = p.groupby(np.arange(len(p))//10).mean()
-            sumstats = sumstats.groupby(np.arange(len(sumstats))//10).mean()
+            p        = p.groupby(np.arange(len(p))//nfiles_avgdis).mean()
+            sumstats = sumstats.groupby(np.arange(len(sumstats))//nfiles_avgdis).mean()
         
+        #put together the new results
         params = np.vstack([params, p])
         summary_stats = np.vstack([summary_stats, sumstats]) 
 
+    #If not specified, return all simulations
     if nsims==None:
         return torch.tensor(params), torch.tensor(summary_stats)
     else:
-        sims = np.arange(100000)
-        ndata = nsims*10
-        np.random.shuffle(sims)
-        sims = sims[:ndata]
-        params = torch.tensor(params[sims])
-        summary_stats = torch.tensor(summary_stats[sims]).float()
+        #When specified, return a random number of parameters 
+        total_n_sims = np.arange(summary_stats.shape[0])
+        ndata = nsims*nfiles_avgdis
+
+        #Shuffle
+        np.random.shuffle(total_n_sims)
+        total_n_sims = total_n_sims[:ndata]
+        params = torch.tensor(params[total_n_sims])
+        summary_stats = torch.tensor(summary_stats[total_n_sims]).float()
 
         return params, summary_stats
 
 def get_data_summarystats(features, prepath="data/", orionly=True):
-    orionly = True
-    units, connections, rates = loader.load_data(orientation_only=True, prepath=prepath) 
+    #Read the data
+    units, connections, rates = loader.load_data(orientation_only=orionly, prepath=prepath) 
 
+    #Compute the rates
     units_e = fl.filter_neurons(units, layer='L23', tuning='matched', cell_type='exc')
-    osi_e = utl.compute_orientation_selectivity_index(rates[units_e['id']])
     rates_e = rates[units_e['id']]
 
+    #Compute the circular variance
     cveo, cved = utl.compute_circular_variance(rates[units_e['id']], orionly=True)
 
+    #Get the adjacency matrix
     matchedunits = fl.filter_neurons(units, tuning='matched')
     matchedconnections = fl.synapses_by_id(connections, pre_ids=matchedunits['id'], post_ids=matchedunits['id'], who='both')
     vij = loader.get_adjacency_matrix(matchedunits, matchedconnections)
+
+    #Use adjacency matrix + rates to get all system's currents between matched E neurons
     currents = mcur.bootstrap_mean_current(units, vij, rates, tuning=['matched', 'matched'], cell_type=['exc', 'exc'])
     totalmean = currents['Total'].mean(axis=0).max()
+
+    #Get the tuning of the current
     cvl23o, cvl23d = utl.compute_circular_variance(currents['L23'].mean(axis=0)/totalmean, orionly=orionly)
     cvl4o, cvl4d = utl.compute_circular_variance(currents['L4'].mean(axis=0)/totalmean, orionly=orionly)
 
+    #Put in the same format as the simulations and return
     summary_data = {'mean_re' : [rates.mean()], 'std_re': [rates_e.std()], 'mean_cve_dir': [cved.mean()], 'std_cve_dir':[cved.std()],
                     'cv_curl23': [cvl23d], 'cv_curl4':[cvl4d], 'indiv_traj_std':[0.]}
     summary_data = pd.DataFrame(summary_data)
@@ -72,26 +87,32 @@ def get_data_summarystats(features, prepath="data/", orionly=True):
     return torch.tensor(summary_data[features].values)
 
 def setup_prior():
+    #Setup the prior values
     j0, jf = 0, 5
-    #g0, gf = 1., 7.
     g0, gf = 1., 5.
     theta0, thetaf = 10, 25
-    #sigma0, sigmaf = 1, 20 
     sigma0, sigmaf = 1, 15 
 
+    #For the sbi
     prior_lowbound = torch.tensor([j0, g0, theta0, sigma0])
     prior_highbound = torch.tensor([jf, gf, thetaf, sigmaf])
+    prior = sbiut.BoxUniform(low=prior_lowbound, high=prior_highbound)
 
+    #for plotting
     intervals = [[j0, jf], [g0, gf], [theta0, thetaf], [sigma0, sigmaf]]
 
-    prior = sbiut.BoxUniform(low=prior_lowbound, high=prior_highbound)
-    prior_space = np.array([np.linspace(inter[0], inter[1], 1000) for inter in intervals])
+    #Return the prior in the useful formats
     return prior, intervals
 
 
 def train_sbi(prior, params, summary_stats):
+    #Prepare the SBI in the selected prior
     inference = sbinfer.SNPE(prior=prior)
+
+    #Put the simulations 
     inference = inference.append_simulations(params.float(), summary_stats.float())
+
+    #Train and return
     density_estimator = inference.train()
     return inference.build_posterior(density_estimator)
 
@@ -119,6 +140,7 @@ def get_estimation_parameters(post_samples, npars, bw='ISJ', joint_posterior=Tru
         Contains the binning for each one of the parameters. Bounds should coincide with prior ones for best results
     """
 
+    #Compute the parameters with the full joint posterior
     if joint_posterior:
         kde = FFTKDE()
         grid_points = 64 
@@ -126,6 +148,7 @@ def get_estimation_parameters(post_samples, npars, bw='ISJ', joint_posterior=Tru
         grid, postev =  post.evaluate(grid_points)
         return grid[np.argmax(postev), :]
     else:
+        #Evaluate for each parameter
         most_common = []
 
         #For each parameter, do the thing
