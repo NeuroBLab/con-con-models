@@ -3,7 +3,9 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
+import os 
+sys.path.append(os.getcwd())
+
 import ccmodels.preprocessing.rawloader as rawload
 import ccmodels.utils.angleutils as au
 import ccmodels.dataanalysis.filters as fl

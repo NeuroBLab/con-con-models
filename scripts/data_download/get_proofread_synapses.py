@@ -11,7 +11,9 @@ Estimated runtime: 5 minutes
 #add argparser option to specify where to read and write files to and which version of the Caveclient database to use
 
 import sys
-sys.path.append("/home/victor/Fisica/Research/Milan/con-con-models/")
+import os 
+sys.path.append(os.getcwd())
+
 import numpy as np
 import pandas as pd 
 import ccmodels.preprocessing.downloader as down

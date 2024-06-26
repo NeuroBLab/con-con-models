@@ -2,8 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import argparse
+
 import sys
-sys.path.append(".")
+import os 
+sys.path.append(os.getcwd())
 
 import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.utils as utl

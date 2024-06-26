@@ -9,6 +9,9 @@ scripts/figures/output/
 scripts/figures/posterfigures/
 scripts/figures/talkfigures/
 data/in_processing/connections_table_*
+data/model/k400*
+data/model/5pars*
+sbi-logs/
 
 #Virtual environment folders
 virtual/

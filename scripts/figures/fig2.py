@@ -2,8 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import argparse
+
 import sys
-sys.path.append(".")
+import os 
+sys.path.append(os.getcwd())
 
 #from ccmodels.analysis.utils import tuning_encoder
 import ccmodels.dataanalysis.utils as utl 
