@@ -33,13 +33,16 @@ fmconnections = fl.synapses_by_id(v1_connections, pre_ids=fm_and_inh["id"], post
 
 #Then get the table for proofread and not proofread neurons
 table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections)
+table.index.name = "Population"
 table.to_csv("data/model/prob_funcmatch_clearaxons.csv")
 
 table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections, pre_proofread=None)
+table.index.name = "Population"
 table.to_csv("data/model/prob_funcmatch.csv")
 
 #Finally, let's get the number of neurons for each family
 table = ste.get_n_neurons_per_family(v1_neurons)
+table.index.name = "Population"
 table.to_csv("data/model/n_neurons.csv")
 
 # --- Get estimates for the average EE connection probability 

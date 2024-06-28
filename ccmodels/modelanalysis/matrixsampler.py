@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 #TODO this was calling functions file in victor
-import ccmodels.modelanalysis.functions as fun
+import ccmodels.modelanalysis.functions_new as fun
 
 import ccmodels.dataanalysis.filters as fl
 import ccmodels.dataanalysis.utils as utl
@@ -41,24 +41,28 @@ def generate_conn_matrix(neurons_sampled, sampled_connections, J, g):
     QJ = np.zeros((len(neurons_sampled), len(neurons_sampled)))
 
     # Get the necessary data from sampled_connections
-    pre_pt_root_ids = sampled_connections['pre_pt_root_id']
-    post_pt_root_ids = sampled_connections['post_pt_root_id']
+    pre_pt_root_ids = sampled_connections['pre_id']
+    post_pt_root_ids = sampled_connections['post_id']
     syn_volumes = sampled_connections['syn_volume']
 
     # Assign synapse volumes to QJ array based on pre and post synaptic root IDs and scale by factor J
     QJ[post_pt_root_ids, pre_pt_root_ids] = J*syn_volumes
 
     # scale inhibitory connections and make them negative
-    num_L23_neurons_E = len(neurons_sampled[(neurons_sampled['layer'] == 'L23')&(neurons_sampled['cell_type'] =='exc')])
-    num_L23_neurons_I = len(neurons_sampled[(neurons_sampled['layer'] == 'L23')&(neurons_sampled['cell_type'] =='inh')])
-    QJ[:, num_L23_neurons_E:(num_L23_neurons_E+num_L23_neurons_I)]=-g*QJ[:, num_L23_neurons_E:(num_L23_neurons_E+num_L23_neurons_I)]
+    l23_sampled = fl.filter_neurons(neurons_sampled, layer='L23')
+    l23E = fl.filter_neurons(l23_sampled, cell_type='exc')
+    l23I = fl.filter_neurons(l23_sampled, cell_type='inh')
+    num_L23_neurons_E = len(l23E)
+    num_L23_neurons_I = len(l23I)
+
+
+    QJ[:, num_L23_neurons_E:(num_L23_neurons_E+num_L23_neurons_I)] *= -g 
 
     # Remove post synaptic neurons in L4
-    num_L23_neurons = len(neurons_sampled[neurons_sampled['layer'] == 'L23'])
-    num_L4_neurons = len(neurons_sampled[(neurons_sampled['layer'] == 'L4')&(neurons_sampled['cell_type'] =='exc')])
+    num_L23_neurons = len(l23_sampled)
+    num_L4_neurons = len(fl.filter_neurons(neurons_sampled, layer='L4', cell_type='exc'))
+    
     QJ = QJ[:num_L23_neurons, :]
-    Q = QJ.copy()
-    Q[QJ!=0]=1
 
     return QJ, num_L23_neurons_E, num_L23_neurons_I, num_L4_neurons 
 
@@ -71,6 +75,7 @@ def sample_neurons_with_tuning(Frac_,N, Labels):
     cell_type_list = []
     tuning_type_list=[]
     pref_ori_list=[]
+
     for label_info in Labels:
         area = label_info['area']
         layer = label_info['layer']
@@ -89,17 +94,17 @@ def sample_neurons_with_tuning(Frac_,N, Labels):
         fraction_of_neurons_pref_ori=Frac_[label_key]['fraction_of_neurons_pref_ori'][:,0]
         
         frac_type_tuning=fraction_of_neurons_type*fraction_of_neurons_tuning
+
         if tuning_type=='not_selective':
             #no neuro in the populaiton is selective, case of I neurons
-            
             N_type_tuning=int(frac_type_tuning * N)
             tuning_type_list+=([tuning_type]*N_type_tuning)
             pref_ori_list+=([np.nan]*N_type_tuning)
             area_list+=[area]*N_type_tuning
             layer_list+=([layer]*N_type_tuning)
             cell_type_list+=([cell_type]*N_type_tuning)
-            
-        if (tuning_type=='selective')&(fraction_of_neurons_tuning>0):
+
+        elif (tuning_type=='selective')&(fraction_of_neurons_tuning>0):
             #no neuro in the populaiton is selective, case of I neurons
             count_N_type_tuning_ori=0
             for idx_ori in range(len(pref_ori)):  
@@ -117,8 +122,9 @@ def sample_neurons_with_tuning(Frac_,N, Labels):
                        'cell_type':cell_type_list,
                        'tuning_type':tuning_type_list,
                        'pref_ori':pref_ori_list,})
-    neurons['pt_root_id']=np.arange(len(pref_ori_list))
-    neurons['pt_root_id']=np.arange(len(pref_ori_list))
+
+    neurons['id']=np.arange(len(pref_ori_list))
+    neurons['id']=np.arange(len(pref_ori_list))
     neurons['axon_proof']='extended'
     return neurons
 
@@ -135,11 +141,11 @@ def sample_connections(Conn_stat,neurons,scaling_prob,Labels):
         cell_type_post = label_post['cell_type']
         tuning_type_post = label_post['tuning_type']
 
-        mask_cell_post = (neurons['cell_type'] == cell_type_post) & \
-                         (neurons['layer'] == layer_post)
-        mask_cell_post = mask_cell_post&(neurons['tuning_type'] == tuning_type_post)
-        post_id_list=neurons['pt_root_id'][mask_cell_post].values
-        possible_ori_post=np.unique(neurons['pref_ori'][mask_cell_post])
+        mask_cell_post = (neurons['cell_type'] == cell_type_post) & (neurons['layer'] == layer_post) &(neurons['tuning_type'] == tuning_type_post)
+        post_id_list=neurons.loc[mask_cell_post, 'id'].values
+        #possible_ori_post=np.unique(neurons['pref_ori'][mask_cell_post])
+        #!
+        possible_ori_post=neurons.loc[mask_cell_post, 'pref_ori'].unique()
 
 
         for label_pre in Labels:
@@ -149,12 +155,11 @@ def sample_connections(Conn_stat,neurons,scaling_prob,Labels):
             cell_type_pre = label_pre['cell_type']
             tuning_type_pre = label_pre['tuning_type']
     
-            mask_cell_pre = (neurons['cell_type'] == cell_type_pre) & \
-                            (neurons['layer'] == layer_pre)
-            mask_cell_pre = mask_cell_pre & (neurons['tuning_type'] == tuning_type_pre)
-            mask_cell_pre=mask_cell_pre&(neurons['axon_proof']!='non')
-            pre_id_list=neurons['pt_root_id'][mask_cell_pre].values
-            possible_ori_pre=np.unique(neurons['pref_ori'][mask_cell_pre])
+            mask_cell_pre = (neurons['cell_type'] == cell_type_pre) & (neurons['layer'] == layer_pre) & (neurons['tuning_type'] == tuning_type_pre) &(neurons['axon_proof']!='non')
+            pre_id_list=neurons.loc[mask_cell_pre, 'id'].values
+            #possible_ori_pre=np.unique(neurons['pref_ori'][mask_cell_pre])
+            #!
+            possible_ori_pre = neurons.loc[mask_cell_pre, 'pref_ori'].unique()
             
 
             prob_conn=Conn_stat[label_key_post,label_key_pre,]['prob_conn'].copy()
@@ -175,8 +180,8 @@ def sample_connections(Conn_stat,neurons,scaling_prob,Labels):
                     for pref_ori_pre in possible_ori_pre:
                         mask_cell_pre_with_ori=(neurons['pref_ori']==pref_ori_pre)&mask_cell_pre
                         
-                        post_id_list_with_ori=neurons['pt_root_id'][mask_cell_post_with_ori].values
-                        pre_id_list_with_ori=neurons['pt_root_id'][mask_cell_pre_with_ori].values
+                        post_id_list_with_ori=neurons['id'][mask_cell_post_with_ori].values
+                        pre_id_list_with_ori=neurons['id'][mask_cell_pre_with_ori].values
 
                         dist=fun.dist_ell(pref_ori_post,pref_ori_pre,Lmax)
                         prob_conn_to_use=prob_conn_vs_dist[prob_conn_vs_dist[:,2]==dist,0][0]
@@ -199,12 +204,13 @@ def sample_connections(Conn_stat,neurons,scaling_prob,Labels):
                 pre_pt_root_id_list+=pre_id_list[indices[1]].tolist()
                 syn_volume_list+=np.random.choice(sampled_J_to_use, size=len(indices[0]), replace=True).tolist()
 
-    sampled_connections = pd.DataFrame({'pre_pt_root_id':pre_pt_root_id_list,
-                   'post_pt_root_id':post_pt_root_id_list,
+    sampled_connections = pd.DataFrame({'pre_id':pre_pt_root_id_list,
+                   'post_id':post_pt_root_id_list,
                    'syn_volume':syn_volume_list,
                     })
+
     #remove self-connections
-    sampled_connections=sampled_connections[sampled_connections['pre_pt_root_id']!= sampled_connections['post_pt_root_id']]
+    sampled_connections=sampled_connections[sampled_connections['pre_id']!= sampled_connections['post_id']]
 
     return sampled_connections
 
@@ -212,37 +218,22 @@ def sample_L4_rates(units, activity, units_sample, nangles=16, orionly=False):
 
     #Get neurons and their activity in L4
     neurons_L4 = fl.filter_neurons(units, layer='L4', tuning='matched')
-    activity_L4 = activity[activity['neuron_id'].isin(neurons_L4['id'])]
 
     #Now, get the neurons sampled from the synthetic model
     neurons_L4_sample = fl.filter_neurons(units_sample, layer='L4', tuning='matched')
 
-    #TODO maybe code should be updated so the data is loaded in the usual way, not in this one
-    #Remap the tables.
-    ids_remapped = loader.get_id_map(neurons_L4)
-    loader.remap_table(ids_remapped, neurons_L4, columns='id')
-    loader.remap_table(ids_remapped, activity_L4, columns='neuron_id')
-
-
+    #Number of neurons in each case
     n = len(neurons_L4)
     n_sample = len(neurons_L4_sample)
 
-    #Create the rates matrix. The set index allows comfortable selection via loc 
-    activity_L4 = activity_L4.set_index(keys=['neuron_id', 'angle_shown'])
-    act_matrix = np.empty((n, nangles))
-    for i in range(n):
-        for theta in range(nangles):
-            act_matrix[i,theta] = activity_L4.loc[i, theta]
+    #Set the rates of untuned neurons to their average
+    act_matrix = utl.get_untuned_rate(units, activity)
+
+    #Get the submatrix of rates in L4
+    act_matrix = act_matrix[neurons_L4['id'], :]
 
     #Shift all neurons so the largest rate is centered at 0
     act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
-
-    #Now that all neurons are at 0, get the rates from the average at symmetry 
-    if orionly:
-        act_matrix = 0.5*(act_matrix[:, :8] + act_matrix[:, 8:])
-
-    #Set the rates of untuned neurons to their average
-    act_matrix = utl.get_untuned_rate(neurons_L4, act_matrix)
 
     #Number of tuned neurons in data and synthetic tables
     n_tuned_data   = len(fl.filter_neurons(neurons_L4, tuning='tuned'))

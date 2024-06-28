@@ -4,8 +4,7 @@ from scipy.special import erf
 from scipy.optimize import root
 from scipy.interpolate import interp1d
 
-import ccmodels.modelanalysis.alessandro_extractstats as ale
-import ccmodels.modelanalysis.functions as fun 
+import ccmodels.modelanalysis.functions_new as fun 
 import ccmodels.modelanalysis.matrixsampler as msa 
 import ccmodels.modelanalysis.utils as mut 
 import ccmodels.dataanalysis.filters as fl
@@ -147,14 +146,6 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
     units_sampled,  connections_sampled = msa.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
     QJ, ne, ni, nx = msa.generate_conn_matrix(units_sampled, connections_sampled, J, g)
 
-    #Rename columsn to be consistent with everything else, for ease of use
-    #TODO this should be done earlier in the pipeline, but it is OK
-    units_sampled = units_sampled.rename(columns={'pt_root_id':'id'})
-    connections_sampled = connections_sampled .rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
-
-    units = units.rename(columns={'pt_root_id':'id'})
-    connections = connections.rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
-
     #Store the original preferred orientation got from the table
     tunedL23= fl.filter_neurons(units_sampled, layer='L23', tuning='tuned')
     tunedL23_ids = tunedL23['id']
@@ -212,7 +203,7 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units, connections, activity, labels = ale.statsextract(prepath=prepath, orionly=orionly)
+    units, connections, activity, labels = fun.statsextract(prepath=prepath, orionly=orionly)
     frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
 
     scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
@@ -290,7 +281,7 @@ def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.0
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units, connections, activity, labels = ale.statsextract(prepath=prepath, orionly=orionly)
+    units, connections, activity, labels = fun.statsextract(prepath=prepath, orionly=orionly)
     frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
 
     scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)

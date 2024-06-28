@@ -285,7 +285,7 @@ def estimate_conn_prob_functmatch(fm_neurons, fm_connections, pre_proofread="min
     columns_XT = [f"XT_{i}" for i in range(limit_angle)]
 
     #presynaptic (columns) + postsynaptic (rows) names of indices to build a dataframe
-    column_names = columns_ET + columns_XT + ["EU", "XU", "I"]
+    column_names = columns_ET + ["EU", "I"] + columns_XT + ["XU"]
     row_names = columns_ET + ["EU", "I"] 
     ptable = pd.DataFrame(columns=column_names, index=row_names)
 
@@ -502,20 +502,39 @@ def prob_symmetric_links(v1_neurons_, v1_connections_, half=True, nangles=16):
 
 def get_n_neurons_per_family(v1_neurons):
 
+    #Names of the indices, to create a pandas series
     ix = ["ET", "EU", "E", "XT", "XU", "X", "I"]
+
+    #Expand the tuned also for each pref ori
+    columns_ET = [f"ET_{i}" for i in range(8)]
+    columns_XT = [f"XT_{i}" for i in range(8)]
+
+    #Put all columns together
+    ix = ix + columns_ET + columns_XT 
 
     N = pd.Series(index=ix)
 
-    N["ET"] = len(fl.filter_neurons(v1_neurons, tuning="tuned", cell_type="exc", layer="L23"))
+    #Get the tuned E and X, and count how many neurons we have...
+    tuned_e = fl.filter_neurons(v1_neurons, tuning="tuned", cell_type="exc", layer="L23")
+    tuned_x = fl.filter_neurons(v1_neurons, tuning="tuned", cell_type="exc", layer="L4")
+
+    N["ET"] = len(tuned_e)
+    N["XT"] = len(tuned_x)
+
+    #Now count how many of each angle we have, and set it to each value
+    N[columns_ET] = tuned_e['pref_ori'].value_counts() 
+    N[columns_XT] = tuned_x['pref_ori'].value_counts()
+        
+    #Get the untuned stuff 
     N["EU"] = len(fl.filter_neurons(v1_neurons, tuning="untuned", cell_type="exc", layer="L23"))
-    N["E"] = N["ET"] + N["EU"]
-    N["XT"] = len(fl.filter_neurons(v1_neurons, tuning="tuned", cell_type="exc", layer="L4"))
     N["XU"] = len(fl.filter_neurons(v1_neurons, tuning="untuned", cell_type="exc", layer="L4"))
-    N["X"] = N["XT"] + N["XU"]
+
+    #Get total number of each type
+    N["E"] = N["ET"] + N["EU"]
     N["I"] = len(fl.filter_neurons(v1_neurons, cell_type="inh", layer="L23"))
+    N["X"] = N["XT"] + N["XU"]
 
     return N.astype(int)
-
 
 
 
