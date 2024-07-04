@@ -41,9 +41,9 @@ table.index.name = "Population"
 table.to_csv("data/model/prob_funcmatch.csv")
 
 #Finally, let's get the number of neurons for each family
-table = ste.get_n_neurons_per_family(v1_neurons)
+table = ste.get_fraction_populations(v1_neurons)
 table.index.name = "Population"
-table.to_csv("data/model/n_neurons.csv")
+table.to_csv("data/model/fractions_populations.csv")
 
 # --- Get estimates for the average EE connection probability 
 

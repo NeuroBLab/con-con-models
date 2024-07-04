@@ -399,8 +399,26 @@ def estimate_conn_prob_connectomics(v1_neurons, v1_connections, pre_proofread = 
     return ptable
 
 
+def connections_per_population(v1_neurons, v1_connections, nangles=8):
+    """
+    Constructs a dictionary in which the entry B<A has the connections from population A to  population B. 
+    If both A and B are tuned, it furthermore splits connections by difference in pref ori, being stored as
+    B<A_deltaX, being X the preferred orientation obtained from au.angle_dist
+    """
 
+    connections_by_group = {}
 
+    #Loop over the populations
+    for pre in 'EIX':
+        layer_pre = 'L4' if pre=='X' else 'L23'
+        cell_pre = 'inh' if pre=='I' else 'exc' 
+        for post in 'EIX':
+            layer_post = 'L4' if post=='X' else 'L23'
+            cell_post = 'inh' if post=='I' else 'exc' 
+
+            connections_by_group[f"{post}<{pre}"] = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[layer_pre, layer_post], cell_type=[cell_pre, cell_post], who='both')['syn_volume'] 
+
+    return connections_by_group
 
 
 def prob_symmetric_links(v1_neurons_, v1_connections_, half=True, nangles=16):
@@ -499,45 +517,41 @@ def prob_symmetric_links(v1_neurons_, v1_connections_, half=True, nangles=16):
 
     return prob.sort_index()
 
+def get_fraction_populations(units):
 
-def get_n_neurons_per_family(v1_neurons):
+    fractions = {}
+    ne = len(fl.filter_neurons(units, cell_type='exc', layer='L23', tuning='unmatched'))
+    ni = len(fl.filter_neurons(units, cell_type='inh', layer='L23', tuning='unmatched'))
+    nx = len(fl.filter_neurons(units, cell_type='exc', layer='L4',  tuning='unmatched'))
 
-    #Names of the indices, to create a pandas series
-    ix = ["ET", "EU", "E", "XT", "XU", "X", "I"]
+    nt = ne+ni+nx
 
-    #Expand the tuned also for each pref ori
-    columns_ET = [f"ET_{i}" for i in range(8)]
-    columns_XT = [f"XT_{i}" for i in range(8)]
+    fractions["E"] = ne/nt
+    fractions["I"] = ni/nt
+    fractions["X"] = nx/nt
 
-    #Put all columns together
-    ix = ix + columns_ET + columns_XT 
+    nem = len(fl.filter_neurons(units, cell_type='exc', layer='L23', tuning='matched'))
+    nxm = len(fl.filter_neurons(units, cell_type='exc', layer='L4',  tuning='matched'))
 
-    N = pd.Series(index=ix)
+    tuned_e = fl.filter_neurons(units, cell_type='exc', layer='L23', tuning='tuned')
+    tuned_x = fl.filter_neurons(units, cell_type='exc', layer='L4',  tuning='tuned')
+    net = len(tuned_e)
+    nxt = len(tuned_x)
 
-    #Get the tuned E and X, and count how many neurons we have...
-    tuned_e = fl.filter_neurons(v1_neurons, tuning="tuned", cell_type="exc", layer="L23")
-    tuned_x = fl.filter_neurons(v1_neurons, tuning="tuned", cell_type="exc", layer="L4")
+    fractions["ET"] = fractions['E'] * net/nem
+    fractions["EU"] = fractions['E'] * (nem-net)/nem
 
-    N["ET"] = len(tuned_e)
-    N["XT"] = len(tuned_x)
+    fractions["XT"] = fractions['X'] * nxt/nxm 
+    fractions["XU"] = fractions['X'] * (nxm-nxt)/nxm 
 
-    #Now count how many of each angle we have, and set it to each value
-    N[columns_ET] = tuned_e['pref_ori'].value_counts() 
-    N[columns_XT] = tuned_x['pref_ori'].value_counts()
-        
-    #Get the untuned stuff 
-    N["EU"] = len(fl.filter_neurons(v1_neurons, tuning="untuned", cell_type="exc", layer="L23"))
-    N["XU"] = len(fl.filter_neurons(v1_neurons, tuning="untuned", cell_type="exc", layer="L4"))
+    n_angle_e = tuned_e['pref_ori'].value_counts()
+    n_angle_x = tuned_x['pref_ori'].value_counts()
 
-    #Get total number of each type
-    N["E"] = N["ET"] + N["EU"]
-    N["I"] = len(fl.filter_neurons(v1_neurons, cell_type="inh", layer="L23"))
-    N["X"] = N["XT"] + N["XU"]
+    for i in range(8):
+        fractions[f'ET_{i}'] = fractions['ET'] * n_angle_e[i]/net
+        fractions[f'XT_{i}'] = fractions['XT'] * n_angle_x[i]/nxt 
 
-    return N.astype(int)
-
-
-
+    return pd.Series(fractions)
 
 def prob_conn_diffori(v1_neurons, v1_connections, half=True):
     """
