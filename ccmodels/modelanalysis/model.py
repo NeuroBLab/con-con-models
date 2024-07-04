@@ -1,14 +1,10 @@
 import numpy as np
-import scipy.integrate as scpint
-from scipy.special import erf
-from scipy.optimize import root
-from scipy.interpolate import interp1d
 
-import ccmodels.modelanalysis.functions_new as fun 
 import ccmodels.modelanalysis.matrixsampler as msa 
 import ccmodels.modelanalysis.utils as mut 
-import ccmodels.dataanalysis.filters as fl
 
+import ccmodels.dataanalysis.processedloader as loader 
+import ccmodels.dataanalysis.filters as fl
 
 ##################################################################
 ##### Simulate network dynamics
@@ -20,8 +16,6 @@ def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I
     #Vector of new states of the recurrent network
     F=np.empty(np.shape(aR)[0])
     aALL[(N_E+N_I):]=aX
-
-    doit=False
 
     nits = int(t/dt)
     for i in range(nits-1):
@@ -112,7 +106,7 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, ori
 
     return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
 
-def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True):
+def make_simulation(units, connections, rates, k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='nonlocal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -138,22 +132,15 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units, connections, activity, labels = fun.statsextract(prepath=prepath, orionly=orionly)
-    frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
-
-    scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
-    #units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
-    units_sampled,  connections_sampled = msa.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
-    QJ, ne, ni, nx = msa.generate_conn_matrix(units_sampled, connections_sampled, J, g)
+    units_sampled, connections_sampled, QJ, n_neurons = msa.sample_matrix(units, connections, k_ee, N, J, g, prepath=prepath, mode=mode)
+    ne, ni, nx = n_neurons
 
     #Store the original preferred orientation got from the table
     tunedL23= fl.filter_neurons(units_sampled, layer='L23', tuning='tuned')
     tunedL23_ids = tunedL23['id']
     original_prefori = units_sampled.loc[units_sampled['id'].isin(tunedL23_ids), 'pref_ori']
-
-    units_sampled.loc[units_sampled['pref_ori'].isna(), 'pref_ori'] = 0 
-    units.loc[units['pref_ori'].isna(), 'pref_ori'] = 0 
-    rate_xtheta = msa.sample_L4_rates(units, activity, units_sampled, orionly=orionly)
+    
+    rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled)
 
     #Compute the response function for the used parameters
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
@@ -170,14 +157,11 @@ def make_simulation(k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=1
     mask_osi = osi >= 0.4
     units_sampled.loc[mask_osi, 'tuning_type'] = 'selective' 
     units_sampled.loc[~mask_osi, 'tuning_type'] = 'not_selective' 
-    #units_sampled.loc[~mask_osi, 'pref_ori'] = np.random.randint(low=0, high=7, size=(~mask_osi).sum()) 
 
     return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, connections_sampled, QJ, [ne, ni, nx], tunedL23_ids, original_prefori 
 
 
-
-
-def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, local_connectivity=True, orionly=False, reshuffle='no', prepath="data"):
+def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, reshuffle='no', prepath="data"):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -203,20 +187,7 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units, connections, activity, labels = fun.statsextract(prepath=prepath, orionly=orionly)
-    frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
-
-    scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
-    #units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
-    units_sampled,  connections_sampled = msa.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
-
     ne, ni, nx = n_neurons
-
-    units_sampled = units_sampled.rename(columns={'pt_root_id':'id'})
-    connections_sampled = connections_sampled .rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
-
-    units = units.rename(columns={'pt_root_id':'id'})
-    connections = connections.rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
 
     if reshuffle=='alltuned':
         ix= np.arange(0, ne+ni+nx)
@@ -255,7 +226,7 @@ def make_simulation_fixed_structure(k_ee, N, QJ, rate_xtheta, n_neurons, tau_E=0
     return aE_t, rate_etheta, rate_itheta, stddev_rates, units_sampled
 
 
-def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, local_connectivity=True, orionly=False, prepath="data"):
+def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, local_connectivity=False, orionly=False, prepath="data", mode='nonlocal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -281,25 +252,10 @@ def make_simulation_cluster(k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.0
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units, connections, activity, labels = fun.statsextract(prepath=prepath, orionly=orionly)
-    frac_stat, conn_stat = msa.get_fractions(units, connections, labels, local_connectivity=local_connectivity)
+    units_sampled, connections_sampled, QJ, n_neurons = msa.sample_matrix(units, connections, k_ee, N, J, g, prepath=prepath, mode=mode)
+    ne, ni, nx = n_neurons
 
-    scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
-    #units_sampled, frac_sampled, connections_sampled = msa2.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
-    units_sampled,  connections_sampled = msa.generate_functions(scaling_prob, frac_stat, conn_stat, labels, N)
-    QJ, ne, ni, nx = msa.generate_conn_matrix(units_sampled, connections_sampled, J, g)
-
-    #Rename columsn to be consistent with everything else, for ease of use
-    #TODO this should be done earlier in the pipeline, but it is OK
-    units_sampled = units_sampled.rename(columns={'pt_root_id':'id'})
-    connections_sampled = connections_sampled .rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
-
-    units = units.rename(columns={'pt_root_id':'id'})
-    connections = connections.rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
-
-    units_sampled.loc[units_sampled['pref_ori'].isna(), 'pref_ori'] = 0 
-    units.loc[units['pref_ori'].isna(), 'pref_ori'] = 0 
-    rate_xtheta = msa.sample_L4_rates(units, activity, units_sampled, orionly=orionly)
+    rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled)
 
     #Compute the response function for the used parameters
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
