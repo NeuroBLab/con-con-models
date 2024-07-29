@@ -202,6 +202,7 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
 
             #Get how many synapses this new block has, to scale them by synaptic strenght
             n_synapses = np.sum(block) 
+        
             #syn_vols = sample_synaptic_vol(row, col, n_synapses, connections_by_group)
             #Weights depend only on cell type, which is the first letter 
             label_row = row[0]
@@ -255,7 +256,7 @@ def sample_units(N, neurons_per_pop, column_names, fractions):
 
 
 def sample_connections(Q):
-    connections_sample = np.where(Q>0)
-    connections_sample = {"pre_id":connections_sample[0], "post_id":connections_sample[1]} 
+    connections_sample = np.where(np.abs(Q)>0)
+    connections_sample = {"pre_id":connections_sample[1], "post_id":connections_sample[0]} 
     return pd.DataFrame(connections_sample)
 

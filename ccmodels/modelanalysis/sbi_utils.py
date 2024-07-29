@@ -86,12 +86,7 @@ def get_data_summarystats(features, prepath="data/", orionly=True):
     
     return torch.tensor(summary_data[features].values)
 
-def setup_prior():
-    #Setup the prior values
-    j0, jf = 0, 5
-    g0, gf = 1., 5.
-    theta0, thetaf = 10, 25
-    sigma0, sigmaf = 1, 15 
+def setup_prior(j0, jf, g0, gf, theta0, thetaf, sigma0, sigmaf):
 
     #For the sbi
     prior_lowbound = torch.tensor([j0, g0, theta0, sigma0])
