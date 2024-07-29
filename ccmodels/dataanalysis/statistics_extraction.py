@@ -181,6 +181,7 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, pre_proofr
     conn_from_tunedpre = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[pre_layer, "L23"], tuning=["tuned", "tuned"], 
                                                        proofread=[pre_proofread, None], who="both")
 
+
     #Avoid self-cnnnections
     conn_from_tunedpre = conn_from_tunedpre[conn_from_tunedpre["pre_id"] != conn_from_tunedpre["post_id"]]
 
@@ -258,8 +259,6 @@ def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[N
     neurons_post = fl.filter_neurons(v1_neurons, layer=layer[1], tuning=tuning[1], cell_type=cell_type[1], proofread=proofread[1])
     filtered_connections = fl.synapses_by_id(v1_connections, pre_ids=neurons_pre["id"], post_ids=neurons_post["id"], who="both")
 
-
-
     #Take out self-connections
     mask_selfcon = filtered_connections["pre_id"] == filtered_connections["post_id"]
     filtered_connections = filtered_connections[~mask_selfcon]
@@ -268,6 +267,7 @@ def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[N
         n_potential_links = len(neurons_pre) * (len(neurons_post)-1)
     else:    
         n_potential_links = len(neurons_pre) * len(neurons_post) 
+
 
     return len(filtered_connections) / n_potential_links
 
@@ -288,7 +288,6 @@ def estimate_conn_prob_functmatch(fm_neurons, fm_connections, pre_proofread="min
     column_names = columns_ET + ["EU", "I"] + columns_XT + ["XU"]
     row_names = columns_ET + ["EU", "I"] 
     ptable = pd.DataFrame(columns=column_names, index=row_names)
-
 
     #Now we declare the combinations of freom-to properties that we have
     #For tuning (inhibitory needs to be not masked, so they have a None)
@@ -313,6 +312,7 @@ def estimate_conn_prob_functmatch(fm_neurons, fm_connections, pre_proofread="min
 
     #Proofread only presynaptic neurons
     proof = [pre_proofread, None]
+
 
     #Let's construct first the values that point to the untuned neurons, i.e., the inh population
     #and the untuned excitatory. For these cases, we do not need to specify the angle of the tune population,
