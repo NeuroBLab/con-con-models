@@ -10,7 +10,7 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.filters as fl
 import ccmodels.utils.angleutils as au
 
-is_real_data = False 
+is_real_data = True 
 
 
 #Load the data
@@ -75,7 +75,7 @@ else:
 if is_real_data:
     table = ste.get_fraction_populations(v1_neurons)
     table.index.name = "Population"
-    table.to_csv("data/model/fractions_populations_sampled.csv")
+    table.to_csv("data/model/fractions_populations.csv")
 else:
     sys.exit()
 
@@ -93,6 +93,7 @@ if is_real_data:
     #First, get just axon clean to dendrite clean
     dendrites = l23neurons.loc[l23neurons['dendr_proof'] != 'non', 'id']
     axons = l23neurons.loc[l23neurons['axon_proof'] != 'non', 'id']
+
     proofconnections = fl.synapses_by_id(v1_connections, pre_ids=axons, post_ids=dendrites, who='both')
 
     #Compute the average number of links
