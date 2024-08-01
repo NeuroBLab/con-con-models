@@ -198,10 +198,10 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
 
             #Get a random matrix of the block size with the connectivity specified
             #in this population. This is just adjacency, no weights
-            block = np.random.rand(rf-r0, cf-c0) < ptable.loc[row, col]
+            block = (np.random.rand(rf-r0, cf-c0) < ptable.loc[row, col]).astype(np.float64)
 
             #Get how many synapses this new block has, to scale them by synaptic strenght
-            n_synapses = np.sum(block) 
+            n_synapses = np.sum(block>0) 
         
             #syn_vols = sample_synaptic_vol(row, col, n_synapses, connections_by_group)
             #Weights depend only on cell type, which is the first letter 
@@ -209,13 +209,25 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
             label_col = col[0]
             #Sample and multiply
             syn_vols = connections_by_group[f"{label_row}<{label_col}"].sample(n_synapses, replace=True)
-            block[block > 0] *=  syn_vols
+            block[block > 0] *=  syn_vols.values
 
             #Negative scaling for inhibitory neurons 
             flips = +1 if col != 'I' else -g
 
             #Assign our weighted block to the matrix
             Q[r0:rf, c0:cf] = flips * J * block 
+
+    #Change by hand the amount of inhibitory neurons!! From 5% to 3% -> a 40% reduction
+    #ne, ni, nx = n_neurons
+    #ni_new = round(0.6*ni)
+    #Q = np.delete(Q, slice(ne+ni_new, ne+ni), axis=1) 
+    #Q = np.delete(Q, slice(ne+ni_new, ne+ni), axis=0) 
+    #diff = ni-ni_new
+    #start_col[9:] -= diff 
+    #start_row[-1] -= diff 
+    #N -= diff 
+    #n_neurons[1] = ni_new
+    # ---
 
     units_sampled = sample_units(N, start_col[1:] - start_col[:-1], column_names, fractions)
     connections_sampled = sample_connections(Q)
@@ -249,8 +261,6 @@ def sample_units(N, neurons_per_pop, column_names, fractions):
         else:
             units_sampled['pref_ori']  += [0]*npop 
             units_sampled['tuning_type']  += ['not_selective']*npop 
-
-    print(N, len(units_sampled['layer']))
 
     return pd.DataFrame(data=units_sampled)
 
