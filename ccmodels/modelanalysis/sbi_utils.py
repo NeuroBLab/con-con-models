@@ -58,6 +58,8 @@ def get_simulations_summarystats(path, features, average_disorder=False, nfiles_
 def get_data_summarystats(features, prepath="data/", orionly=True):
     #Read the data
     units, connections, rates = loader.load_data(orientation_only=orionly, prepath=prepath) 
+    connections = fl.remove_autapses(connections)
+    connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 
     #Compute the rates
     units_e = fl.filter_neurons(units, layer='L23', tuning='matched', cell_type='exc')

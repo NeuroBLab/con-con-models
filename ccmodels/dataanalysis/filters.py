@@ -46,7 +46,7 @@ def filter_neurons(v1_neurons, layer=None, tuning=None, cell_type=None, proofrea
     elif tuning == "unmatched":
         mask_tuned = v1_neurons["tuning_type"] == "not_matched"
 
-    if proofread == None:
+    if (proofread == None) or ('none' in proofread): 
         mask_proof = nomask
     elif proofread == "minimum":
         mask_proof = v1_neurons["axon_proof"] != "non"
@@ -56,6 +56,24 @@ def filter_neurons(v1_neurons, layer=None, tuning=None, cell_type=None, proofrea
         mask_proof = (v1_neurons["axon_proof"] == "extended") & (v1_neurons["dendr_proof"] != "non")
     elif proofread == "perfect":
         mask_proof = (v1_neurons["axon_proof"] == "extended") & (v1_neurons["dendr_proof"] == "extended")
+
+    elif proofread == 'ax_non':
+        mask_proof = v1_neurons['axon_proof'] == 'non'
+    elif proofread == 'ax_clean':
+        mask_proof = v1_neurons['axon_proof'] == 'clean'
+    elif proofread == 'ax_extended':
+        mask_proof = v1_neurons['axon_proof'] == 'extended'
+    elif proofread == 'ax_checked':
+        mask_proof = v1_neurons['axon_proof'] != 'non'
+
+    elif proofread == 'dn_non':
+        mask_proof = v1_neurons['dendr_proof'] == 'non'
+    elif proofread == 'dn_clean':
+        mask_proof = v1_neurons['dendr_proof'] == 'clean'
+    elif proofread == 'dn_extended':
+        mask_proof = v1_neurons['dendr_proof'] == 'extended'
+    elif proofread == 'dn_checked':
+        mask_proof = v1_neurons['dendr_proof'] != 'non'
 
     
     return v1_neurons[mask_layer & mask_cellt & mask_tuned & mask_proof]

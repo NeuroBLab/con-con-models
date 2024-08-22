@@ -25,7 +25,11 @@ params, summary_stats = msbi.get_simulations_summarystats(f"{sims_path}", featur
 summary_data = msbi.get_data_summarystats(features) 
 
 #Do the SBI
-prior, intervals = msbi.setup_prior()
+j0, jf = 0, 5
+g0, gf = 1., 5.
+theta0, thetaf = 10, 25
+sigma0, sigmaf = 1, 15 
+prior, intervals = msbi.setup_prior(j0, jf, g0, gf, theta0, thetaf, sigma0, sigmaf)
 posterior = msbi.train_sbi(prior, params, summary_stats)
 
 #Save the results
