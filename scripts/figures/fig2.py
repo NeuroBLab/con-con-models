@@ -1,115 +1,44 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
+from matplotlib.patches import FancyBboxPatch as Box
 import argparse
+import pandas as pd
 
 import sys
 import os 
 sys.path.append(os.getcwd())
 
-#from ccmodels.analysis.utils import tuning_encoder
-import ccmodels.dataanalysis.utils as utl 
+import ccmodels.dataanalysis.processedloader as loader
+import ccmodels.dataanalysis.filters as fl
+import ccmodels.dataanalysis.currents as curr
+import ccmodels.dataanalysis.statistics_extraction as ste
 
-import ccmodels.dataanalysis.statistics_extraction as ste 
 
 import ccmodels.plotting.styles as sty 
 import ccmodels.plotting.color_reference as cr
 import ccmodels.plotting.utils as plotutils
 
-import ccmodels.dataanalysis.processedloader as loader
-import ccmodels.dataanalysis.filters as fl
+#Defining Parser
+parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
+# Adding and parsing arguments
+parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+args = parser.parse_args()
 
-# ======================================================
-# --------------- FUNCTIONS TO DRAW --------------------
-# Each function draws a panel/subpanel of the figure. 
-# It takes the axis to draw and draws there. In this way
-# our figure code is "modular".
-# ======================================================
+def plot_pref_ori(ax, v1_neurons):
+    bins = np.arange(-2.5, 9.0, 1)
 
+    for layer in ['L23', 'L4']:
+        neurons_layer = fl.filter_neurons(v1_neurons, layer=layer)
+        hist, _ = np.histogram(neurons_layer['pref_ori'].values, bins=bins)
+        ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
 
+    #ax.legend(loc='upper right', ncols=2)
 
-
-def plot_dist(ax, v1_neurons, layer):
-
-    #Select tuned neurons in the desired layer
-    tuned_neurons = fl.filter_neurons(v1_neurons, tuning="tuned", layer=layer)
-
-    #Create bins and compute their centers, which is useful for plotting
-    bins = np.linspace(0, 1, 20)
-    bins_centered = 0.5*(bins[1:] + bins[:-1])
-
-    #Filter the data
-    #tuned_neurons = utl.get_tuned_neurons(neurons_layer)
-
-    #Histogram them, normalizing to count (not by density) 
-    hist, _ = np.histogram(tuned_neurons["osi"], bins)
-    hist = hist/np.sum(hist)
-    ax.step(bins_centered, hist, color = cr.lcolor[layer])
-
-
-def fraction_tuned(ax, data, fstitle=8):
-    barw = 0.1
-    ybars = [0, barw] 
-    offset = 0.05 #To display text
-
-    #Create a Pandas Series which contains the number of tuned neurons in a layer
-    #The value is accesed by the key of the pandas dataframe, e.g. n_tuned["L2/3"]
-    #tuned_neurons = utl.get_tuned_neurons(data)
-    tuned_neurons = fl.filter_neurons(data, tuning="tuned") 
-    n_tuned = tuned_neurons.groupby("layer").size()
-    total_neurons = data.groupby("layer").size() 
-
-    #TODO check
-    #matched_neurons = fl.filter_neurons(data, tuning="matched") 
-    #total_neurons = matched_neurons.groupby("layer").size() 
-
-    layers = ["L23", "L4"]
-
-    #Plot those fractions
-    for i,layer in enumerate(["L23", "L4"]):
-        perc_tuned = n_tuned[layer]/total_neurons[layer]
-        ax.barh(ybars[i], perc_tuned, color=cr.lcolor[layer], height=barw)
-        ax.text(perc_tuned + offset, ybars[i], f"{round(100*perc_tuned)}%", va="center", ha="left", fontsize=fstitle)
-    
-    #Configure the axis in a nice way  
-    #No spine below, but mark the 100% with a vertical line
-    ax.set_yticks(ybars, layers) 
-    ax.set_xticks([0, 1], labels=["0", "100%"])
-    ax.tick_params(length=0)
-    ax.spines["bottom"].set_visible(False)
-    ax.axvline(1, color="black", lw=3)
-    ax.set_xlabel("% of tuned neurons", labelpad=-2., fontsize=fstitle)
-    
-
-def plot_matrix_tuneuntune(ax, averages_dict, addticks=False, title=""):
-
-    #Store the results as a numpy array for plotting
-    averages = np.empty((2,4))
-    averages[:, 0] = [averages_dict[f"l23t_l23{x}"] for x in "tu"]
-    averages[:, 1] = [averages_dict[f"l23u_l23{x}"] for x in "tu"]
-    averages[:, 2] = [averages_dict[f"l4t_l23{x}"]  for x in "tu"]
-    averages[:, 3] = [averages_dict[f"l4u_l23{x}"]  for x in "tu"]
-
-    #Plot it!
-    ax.imshow(averages, interpolation="none")
-
-    #Plot the text inside of the matrix
-    for (j,i),value in np.ndenumerate(averages):
-        ax.text(i, j, f"{value:.2f}", ha="center",va="center", color="white")
-    
-    #Beautiful ticks and so on...
-    ax.set_yticks([0,1], labels=["L2/3T", "L2/3U"])
-    ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-
-    ax.set_title(title)
-
-    if addticks:
-        ax.set_xticks([0,1,2,3], labels=["L2/3T", "L2/3U", "L4T", "L4U"])
-    else:
-        ax.set_xticks([])
-    
-
+    ax.set_xlabel('θ')
+    ax.set_ylabel('p(θ)')
+    ax.set_xticks([0,8], ['0', 'π'])
+    ax.set_xlim(-1, 8)
 
 def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
@@ -150,108 +79,194 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
 
-    ax.legend(loc = 'upper right')
+
+def plot_ratedist(ax,layer, v1_neurons, rates):
+    bins = np.logspace(-2, 2, 50)
+
+    tuned_neurons = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
+    untuned_neurons = fl.filter_neurons(v1_neurons, layer=layer, tuning='untuned')
+
+    tuned_rates = rates[tuned_neurons['id'], :].ravel()
+    untuned_rates = rates[untuned_neurons['id'], :].ravel()
+
+    cotuned_rates = np.empty(0)
+    orthogo_rates = np.empty(0)
+
+    nangles = rates.shape[1]
+
+    for i in range(nangles//2):
+        ortho = (i+nangles//2)%nangles
+        id_cotuned = tuned_neurons.loc[tuned_neurons['pref_ori']==i, 'id']
+        id_orthogonal =  tuned_neurons.loc[tuned_neurons['pref_ori']==ortho, 'id']
+
+        cotuned_rates = np.concatenate((cotuned_rates, rates[id_cotuned, i]) )
+        #orthogo_rates = np.concatenate((orthogo_rates, rates[id_cotuned, ortho]) )
+        orthogo_rates = np.concatenate((orthogo_rates, rates[id_orthogonal, i]) )
 
 
-def plot_cumulative(ax, v1_neurons, v1_connections):
-    cumul_dists = ste.cumulative_probconn(v1_neurons, v1_connections, [0, 4, 0, 4])
-    labels = ["L2/3, θ=0", "θ=π", "L4, θ=0", "θ=π"]
-
-    for i,cd in enumerate(cumul_dists):
-        color = cr.angles[i]
-        label = labels[i]
-        ax.step(cd[1], cd[0]/np.sum(cd[0][-1]), color = color, label = label)
-
-    ax.set_xlabel("Conn. Strength")
-    ax.set_ylabel("Cumulative")
-    ax.set_xscale("log")
-    ax.legend(loc=(0.05, 0.65))
+    labels = ['All', 'Tuned', 'Untuned', 'Cotuned', 'Orthogonal']
+    for i,r in enumerate([rates.ravel(), tuned_rates, untuned_rates, cotuned_rates, orthogo_rates]):
+        h, edges = np.histogram(r, density=True,  bins=bins)
+        dr = edges[1:] - edges[:-1]
+        ax.step(edges[:-1], h*dr, label=labels[i])
 
 
+    ax.set_xscale('log')
+
+    
+
+def plot_synvoldist(ax, layer, v1_neurons, v1_connections):
+    bins = np.logspace(-3, 2, 40)
+    #bins = np.linspace(-3, 2, 40)
 
 
-# ======================================================
-# --------------- FIGURE STRUCTURE ---------------------
-# THis is the code that loads the data, structures the 
-# location of the panels, and then call the analysis 
-# functions to fill in the panels, via the functions above.
-# ======================================================
+    tuned_links = fl.filter_connections(v1_neurons, v1_connections, layer=layer, tuning='tuned', who='pre')
+    untuned_links = fl.filter_connections(v1_neurons, v1_connections, layer=layer, tuning='untuned', who='pre')
+
+    tuned_synvol = tuned_links['syn_volume'].values
+    untuned_synvol =  untuned_links['syn_volume'].values
+
+    cotuned_synvol = tuned_links.loc[tuned_links['delta_ori']==0, 'syn_volume'].values
+    orthogo_synvol = tuned_links.loc[tuned_links['delta_ori']==4, 'syn_volume'].values
+
+    labels = ['All', 'Tuned', 'Untuned', 'Cotuned', 'Orthogonal']
+    for i,r in enumerate([v1_connections['syn_volume'].values, tuned_synvol, untuned_synvol, cotuned_synvol, orthogo_synvol]):
+        #h, edges = np.histogram(r, density=True, bins=bins)
+        h, edges = np.histogram(r, density=True, bins=bins)
+        dv = edges[1:] - edges[:-1]
+        ax.step(edges[:-1], h*dv, label=labels[i])
 
 
-def plot_figure():
 
-    #Defining Parser
-    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
+    ax.set_xscale('log')
 
-    #Adding and parsing arguments
-    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
-    args = parser.parse_args()
+def plot_sampling_current(ax_mean, ax_std, v1_neurons, v1_connections, rates):
+    angles = plotutils.get_angles(kind="centered", half=True)
+    nexperiments = 100
+    frac = 700 / len(v1_neurons)
+
+    mean_cur, std_cur = curr.bootstrap_system_currents(v1_neurons, v1_connections, rates, nexperiments, frac=frac, replace=False)
+
+    for layer in ['Total', 'L23', 'L4']:
+        meancur = mean_cur[layer].mean(axis=1)
+        stdcur  = std_cur[layer].mean(axis=1)
+
+        meancur = plotutils.shift(meancur)
+        stdcur = plotutils.shift(stdcur)
+
+        ax_mean.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
+        ax_std.plot(angles,  stdcur, label=layer, color=cr.lcolor[layer])
+
+        plotutils.get_xticks(ax_mean, max=np.pi, half=True)
+        plotutils.get_xticks(ax_std, max=np.pi, half=True)
+
+    
+def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates):
+    frac = 700 / len(v1_neurons)
+
+    current = curr.bootstrap_system_currents_peaks(v1_neurons, v1_connections, rates, frac=frac)
+    bins = np.arange(-7.5, 8.5, 1)
+
+    for layer in ['L23', 'L4']:
+        pref_ori = np.argmax(current[layer], axis=1)
+        pref_ori[pref_ori > 3] = pref_ori[pref_ori > 3] - 8 
+
+        hist, _ = np.histogram(pref_ori, bins=bins)
+        print(bins)
+        print(hist)
+        ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
+
+
+def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, nexperiments=1000): 
+
+    angles = plotutils.get_angles(kind="centered", half=True)
+    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="pre") 
+
+    prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=700)
+
+    #Plot
+    for layer in ['Total', 'L23', 'L4']:
+        ax.plot(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.lcolor[layer], label=layer)
+
+    plotutils.get_xticks(ax, max=np.pi, half=True)
+
+    ax.set_xlabel("Sampled θ")
+    ax.set_ylabel("P(θ)")
+
+    ax.set_yticks([0, 0.5, 1.0])
+
+
+
+
+def plot_figure3(figname):
+    # load files
+    units, connections, rates = loader.load_data()
+    connections = fl.remove_autapses(connections)
+    connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
+
+    matched_neurons = fl.filter_neurons(units, tuning="matched")
+    matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+
+    #vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+
+
 
     sty.master_format()
+    fig = plt.figure(figsize=sty.two_col_size(height=9.5), layout="constrained")
+    ghostax = fig.add_axes([0,0,1,1])
+    ghostax.axis('off')
 
-    fig = plt.figure(layout="constrained", figsize=sty.two_col_size(ratio=1.5))
-    subfigs = fig.subfigures(1, 3)
+    axes = fig.subplot_mosaic(
+        """
+        ABXY
+        CDZW
+        ELLL
+        """
+    )
 
-    axes = {}
-
-    axes["left"] = subfigs[0].subplots(nrows=3, ncols=1, height_ratios=[1, 0.15, 0.85])
-    axes["center"] = subfigs[1].subplots(nrows=3, ncols=1, height_ratios=[1, 0.5, 0.5])
-    axes["right"] = subfigs[2].subplots(nrows=2, ncols=1)
-
-    #Load the data
-    orientation_only = True 
-    v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
-
-    #Se we can easily filter synapses by the layer in which the presynaptic neuron lives directly
-    #without having to call .isin(...) all the time.
-    #Adds two extra columns to v1_connections
-    v1_connections = utl.add_layerinfo_to_connections(v1_neurons, v1_connections, who="pre") 
-
-    #For many things in this figure we need only the functionally matched neurons, the others are not useful
-    matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-    matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
-
-    # --- First panel
-
-    #Leave space for the diagram
-    axes["left"][0].axis("off")
-    axes["center"][0].axis("off")
-
-
-    #Plot the data for both layer in the same axis. Then format it. 
-    fraction_tuned(axes["left"][1], matched_neurons)
-
-    #Plot the data for both layer in the same axis. Then format it. 
-    ax = axes["left"][2]
-    plot_dist(ax, matched_neurons, "L23")
-    plot_dist(ax, matched_neurons, "L4")
-
-    #Nice labels
-    ax.set_ylabel('Fraction')
-    ax.set_xlabel('OSI')
-    ax.set_ylim(bottom = 0)
-
-    # ----
-
-    #Get the dictinoarie sof both probability and strength
-    conn_probability_dict = ste.prob_conectivity_tuned_untuned(matched_neurons, matched_connections)
-    strength_dict = ste.strength_tuned_untuned(matched_neurons, matched_connections)
-
-    #Make the plots
-    plot_matrix_tuneuntune(axes["center"][1], conn_probability_dict, title="Conn. Probability", addticks=True)
-    plot_matrix_tuneuntune(axes["center"][2], strength_dict, title="Conn. Strength")
-
-    # --------- 
-
-    #Probability as a function of the dtheta
-    conn_prob_osi(axes["right"][0], matched_neurons, matched_connections, half=orientation_only)
-
-    # --------
-
-    plot_cumulative(axes["right"][1], matched_neurons, matched_connections)
+    plot_pref_ori(axes['A'], matched_neurons)
+    conn_prob_osi(axes['B'], matched_neurons, matched_connections)
 
 
 
+    plot_synvoldist(axes['X'], 'L23', matched_neurons, matched_connections)
+    plot_synvoldist(axes['Y'], 'L4', matched_neurons, matched_connections)
+    plot_ratedist(axes['Z'], 'L23', matched_neurons, rates)
+    plot_ratedist(axes['W'], 'L4', matched_neurons, rates)
+
+    axes['X'].set_ylabel('p(V)dV')
+    axes['Z'].set_ylabel('p(r)dr')
+
+    for k in 'XY':
+        axes[k].set_xlabel('V')
+    for k in 'ZW':
+        axes[k].set_xlabel('r')
 
 
-    fig.savefig(args.save_destination+"fig2.pdf", bbox_inches="tight")
+    light = cr.ligthen(cr.lcolor['L23'], 1, 0.8)[0]
+    boxL23 = Box(xy=[0.55,  0.34], width=0.16, height=0.63, boxstyle='round, pad=0.04', lw=0, fc=light, transform=fig.transFigure)
+    light = cr.ligthen(cr.lcolor['L4'], 1, 0.8)[0]
+    boxL4= Box(xy=[0.81,  0.34], width=0.15, height=0.63, boxstyle='round, pad=0.04', lw=0, fc=light, transform=fig.transFigure)
+    ghostax.add_patch(boxL23)
+    ghostax.add_patch(boxL4)
+
+
+
+    plot_sampling_current(axes['C'], axes['D'], matched_neurons, matched_connections, rates)
+    #plot_sampling_current_peaks(leftaxes[2,0], matched_neurons, matched_connections, rates)
+
+    tuning_prediction_performance(axes['E'], matched_neurons, matched_connections, rates)
+
+    axes['L'].axis('off')
+
+    handles, labels = axes['X'].get_legend_handles_labels()
+    legend_dist = axes['L'].legend(handles, labels, ncols=3, loc=(0.3,0), alignment='left')
+
+    handles, labels = axes['C'].get_legend_handles_labels()
+    axes['L'].legend(handles, labels, ncols=1, loc=(0,0.0), alignment='left')
+    axes['L'].add_artist(legend_dist)
+
+    fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
+
+
+plot_figure3("fig2paper.pdf")

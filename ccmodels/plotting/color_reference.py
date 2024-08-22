@@ -17,3 +17,47 @@ lcolor['Total_modelE'] = lcolor['Total']
 
 # Color reference to identify each layer through the paper
 angles=["darkorange", "gold", "purple", "violet"]
+
+
+# --------------------------------
+# Color Tools 
+# -------------------------------_
+
+def rgb2hex(r, g, b):
+    return "#{0:02x}{1:02x}{2:02x}".format(r,g,b)
+
+def rgb2hex(c):
+    return "#{0:02x}{1:02x}{2:02x}".format(c[0], c[1], c[2])
+    
+def hex2rgb(c):
+    cs = c[1:]
+    return tuple(int(cs[i:i+2], 16) for i in (0, 2, 4))
+
+def darken(color, n, factor):
+    c = hex2rgb(color) 
+    new_colors = []
+    newc = [0,0,0]
+    for i in range(n):
+        for k in range(3):
+            newc[k] = max(int(c[k]*factor), 0)
+        new_colors.append(rgb2hex(newc))
+
+    return new_colors
+
+def ligthen(color, n, factor):
+    c = hex2rgb(color) 
+    new_colors = []
+    newc = [0,0,0]
+    for i in range(n):
+        for k in range(3):
+            newc[k] = min(int(c[k] + (255-c[k])*factor), 255)
+        new_colors.append(rgb2hex(newc))
+
+    return new_colors
+
+
+
+def get_shades(color, n=2, factor=0.8):
+    dark = darken(color, n//2, factor)
+    ligth = ligthen(color, n//2, factor)
+    return dark + [color] + ligth

@@ -12,6 +12,14 @@ def angle_indexer(pref_orientation):
     #indexed_angle = int(round(pref_orientation/round(((2*np.pi)/16),8), 0))
     return (pref_orientation * 8 / np.pi).astype(int) 
 
+def index_to_angle(index, centered=True, nangles=8):
+
+    if centered:
+        return index * np.pi / nangles - np.pi/2 
+    else:
+        return index * np.pi / nangles
+
+
 
 def constrain_angles(thetas, nangles=16, negatives=True):
     """

@@ -62,6 +62,10 @@ def format_axes(despined=True, tickpad=1.2, capstyle="round", axes_lw = 1.1, tic
     mpl.rcParams["xtick.minor.pad"] = tickpad * 0.75  
     mpl.rcParams["ytick.minor.pad"] = tickpad * 0.75
 
+    #Transparent axes
+    mpl.rcParams['axes.facecolor'] = '#00000000'
+    mpl.rcParams['figure.facecolor'] = '#00000000'
+
 def despine(axes, bottom=True, left=True):
     """
     Eliminate top and right lines from axes.
