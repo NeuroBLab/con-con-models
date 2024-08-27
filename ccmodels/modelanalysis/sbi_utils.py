@@ -82,7 +82,7 @@ def get_data_summarystats(features, prepath="data/", orionly=True):
     cvl4o, cvl4d = utl.compute_circular_variance(currents['L4'].mean(axis=0)/totalmean, orionly=orionly)
 
     #Put in the same format as the simulations and return
-    summary_data = {'mean_re' : [rates.mean()], 'std_re': [rates_e.std()], 'mean_cve_dir': [cved.mean()], 'std_cve_dir':[cved.std()],
+    summary_data = {'mean_re' : [rates.mean()], 'std_re': [rates_e.std()], 'logmean_re' : [np.log(rates).mean()], 'logstd_re': [np.log(rates_e).std()], 'mean_cve_dir': [cved.mean()], 'std_cve_dir':[cved.std()],
                     'cv_curl23': [cvl23d], 'cv_curl4':[cvl4d], 'indiv_traj_std':[0.]}
     summary_data = pd.DataFrame(summary_data)
     

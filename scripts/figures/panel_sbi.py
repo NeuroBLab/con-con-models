@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from os import listdir
+from os.path import isfile, join
+
 import sys
 import os 
 sys.path.append(os.getcwd())
@@ -22,7 +25,8 @@ import ccmodels.plotting.styles as sty
 
 
 disorder_average = False 
-network = "5pars"
+network = "log5pars"
+mode='normal'
 
 ncols = 4 
 
@@ -33,14 +37,28 @@ subfigs = fig.subfigures(4, 1, hspace=0.1, height_ratios = [0.5, 1., 1., 1.])
 
 if network == "5pars":
     features = ['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']
-    posterior_path = "data/model/sbi_networks/k400_disordered_5pars"
-    output_path = "scripts/figures/output/panel_5pars"
-    sims_path = "data/model/5pars"
+elif network == "log5pars":
+    features = ['logmean_re', 'logstd_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']
+elif network == "3pars":
+    features = ['mean_re', 'std_re', 'indiv_traj_std']
+elif network == "2pars":
+    features = ['mean_re', 'std_re']
+elif network == "log3pars":
+    features = ['logmean_re', 'logstd_re', 'indiv_traj_std']
 elif network == "allpars":
     features = ['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'cv_curl23', 'cv_curl4', 'indiv_traj_std']
-    posterior_path = "data/model/sbi_networks/k400_disordered_allpars"
-    output_path = "scripts/figures/output/panel_allpars"
-    sims_path = "data/model/allpars"
+
+posterior_path = "data/model/sbi_networks/std_5parslog.pkl"
+output_path = "scripts/figures/output/aux"
+sims_path = "data/model/standard_net"
+
+
+# ---- Load data
+
+units, connections, rates = loader.load_data(prepath='data', orientation_only=True)
+connections = fl.remove_autapses(connections)
+
+connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 
 
 # ---- SBI panel
@@ -51,13 +69,22 @@ print("Perform and plot sampling from SBI's trained posterior.")
 axes = subfigs[0].subplots(nrows=1, ncols=ncols)
 subfigs[0].suptitle("SBI fit")
 
-features = ['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']
 summary_data = msbi.get_data_summarystats(features)
-prior, intervals = msbi.setup_prior()
 
-posterior = msbi.load_posterior("data/model/sbi_networks/k400_disordered_5pars")
+
+
+#Setup the prior
+j0, jf = 0, 5
+g0, gf = 0., 5.
+theta0, thetaf = 10, 25
+sigma0, sigmaf = 1, 15 
+prior, intervals = msbi.setup_prior(j0, jf, g0, gf, theta0, thetaf, sigma0, sigmaf)
+
+#Load the pretrained network from a file
+posterior = msbi.load_posterior(f"{posterior_path}")
 posterior_samples = posterior.sample((1000000,), x=summary_data.float())
 
+#Estimate the best parameters
 inferred = msbi.get_estimation_parameters(posterior_samples, ncols, joint_posterior=False)
 inferred_joint = msbi.get_estimation_parameters(posterior_samples, ncols, joint_posterior=True)
 sbiplot.plot_posterior_distrib(axes, posterior_samples, intervals, inferred, bw=bw)
@@ -66,13 +93,15 @@ for i in range(ncols):
 
 
 params = np.empty((0,4)) 
-summary_stats = np.empty((0,5)) 
+summary_stats = np.empty((0, len(features))) 
 
-for file in [f"params_{i}.csv" for i in range(12)]:
+onlyfiles = [f for f in listdir(sims_path) if isfile(join(sims_path, f))]
+for file in onlyfiles:
     filecontent = pd.read_csv(f'{sims_path}/{file}')
 
     p = filecontent[['J', 'g', 'theta', 'sigma']]
-    sumstats = filecontent[['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']]
+    #sumstats = filecontent[['mean_re', 'std_re', 'mean_cve_dir', 'std_cve_dir', 'indiv_traj_std']]
+    sumstats = filecontent[features]
 
     if disorder_average:
         p        = p.groupby(np.arange(len(p))//10).mean()
@@ -110,7 +139,13 @@ if disorder_average:
         mean_curr_tuned = {'L23':np.zeros(9), 'L4':np.zeros(9), 'Total':np.zeros(9)}
 
         for rep in range(nrepetitions):
-            aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(400, 8000, pars[0], pars[1],  theta=pars[2], sigma_t=pars[3], local_connectivity=local_connectivity, orionly=orionly, prepath='data')
+            #aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(400, 8000, pars[0], pars[1],  theta=pars[2], sigma_t=pars[3], local_connectivity=local_connectivity, orionly=orionly, mode=mode, prepath='data')
+
+            aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, 400, 8000, pars[0], pars[1],  theta=pars[2]+1, sigma_t=pars[3], 
+                                                                                                                                    mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath='data')
+
+
+
             units_sample = units_sample.rename(columns={'pt_root_id':'id'})
             connections_sample = connections_sample.rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
 
@@ -155,7 +190,7 @@ if disorder_average:
             mean_curr_tuned[layer] /= totalmaxtuned 
 
 
-        units, connections, rates = loader.load_data(prepath='data', orientation_only=True)
+        #units, connections, rates = loader.load_data(prepath='data', orientation_only=True)
         l23 = units.loc[(units['layer']=='L23')&(units['tuning_type']!='not_matched'), 'id']
         exprates23 = rates[l23, :]
         l4  = units.loc[(units['layer']=='L4')&(units['tuning_type']!='not_matched'), 'id']
@@ -165,17 +200,20 @@ if disorder_average:
         axes = subfigs[ax_ind+1].subplots(nrows=2, ncols=2)
         subfigs[ax_ind+1].suptitle(f"{title}; {formatnumpy(pars, 2)}")
 
-        bins = np.linspace(0, 100, 50)
+        #bins = np.linspace(0, 100, 50)
+        bins = np.logspace(-2, 2, 50)
 
         axes[0,0].hist(exprates23.ravel(), density=True,  histtype='step', bins=bins, label='data_e', color=cr.lcolor["L23"])
         axes[0,0].hist(exprates4.ravel(), density=True,  histtype='step', bins=bins, label='exp4', color=cr.lcolor["L4"])
         axes[0,0].hist(dist_re, density=True,  histtype='step', bins=bins, label='model_e', color=cr.lcolor["L23_modelE"])
         axes[0,0].hist(dist_ri, density=True,  histtype='step', bins=bins, label='model_i', color=cr.lcolor["L23_modelI"])
         axes[0,0].legend(loc="best")
-        axes[0,0].set_yscale('log')
+        #axes[0,0].set_yscale('log')
 
         axes[0,0].set_xlabel("r")
         axes[0,0].set_ylabel("p(r)")
+
+        axes[0,0].set_xscale("log")
 
         # - series
         for i in range(50):
@@ -232,31 +270,44 @@ if disorder_average:
 else:
     for ax_ind, (pars, title) in enumerate(zip([inferred, inferred_joint, indiv_pars], ["Simulation most probable", "Simulation max joint posterior", "Best individual pars"])):
 
-        aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(400, 8000, pars[0], pars[1],  theta=pars[2], sigma_t=pars[3], local_connectivity=local_connectivity, orionly=orionly, prepath='data')
+        #aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(400, 8000, pars[0], pars[1],  theta=pars[2], sigma_t=pars[3], local_connectivity=local_connectivity, orionly=orionly, mode=mode, prepath='data')
+
+        aE_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, 400, 8000, pars[0], pars[1],  theta=pars[2]+1, sigma_t=pars[3], 
+                                                                                                                                    mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath='data')
+
+
+
         units_sample = units_sample.rename(columns={'pt_root_id':'id'})
         connections_sample = connections_sample.rename(columns={'pre_pt_root_id':'pre_id', 'post_pt_root_id':'post_id'})
 
-        units, connections, rates = loader.load_data(prepath='data', orientation_only=True)
+        #units, connections, rates = loader.load_data(prepath='data', orientation_only=True)
         l23 = units.loc[(units['layer']=='L23')&(units['tuning_type']!='not_matched'), 'id']
         exprates23 = rates[l23, :]
         l4  = units.loc[(units['layer']=='L4')&(units['tuning_type']!='not_matched'), 'id']
         exprates4 = rates[l4, :]
 
 
+
         axes = subfigs[ax_ind+1].subplots(nrows=2, ncols=2)
         subfigs[ax_ind+1].suptitle(f"{title}; {formatnumpy(pars, 2)}")
 
-        bins = np.linspace(0, 100, 50)
+        #bins = np.linspace(0, 100, 50)
+        bins = np.logspace(-2, 2, 50)
 
         axes[0,0].hist(exprates23.ravel(), density=True,  histtype='step', bins=bins, label='data_e', color=cr.lcolor["L23"])
         axes[0,0].hist(exprates4.ravel(), density=True,  histtype='step', bins=bins, label='exp4', color=cr.lcolor["L4"])
         axes[0,0].hist(re.ravel(), density=True,  histtype='step', bins=bins, label='model_e', color=cr.lcolor["L23_modelE"])
         axes[0,0].hist(ri.ravel(), density=True,  histtype='step', bins=bins, label='model_i', color=cr.lcolor["L23_modelI"])
         axes[0,0].legend(loc="best")
-        axes[0,0].set_yscale('log')
+        #axes[0,0].set_yscale('log')
+
+        print(exprates23.mean(), re.mean())
+        print(exprates23.std(), re.std())
 
         axes[0,0].set_xlabel("r")
         axes[0,0].set_ylabel("p(r)")
+
+        axes[0,0].set_xscale("log")
 
         # - series
         for i in range(50):

@@ -25,6 +25,8 @@ def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I
         #Input to the neurons
         MU_over_tau=np.matmul(QJ_ij, aALL)
 
+        #F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * MU_over_tau[0:N_E])) / tau_E;
+        #F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*MU_over_tau[N_E::])) / tau_I;
         F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * MU_over_tau[0:N_E])) / tau_E;
         F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*MU_over_tau[N_E::])) / tau_I;
 
@@ -106,7 +108,7 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, ori
 
     return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
 
-def make_simulation(units, connections, rates, k_ee, N, J, g, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='nonlocal'):
+def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='nonlocal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
