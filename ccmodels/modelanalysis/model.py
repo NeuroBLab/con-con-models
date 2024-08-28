@@ -10,7 +10,7 @@ import ccmodels.dataanalysis.filters as fl
 ##### Simulate network dynamics
 ##################################################################
 
-def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I, aX, dt=0.01):
+def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I, hEI, hII, aX, dt=0.01):
     aALL=np.empty(N_E+N_I+N_X)
 
     #Vector of new states of the recurrent network
@@ -27,14 +27,14 @@ def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I
 
         #F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * MU_over_tau[0:N_E])) / tau_E;
         #F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*MU_over_tau[N_E::])) / tau_I;
-        F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * MU_over_tau[0:N_E])) / tau_E;
-        F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*MU_over_tau[N_E::])) / tau_I;
+        F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * (MU_over_tau[0:N_E] - hEI))) / tau_E;
+        F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*(MU_over_tau[N_E::] - hII))) / tau_I;
 
         aR[:, i+1] = aR[:,i] + dt * F
 
     return aR
 
-def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01, random_init=False):#
+def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, hEI, hII, dt=0.01, random_init=False):#
 
     T = np.arange(0, 100*tau_E, tau_I/3)
 
@@ -47,7 +47,7 @@ def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01, random_init=Fal
     if random_init:
         aR_t[:,0] = np.random.rand(N_E+N_I) 
 
-    aR_t = system_euler(np.max(T), aR_t, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi[0], phi[1], aX, dt)
+    aR_t = system_euler(np.max(T), aR_t, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi[0], phi[1], hEI, hII, aX, dt)
 
     #Grab the solutions from scipy's IVP
     aE_t=aR_t[0:N_E, :]
@@ -74,7 +74,7 @@ def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, dt=0.01, random_init=Fal
     return results
 
 #def do_dynamics(Q, J_ij, m_props, rate_X_of_Theta, phi):
-def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, orionly=False, random_init=False):
+def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hEI, hII, dt=0.01, orionly=False, random_init=False):
 
     #Initialize arguments 
     conn=[QJ, ne, ni, nx]
@@ -97,7 +97,7 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, dt=0.01, ori
     for idx_Theta in range(ntheta):
         aX=rate_X_of_Theta[:,idx_Theta]
 
-        Results=solve_dynamical_system(tau_E, tau_I, aX,conn, phi, dt=dt, random_init=random_init)
+        Results=solve_dynamical_system(tau_E, tau_I, aX,conn, phi, hEI, hII, dt=dt, random_init=random_init)
         ResultsALL=ResultsALL+[Results]
 
         aE,aI,MU_E,MU_I,aE_t,aI_t,aE_std, aI_std=Results[:]
@@ -148,7 +148,7 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=False)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, dt=dt, orionly=orionly, random_init=False)
 
 
     rates_sample = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
@@ -163,7 +163,7 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, connections_sampled, QJ, [ne, ni, nx], tunedL23_ids, original_prefori 
 
 
-def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, reshuffle='no', prepath="data"):
+def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, hEI=0., hII=0., tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, reshuffle='no', prepath="data"):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -214,7 +214,7 @@ def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, t
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=True)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, hEI, hII,  dt=dt, orionly=orionly, random_init=True)
 
     rates = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
     units_sampled.loc[:, 'pref_ori'] = np.argmax(rates, axis=1)
@@ -228,7 +228,7 @@ def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, t
     return aE_t, rate_etheta, rate_itheta, stddev_rates, units_sampled
 
 
-def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sigma_t, tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, local_connectivity=False, orionly=False, prepath="data", mode='nonlocal'):
+def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sigma_t, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, local_connectivity=False, orionly=False, prepath="data", mode='nonlocal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -263,6 +263,6 @@ def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sig
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, dt=dt, orionly=orionly, random_init=False)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, dt=dt, orionly=orionly, random_init=False)
 
     return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, QJ
