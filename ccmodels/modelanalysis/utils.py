@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 ##### Single neuron transfer function
 ##################################################################
 
-def tabulate_response(tau_E, tau_I, theta, V_r, sigma_t = 10, tau_rp = 2e-3, xf=1e4, xinf=1e7, nsteps=10000):
+def tabulate_response(tau_E, tau_I, theta, V_r, sigma_t = 10, tau_rp = 2e-3, x0=1e2, xf=1e4, xinf=1e7, nsteps=10000):
     """
     Compute a table with all the necessary values of the response function.
     sigma_t is the input noise in mV, determines transfer function's smoothness 
@@ -34,7 +34,8 @@ def tabulate_response(tau_E, tau_I, theta, V_r, sigma_t = 10, tau_rp = 2e-3, xf=
     """
 
     #Initialize x axis of the table
-    mu_tab=np.linspace(-xf, xf, nsteps)
+    mu_tab=np.linspace(-x0, xf, nsteps)
+    #mu_tab=np.linspace(-10, 100, nsteps)
     mu_tab=np.concatenate(([-xinf], mu_tab))
     mu_tab=np.concatenate((mu_tab, [xinf]))
 
