@@ -14,7 +14,7 @@ def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I
     aALL=np.empty(N_E+N_I+N_X)
 
     #Vector of new states of the recurrent network
-    F=np.empty(np.shape(aR)[0])
+    F=np.empty(aR.shape[0])
     aALL[(N_E+N_I):]=aX
 
     nits = int(t/dt)
@@ -196,19 +196,19 @@ def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, h
         ix[0:ne] = np.random.choice(ix[0:ne], size=ne, replace=False)
         ix[ne+ni:] = np.random.choice(ix[ne+ni:], size=nx, replace=False)
 
-        QJ_copy = QJ[:, ix]
+        QJ_copy = np.copy(QJ[:, ix])
     elif reshuffle=='L4tuned':
         ix= np.arange(0, ne+ni+nx)
         ix[ne+ni:] = np.random.choice(ix[ne+ni:], size=nx, replace=False)
 
-        QJ_copy = QJ[:, ix]
+        QJ_copy = np.copy(QJ[:, ix])
     elif reshuffle=='L23tuned':
         ix= np.arange(0, ne+ni+nx)
         ix[0:ne] = np.random.choice(ix[0:ne], size=ne, replace=False)
 
-        QJ_copy = QJ[:, ix]
+        QJ_copy = np.copy(QJ[:, ix])
     else:
-        QJ_copy = QJ
+        QJ_copy = np.copy(QJ)
 
     #Compute the response function for the used parameters
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
