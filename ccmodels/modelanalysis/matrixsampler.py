@@ -7,8 +7,7 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 
 import ccmodels.utils.angleutils as au
 
-def sample_L4_rates(units, activity, units_sample): 
-
+def sample_L4_rates(units, activity, units_sample, mode='normal'): 
     #Get neurons and their activity in L4
     neurons_L4 = fl.filter_neurons(units, layer='L4', tuning='matched')
 
@@ -25,23 +24,32 @@ def sample_L4_rates(units, activity, units_sample):
     #Get the submatrix of rates in L4
     act_matrix = act_matrix[neurons_L4['id'], :]
 
-    #Shift all neurons so the largest rate is centered at 0
-    act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
+    if mode=='normal':
+        #In the normal case, each neuron has a predefined orientation that we must match.
+        #So we have to sample from the system, shifting at zero, and then shift again to each neuron's ori
 
-    #Number of tuned neurons in data and synthetic tables
-    n_tuned_data   = len(fl.filter_neurons(neurons_L4, tuning='tuned'))
-    n_tuned_sample = len(fl.filter_neurons(neurons_L4_sample, tuning='tuned'))
+        #Shift all neurons so the largest rate is centered at 0
+        act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
 
-    #Randomly sample neurons in the tuned and untuned part, respectively. Then put all together
-    idx_tuned = np.random.choice(np.arange(0, n_tuned_data), size=n_tuned_sample, replace=True)
-    idx_untuned = np.random.choice(np.arange(n_tuned_data, n), size=n_sample - n_tuned_sample, replace=True)
-    idx_selected = np.concatenate([idx_tuned, idx_untuned])
+        #Number of tuned neurons in data and synthetic tables
+        n_tuned_data   = len(fl.filter_neurons(neurons_L4, tuning='tuned'))
+        n_tuned_sample = len(fl.filter_neurons(neurons_L4_sample, tuning='tuned'))
 
-    #Fill the matrix with the sampled ids
-    act_matrix = act_matrix[idx_selected, :]
+        #Randomly sample neurons in the tuned and untuned part, respectively. Then put all together
+        idx_tuned = np.random.choice(np.arange(0, n_tuned_data), size=n_tuned_sample, replace=True)
+        idx_untuned = np.random.choice(np.arange(n_tuned_data, n), size=n_sample - n_tuned_sample, replace=True)
+        idx_selected = np.concatenate([idx_tuned, idx_untuned])
 
-    #The tuned ones have to to be moved back to their pref oris
-    act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.iloc[:n_tuned_sample, 4])
+        #Fill the matrix with the sampled ids
+        act_matrix = act_matrix[idx_selected, :]
+
+        #The tuned ones have to to be moved back to their pref oris
+        act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.iloc[:n_tuned_sample, 4])
+    else:
+        #In the random case, it suffices to just sample from the system's statistics. 
+        #Doing that, fractions of tuned/untuned and each pref ori is respected.
+        idx_selected = np.random.choice(np.arange(0, n), size=n_sample, replace=True)
+        act_matrix = act_matrix[idx_selected, :] 
 
     return act_matrix
 
@@ -76,7 +84,11 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
 
     #Read the connection probabilities between each paper of populations 
     #This was previously estimated from data
-    ptable = pd.read_csv(f"{prepath}/model/prob_funcmatch_clearaxons.csv", index_col="Population") * scaling_prob
+    if mode == 'random':
+        ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") * scaling_prob
+    else:
+        #ptable = pd.read_csv(f"{prepath}/model/prob_funcmatch_clearaxons.csv", index_col="Population") * scaling_prob
+        ptable = pd.read_csv(f"{prepath}/model/prob_cleanaxons.csv", index_col="Population") * scaling_prob
 
     #Get the fraction of total size that each population has as a pandas Series
     #This was previously estimated from data
@@ -212,6 +224,7 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
             block[block > 0] *=  syn_vols.values
 
             #Negative scaling for inhibitory neurons 
+            #TODO bug: the inhtuned cannot work because of the !=, while columns are now IT_X
             flips = +1 if col != 'I' else -g
 
             #Assign our weighted block to the matrix

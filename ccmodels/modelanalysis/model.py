@@ -142,7 +142,7 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     tunedL23_ids = tunedL23['id']
     original_prefori = units_sampled.loc[units_sampled['id'].isin(tunedL23_ids), 'pref_ori']
     
-    rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled)
+    rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode=mode)
 
     #Compute the response function for the used parameters
     phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
@@ -221,11 +221,12 @@ def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, h
 
     osi = mut.compute_orientation_selectivity_index(rates)
 
-    mask_osi = osi >= 0.4
+    mask_osi = osi >= 0.1
     units_sampled.loc[mask_osi, 'tuning_type'] = 'selective' 
     units_sampled.loc[~mask_osi, 'tuning_type'] = 'not_selective' 
 
-    return aE_t, rate_etheta, rate_itheta, stddev_rates, units_sampled
+
+    return aE_t, rate_etheta, rate_itheta, stddev_rates, units_sampled, QJ_copy
 
 
 def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sigma_t, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, local_connectivity=False, orionly=False, prepath="data", mode='nonlocal'):
