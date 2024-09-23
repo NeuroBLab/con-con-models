@@ -6,7 +6,7 @@ import ccmodels.dataanalysis.utils as utl
 import ccmodels.dataanalysis.filters as fl
 import ccmodels.utils.angleutils as au
 
-def get_model_prefori(units_sampled, rates_sampled, vij):
+def get_model_prefcurrentori(units_sampled, rates_sampled, vij):
 
     #Get tuned postsynaptic neurons
     sampled23 = fl.filter_neurons(units_sampled, layer='L23', tuning='tuned')

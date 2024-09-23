@@ -103,11 +103,11 @@ def plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, 
     pref_ori_reshuffle = pref_ori_reshuffle[tuned_neurons['id']]
 
     bins = np.arange(-3.5, 5.5, 1)
-    for po,color in zip([pref_ori, pref_ori_reshuffle], ['green', 'gray']):
+    for po,color,lab in zip([pref_ori, pref_ori_reshuffle], ['green', 'gray'], ['Data', 'Reshuffle']):
         hist, _ = np.histogram(po, bins=bins, density=True)
         hist = hist / hist.sum()
         hist = plotutils.add_symmetric_angle(hist)
-        ax.plot(angles, hist, color=color)
+        ax.plot(angles, hist, color=color, label=lab)
 
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
@@ -275,7 +275,33 @@ def plot_figure(figname):
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure('fig1.pdf')
+#plot_figure('fig1.pdf')
 
 
 
+
+"""
+def plot_figure():
+    sty.master_format()
+    fig = plt.figure(figsize=sty.slide_size(0.25, 0.5), layout='constrained')
+    ax = plt.gca()
+
+
+    units, connections, rates = loader.load_data()
+    connections = fl.remove_autapses(connections)
+    connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
+
+    matched_neurons = fl.filter_neurons(units, tuning="matched")
+    matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+
+    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+    angles = plotutils.get_angles(kind="centered", half=True)
+
+    plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, vij, rates)
+
+    ax.legend()
+
+    fig.savefig(f"predict_tuning.pdf",  bbox_inches="tight")
+
+plot_figure()
+"""
