@@ -59,15 +59,18 @@ def compute_scaling_factor_kEE(neurons, connections, target_k_EE,new_N):
     #that presynaptic are proofread
     e_neurons = fl.filter_neurons(neurons, layer='L23', cell_type='exc')
     post_id_list = fl.filter_neurons(e_neurons, tuning='matched') 
+    #post_id_list = e_neurons
     pre_id_list = fl.filter_neurons(post_id_list, proofread='minimum')
+    #pre_id_list = fl.filter_neurons(post_id_list, proofread='ax_clean')
     conn_filtered = fl.synapses_by_id(connections, pre_ids=pre_id_list['id'], post_ids=post_id_list['id'], who='both')
 
     #Possible amount of links
-    norm = len(post_id_list)*(len(pre_id_list)-1)
+    norm = (len(post_id_list)-1)*len(pre_id_list)
     
     #Use these to get the probability of connections and number of neurons
     count=len(conn_filtered)
     p_EE = count/norm
+    print(p_EE, " a ")
     N_E = len(e_neurons)
 
     #Average connectivity in data
@@ -80,20 +83,29 @@ def compute_scaling_factor_kEE(neurons, connections, target_k_EE,new_N):
 def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlocal'):
     #Get the scaling for a correct definition of k_ee
     #scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
-    scaling_prob=compute_scaling_factor_kEE(units, connections, k_ee, N)
-
-    #Read the connection probabilities between each paper of populations 
-    #This was previously estimated from data
-    if mode == 'random':
-        ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") * scaling_prob
-    else:
-        #ptable = pd.read_csv(f"{prepath}/model/prob_funcmatch_clearaxons.csv", index_col="Population") * scaling_prob
-        ptable = pd.read_csv(f"{prepath}/model/prob_cleanaxons.csv", index_col="Population") * scaling_prob
+    #scaling_prob=compute_scaling_factor_kEE(units, connections, k_ee, N)
 
     #Get the fraction of total size that each population has as a pandas Series
     #This was previously estimated from data
     fractions = pd.read_csv(f"{prepath}/model/fractions_populations.csv", index_col='Population')
     fractions = fractions.squeeze()
+
+    #Read the connection probabilities between each paper of populations 
+    #This was previously estimated from data
+    if mode == 'random':
+        ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
+        #Scale to get our desired k_ee 
+        scaling_prob = k_ee / (N*fractions['E']*ptable.loc['E', 'E']) 
+        ptable *= scaling_prob 
+    else:
+        ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
+        av_prob = ptable.loc['E', 'E']
+        ptable = pd.read_csv(f"{prepath}/model/prob_cleanaxons.csv", index_col="Population") 
+        #Scale to get our desired k_ee. In this case the avg E-E probability is taken from connectomics
+        scaling_prob = k_ee / (N * fractions['E'] * av_prob) 
+        ptable *= scaling_prob
+
+
 
     #Get the number of neurons we have, from the fractions
     n_neurons = np.array([fractions['E'], fractions['I'], fractions['X']]) * N
