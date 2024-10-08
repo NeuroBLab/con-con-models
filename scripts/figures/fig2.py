@@ -269,4 +269,29 @@ def plot_figure3(figname):
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure3("fig2paper.pdf")
+#plot_figure3("fig2paper.pdf")
+
+def plot_figure():
+    sty.master_format()
+    fig = plt.figure(figsize=sty.slide_size(0.25, 0.4), layout='constrained')
+    ax = plt.gca()
+
+
+    units, connections, rates = loader.load_data()
+    connections = fl.remove_autapses(connections)
+    connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
+
+    matched_neurons = fl.filter_neurons(units, tuning="matched")
+    matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+
+    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+    angles = plotutils.get_angles(kind="centered", half=True)
+
+    tuning_prediction_performance(ax, matched_neurons, matched_connections, rates)
+    ax.set_ylim(0, 0.5)
+
+    ax.legend()
+
+    fig.savefig(f"predict_tuning.pdf",  bbox_inches="tight")
+
+plot_figure()

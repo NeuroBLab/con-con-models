@@ -29,10 +29,10 @@ def master_format(style='custom', **kwargs):
         format_legend(legend_fs=18, labspacing=0.1, hdlText=0.4)
         format_plots(lw=2.5)
     elif style == 'slides':
-        format_axes(tickpad=1.5, axes_lw=2.5, tick_maj_size=8, tick_min_size=5)
+        format_axes(tickpad=1.5, axes_lw=2., tick_maj_size=8, tick_min_size=5)
         format_text(label_fs=20, legend_fs=18, tick_fs=18, title_fs=22)
         format_legend(legend_fs=20, labspacing=0.1, hdlText=0.4)
-        format_plots(lw=3.)
+        format_plots(lw=1.75)
 
 # -------------------------
 # Axes format and styling

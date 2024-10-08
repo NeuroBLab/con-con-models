@@ -74,7 +74,7 @@ def solve_dynamical_system(tau_E, tau_I, aX, conn, phi, hEI, hII, dt=0.01, rando
     return results
 
 #def do_dynamics(Q, J_ij, m_props, rate_X_of_Theta, phi):
-def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hEI, hII, dt=0.01, orionly=False, random_init=False):
+def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hEI, hII, dt=0.01, orionly=False, random_init=False, return_all_series=False):
 
     #Initialize arguments 
     conn=[QJ, ne, ni, nx]
@@ -93,6 +93,11 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hEI, hII, dt
     stddev_rate_E_of_Theta=np.zeros((ne, ntheta))
     rate_I_of_Theta=np.zeros((ni, ntheta))
 
+    T = np.arange(0, 100*tau_E, tau_I/3)
+
+    if return_all_series:
+        aEt_list =np.zeros((ne, int(np.max(T)//dt), 8))
+
     #Results for each stimuli
     for idx_Theta in range(ntheta):
         aX=rate_X_of_Theta[:,idx_Theta]
@@ -102,13 +107,20 @@ def do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hEI, hII, dt
 
         aE,aI,MU_E,MU_I,aE_t,aI_t,aE_std, aI_std=Results[:]
 
+        if return_all_series:
+            aEt_list[:,:,idx_Theta] = aE_t.copy()
+
         rate_E_of_Theta[:,idx_Theta]=aE
         rate_I_of_Theta[:,idx_Theta]=aI
         stddev_rate_E_of_Theta[:,idx_Theta]=aE_std
 
-    return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
+    if return_all_series:
+        return aEt_list, aI_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta, 
+    else:
+        return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
 
-def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='nonlocal'):
+def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, tau_E=0.02, tau_I=0.01, 
+                    theta_E=20.0, sigma_tE=10.0, theta_I=20.0, sigma_tI=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='nonlocal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -145,10 +157,11 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode=mode)
 
     #Compute the response function for the used parameters
-    phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
+    phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, dt=dt, orionly=orionly, random_init=False)
+    aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, 
+                                                                     dt=dt, orionly=orionly, random_init=False, return_all_series=True)
 
 
     rates_sample = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
@@ -160,10 +173,11 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     units_sampled.loc[mask_osi, 'tuning_type'] = 'selective' 
     units_sampled.loc[~mask_osi, 'tuning_type'] = 'not_selective' 
 
-    return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, connections_sampled, QJ, [ne, ni, nx], tunedL23_ids, original_prefori 
+    return aE_t, aI_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, connections_sampled, QJ, [ne, ni, nx], tunedL23_ids, original_prefori 
 
 
-def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, hEI=0., hII=0., tau_E=0.02, tau_I=0.01, theta=20.0, sigma_t=10.0, V_r=10, dt=0.005, orionly=False, reshuffle='no', prepath="data"):
+def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, hEI=0., hII=0., tau_E=0.02, tau_I=0.01, 
+                                    theta_E=20.0, theta_I=20, sigma_tE=10.0, sigma_tI=20.0, V_r=10, dt=0.005, orionly=False, reshuffle='no', prepath="data"):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -211,7 +225,7 @@ def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, h
         QJ_copy = np.copy(QJ)
 
     #Compute the response function for the used parameters
-    phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
+    phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)
 
     #Make simulation and do the result
     aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, hEI, hII,  dt=dt, orionly=orionly, random_init=True)
@@ -226,10 +240,10 @@ def make_simulation_fixed_structure(units_sampled, QJ, rate_xtheta, n_neurons, h
     units_sampled.loc[~mask_osi, 'tuning_type'] = 'not_selective' 
 
 
-    return aE_t, rate_etheta, rate_itheta, stddev_rates, units_sampled, QJ_copy
+    return aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates, units_sampled, QJ_copy
 
 
-def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sigma_t, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, orionly=False, prepath="data", mode='normal'):
+def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, theta_I, sigma_tE, sigma_tI, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, orionly=False, prepath="data", mode='normal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -261,9 +275,12 @@ def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta, sig
     rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode=mode)
 
     #Compute the response function for the used parameters
-    phi = mut.tabulate_response(tau_E, tau_I, theta, V_r, sigma_t)
+    phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)
 
     #Make simulation and do the result
     aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, dt=dt, orionly=orionly, random_init=False)
+    
+    rates_sample = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
+    units_sampled.loc[:, 'pref_ori'] = np.argmax(rates_sample, axis=1)
 
     return aE_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, QJ

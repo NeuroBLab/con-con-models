@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 ##### Single neuron transfer function
 ##################################################################
 
-def tabulate_response(tau_E, tau_I, theta, V_r, sigma_t = 10, tau_rp = 2e-3, x0=1e2, xf=1e4, xinf=1e7, nsteps=10000):
+def tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE = 10, sigma_tI = 10, tau_rp = 2e-3, x0=1e2, xf=1e4, xinf=1e7, nsteps=10000):
     """
     Compute a table with all the necessary values of the response function.
     sigma_t is the input noise in mV, determines transfer function's smoothness 
@@ -46,8 +46,8 @@ def tabulate_response(tau_E, tau_I, theta, V_r, sigma_t = 10, tau_rp = 2e-3, x0=
 
     #Compute the function at each one of the points
     for idx in range(mu_tab.size):
-        phi_tab_E[idx] = comp_phi_tab(mu_tab[idx], tau_E, tau_rp, sigma_t, V_r, theta)
-        phi_tab_I[idx] = comp_phi_tab(mu_tab[idx], tau_I, tau_rp, sigma_t, V_r, theta)
+        phi_tab_E[idx] = comp_phi_tab(mu_tab[idx], tau_E, tau_rp, sigma_tE, V_r, theta_E)
+        phi_tab_I[idx] = comp_phi_tab(mu_tab[idx], tau_I, tau_rp, sigma_tI, V_r, theta_I)
 
     #Interpolate for finer distribution
     phi_int_E = interp1d(mu_tab, phi_tab_E, kind='linear', copy=False)  
