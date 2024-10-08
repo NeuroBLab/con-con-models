@@ -7,6 +7,7 @@ from os.path import isfile, join
 
 import ccmodels.dataanalysis.processedloader as loader
 import ccmodels.modelanalysis.utils as utl
+import ccmodels.dataanalysis.utils as dutl
 import ccmodels.modelanalysis.currents as mcur
 import ccmodels.dataanalysis.filters as fl
 
@@ -16,18 +17,18 @@ import pickle
 
 from KDEpy import FFTKDE
 
-def get_simulations_summarystats(path, features, average_disorder=False, nfiles_avgdis=10, nsims=None):
+def get_simulations_summarystats(path, parcols, features, average_disorder=False, nfiles_avgdis=10, nsims=None):
     #Get all files in the specified path
     onlyfiles = [f for f in listdir(path) if isfile(join(path, f))]
 
-    params = np.empty((0,4)) 
+    params = np.empty((0,len(parcols))) 
     summary_stats = np.empty((0, len(features))) 
     for file in onlyfiles:
         #Read the file
         filecontent = pd.read_csv(f'{path}/{file}')
 
         #Get the parameters and the desired summary statistics
-        p = filecontent[['J', 'g', 'theta', 'sigma']]
+        p = filecontent[parcols]
         sumstats = filecontent[features]
 
         #Average over the disorder, when specified
@@ -81,22 +82,62 @@ def get_data_summarystats(features, prepath="data/", orionly=True):
     cvl23o, cvl23d = utl.compute_circular_variance(currents['L23'].mean(axis=0)/totalmean, orionly=orionly)
     cvl4o, cvl4d = utl.compute_circular_variance(currents['L4'].mean(axis=0)/totalmean, orionly=orionly)
 
+
+    #Average tuning curve for L23 neurons
+    neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
+    rates23 = rates[neurons_L23['id'], :]
+    tuning_curveL23 = np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0)
+
+
     #Put in the same format as the simulations and return
-    summary_data = {'mean_re' : [rates.mean()], 'std_re': [rates_e.std()], 'logmean_re' : [np.log(rates).mean()], 'logstd_re': [np.log(rates_e).std()], 'mean_cve_dir': [cved.mean()], 'std_cve_dir':[cved.std()],
+    summary_data = {'mean_re' : [rates_e.mean()], 'std_re': [rates_e.std()], 'logmean_re' : [np.log(rates_e).mean()], 'logstd_re': [np.log(rates_e).std()], 'mean_cve_dir': [cved.mean()], 'std_cve_dir':[cved.std()],
                     'cv_curl23': [cvl23d], 'cv_curl4':[cvl4d], 'indiv_traj_std':[0.]}
+
+    #Add also the tuning curve data
+    for i in range(8):
+        summary_data[f'rate_tuning_{i}'] = tuning_curveL23[i]
+
     summary_data = pd.DataFrame(summary_data)
     
     return torch.tensor(summary_data[features].values)
 
-def setup_prior(j0, jf, g0, gf, theta0, thetaf, sigma0, sigmaf):
+def setup_prior(j0, jf, g0, gf, theta0, thetaf, sigma0, sigmaf, useEI=False):
 
     #For the sbi
-    prior_lowbound = torch.tensor([j0, g0, theta0, sigma0])
-    prior_highbound = torch.tensor([jf, gf, thetaf, sigmaf])
+    if not useEI:
+        prior_lowbound = torch.tensor([j0, g0, theta0, sigma0])
+        prior_highbound = torch.tensor([jf, gf, thetaf, sigmaf])
+        #for plotting
+        intervals = [[j0, jf], [g0, gf], [theta0, thetaf], [sigma0, sigmaf]]
+    else:
+        prior_lowbound = torch.tensor([j0, g0, theta0, theta0, sigma0, sigma0])
+        prior_highbound = torch.tensor([jf, gf, thetaf, thetaf, sigmaf, sigmaf])
+        #for plotting
+        intervals = [[j0, jf], [g0, gf], [theta0, thetaf], [theta0, thetaf], [sigma0, sigmaf], [sigma0, sigmaf]]
     prior = sbiut.BoxUniform(low=prior_lowbound, high=prior_highbound)
 
-    #for plotting
-    intervals = [[j0, jf], [g0, gf], [theta0, thetaf], [sigma0, sigmaf]]
+
+    #Return the prior in the useful formats
+    return prior, intervals
+
+def setup_prior(j0, jf, g0, gf, theta0, thetaf, sigma0, sigmaf, hei0, heif, hii0, hiif, useEI=False):
+
+    #For the sbi
+    if not useEI:
+        prior_lowbound =  torch.tensor([j0, g0, theta0, sigma0, hei0, heif, hii0, hiif])
+        prior_highbound = torch.tensor([jf, gf, thetaf, sigmaf, hei0, heif, hii0, hiif])
+
+        #for plotting
+        intervals = [[j0, jf], [g0, gf], [theta0, thetaf], [sigma0, sigmaf], [hei0, heif], [hii0, hiif]]
+    else:
+        prior_lowbound =  torch.tensor([j0, g0, theta0, theta0, sigma0, sigma0, hei0, heif, hii0, hiif])
+        prior_highbound = torch.tensor([jf, gf, thetaf, thetaf, sigmaf, sigmaf, hei0, heif, hii0, hiif])
+
+        #for plotting
+        intervals = [[j0, jf], [g0, gf], [theta0, thetaf], [theta0, thetaf], [sigma0, sigmaf], [sigma0, sigmaf], [hei0, heif], [hii0, hiif]]
+
+    prior = sbiut.BoxUniform(low=prior_lowbound, high=prior_highbound)
+
 
     #Return the prior in the useful formats
     return prior, intervals
