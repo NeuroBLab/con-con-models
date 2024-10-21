@@ -11,69 +11,7 @@ import ccmodels.dataanalysis.utils as utl
 # Functions here help to load the preprocessed data 
 #============================================================
 
-def load_data_deprecated(orientation_only=True, nangles=16, prepath="../con-con-models/data/", version="661"):
-    """
-    Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
-    All returned values are inside a 3-element list.
-
-    Parameters
-    activity: bool 
-        If True (default), returns also a Nxnangles matrix containing the rates of the neurons
-    half_angle : bool 
-        If True (default) uses angles only from 0 to pi, leaving apart the directions. 
-    nangles: int
-        Gives the number of angles for the full case (default 16)
-    path : string.
-        Folder where the ccmodels package is located 
-    version : string
-        Which version of the dataset to use.
-    """
-
-
-    #TODO legacy code in case we want to use previous version... it should die soon
-    if version=="343":
-        v1_neurons = pd.read_csv(f'{prepath}/preprocessed/v1_neurons.csv')
-        v1_connections = pd.read_csv(f'{prepath}/preprocessed/v1_connections.csv')
-        rates_table = pd.read_csv(f'{prepath}/preprocessed/v1_activity.csv')
-    elif version=="661":
-        #TODO update once the list of connections is ready 
-        v1_neurons = pd.read_csv(f'{prepath}/preprocessed/unit_table.csv')
-        v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table.csv')
-        rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table.csv')
-
-        #Ensure all ids are from 0 to N-1, being N number of neurons. 
-        #Rename id names.
-        remap_all_tables(v1_neurons, v1_connections, rates_table)
-
-    #If we are only lookin at oris, then we need to remap all of neurons's angles  
-    if orientation_only:
-        v1_neurons.loc[:, "pref_ori"] = au.constrain_angles(v1_neurons["pref_ori"].values, nangles=8)
-
-    #Angles are integers to avoid any roundoff error
-    v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
-
-    #Once angles have been constrained, construct the delta ori values 
-    v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=orientation_only)
-    v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
-
-    #If we want activity, read the table and return the Nx16 matrix directly
-    if version=="343":
-        rates = get_rates_matrix(v1_neurons, rates_table)
-    elif version=="661":
-        #Get the matrix only for functionally matched neurons
-        func_matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-        rates = get_rates_matrix(func_matched_neurons, rates_table)
-
-
-    #If we are working only with the orientation, assume that the rate we have for that 8 angles
-    #is just the average between both
-    if orientation_only:
-        rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
-
-    return v1_neurons, v1_connections, rates
-
-
-def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data/", version="661"):
+def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data/", suffix="", version="661"):
     """
     Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
     All returned values are inside a 3-element list.
@@ -110,15 +48,18 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
         rates = utl.shift_multi(rates, func_matched_neurons['pref_ori'])
 
         #In that position it is possible to average the rates 
-        rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
+        #rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
+        rates = rates[:, 0:nangles//2]
+
 
         #Now get the actual pref ori in orientation space
-        v1_neurons.loc[:, "pref_ori"] = v1_neurons.loc[:, 'pref_ori'] % (nangles//2)
-        func_matched_neurons.loc[:, "pref_ori"] = func_matched_neurons.loc[:, 'pref_ori'] % (nangles//2)
+        #v1_neurons.loc[:, "pref_ori"] = v1_neurons.loc[:, 'pref_ori'] % (nangles//2)
+        #func_matched_neurons.loc[:, "pref_ori"] = func_matched_neurons.loc[:, 'pref_ori'] % (nangles//2)
 
         #Put back all the rates
         rates = utl.shift_multi(rates, -func_matched_neurons['pref_ori'])
 
+    v1_neurons.loc[func_matched_neurons['id'], 'pref_ori'] = np.argmax(rates, axis=1)
     #Angles are integers to avoid any roundoff error
     v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
 
@@ -127,6 +68,7 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
 
     return v1_neurons, v1_connections, rates
+
 
 #============================================================
 # ---------------------- TABLE REMAPPING---------------------

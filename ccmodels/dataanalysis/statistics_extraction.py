@@ -193,6 +193,7 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
     tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23", proofread=proofread[1])
     post_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
 
+
     #Prepare variables for computing statistics 
     if half:
         p_mean = np.zeros(nangles//2)

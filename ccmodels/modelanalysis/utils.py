@@ -1,4 +1,8 @@
 import numpy as np
+import pandas as pd
+
+import ccmodels.utils.angleutils as au
+
 import scipy.integrate as scpint
 from scipy.special import erf
 from scipy.interpolate import interp1d
@@ -210,3 +214,42 @@ def compute_circular_variance(rates, orionly=False):
         r_dir = np.abs(num_dir.sum()/norma)
 
     return r_ori, r_dir
+
+##################################################################
+##### I/O 
+##################################################################
+
+def write_synthetic_data(suffix, units_sampled, connections_sampled, re, ri, rx, prepath="data"):
+
+    units_sampled.to_csv(f'{prepath}/model/simulations/unit_table_{suffix}.csv', index=False)
+    connections_sampled.to_csv(f'{prepath}/model/simulations/connections_table_{suffix}.csv', index=False)
+    rates_sample = np.vstack([re, ri, rx])
+
+    np.save(f'{prepath}/model/simulations/activity_table_{suffix}.npy', rates_sample)
+
+def load_synthetic_data(suffix, prepath="data"):
+    """
+    Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
+    All returned values are inside a 3-element list.
+
+    Parameters
+    suffix : str 
+        Suffix to the file names that allows to identify this sampled data 
+    prepath : string.
+        Data folder 
+    version : string
+        Which version of the dataset to use.
+    """
+
+    v1_neurons = pd.read_csv(f'{prepath}/model/simulations/unit_table_{suffix}.csv')
+    v1_connections = pd.read_csv(f'{prepath}/model/simulations/connections_table_{suffix}.csv')
+    rates = np.load(f'{prepath}/model/simulations/activity_table_{suffix}.npy')
+
+    #Angles are integers to avoid any roundoff error
+    v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
+
+    #Once angles have been constrained, construct the delta ori values 
+    v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=True)
+    v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
+
+    return v1_neurons, v1_connections, rates
