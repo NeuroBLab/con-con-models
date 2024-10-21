@@ -277,21 +277,26 @@ def plot_figure():
     ax = plt.gca()
 
 
-    units, connections, rates = loader.load_data()
+    #units, connections, rates = loader.load_data()
+    import ccmodels.modelanalysis.utils as mutl
+    units, connections, rates = mutl.load_synthetic_data("reshuffled_J4")
     connections = fl.remove_autapses(connections)
     connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 
-    matched_neurons = fl.filter_neurons(units, tuning="matched")
+    matched_neurons = fl.filter_neurons(units, tuning="matched", cell_type='exc')
     matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
 
-    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+    vij = loader.get_adjacency_matrix(units, connections)
+    vij = vij[matched_neurons['id'], matched_neurons['id']]
     angles = plotutils.get_angles(kind="centered", half=True)
 
-    tuning_prediction_performance(ax, matched_neurons, matched_connections, rates)
-    ax.set_ylim(0, 0.5)
+    conn_prob_osi(ax, matched_neurons, matched_connections)
+
+    #tuning_prediction_performance(ax, matched_neurons, matched_connections, rates)
+    #ax.set_ylim(0, 0.5)
 
     ax.legend()
 
-    fig.savefig(f"predict_tuning.pdf",  bbox_inches="tight")
+    fig.savefig(f"conprob_model.pdf",  bbox_inches="tight")
 
 plot_figure()

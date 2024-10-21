@@ -12,7 +12,7 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
     neurons_L4 = fl.filter_neurons(units, layer='L4', tuning='matched')
 
     #Now, get the neurons sampled from the synthetic model
-    neurons_L4_sample = fl.filter_neurons(units_sample, layer='L4', tuning='matched')
+    neurons_L4_sample = fl.filter_neurons(units_sample, layer='L4', tuning='matched').reset_index()
 
     #Number of neurons in each case
     n = len(neurons_L4)
@@ -30,6 +30,7 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
 
         #Shift all neurons so the largest rate is centered at 0
         act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
+        print(act_matrix[0:3, 0:8])
 
         #Number of tuned neurons in data and synthetic tables
         n_tuned_data   = len(fl.filter_neurons(neurons_L4, tuning='tuned'))
@@ -44,7 +45,7 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
         act_matrix = act_matrix[idx_selected, :]
 
         #The tuned ones have to to be moved back to their pref oris
-        act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.iloc[:n_tuned_sample, 4])
+        act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.loc[:n_tuned_sample-1, 'pref_ori'])
     else:
         #In the random case, it suffices to just sample from the system's statistics. 
         #Doing that, fractions of tuned/untuned and each pref ori is respected.
@@ -237,7 +238,8 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
 
             #Negative scaling for inhibitory neurons 
             #TODO bug: the inhtuned cannot work because of the !=, while columns are now IT_X
-            flips = +1 if col != 'I' else -g
+            #flips = +1 if col != 'I' else -g
+            flips = +1 if not 'I' in col else -g
 
             #Assign our weighted block to the matrix
             Q[r0:rf, c0:cf] = flips * J * block 
@@ -292,6 +294,6 @@ def sample_units(N, neurons_per_pop, column_names, fractions):
 
 def sample_connections(Q):
     connections_sample = np.where(np.abs(Q)>0)
-    connections_sample = {"pre_id":connections_sample[1], "post_id":connections_sample[0]} 
+    connections_sample = {"pre_id":connections_sample[1], "post_id":connections_sample[0], "syn_volume":Q[connections_sample]} 
     return pd.DataFrame(connections_sample)
 
