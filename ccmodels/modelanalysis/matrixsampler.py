@@ -30,7 +30,6 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
 
         #Shift all neurons so the largest rate is centered at 0
         act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
-        print(act_matrix[0:3, 0:8])
 
         #Number of tuned neurons in data and synthetic tables
         n_tuned_data   = len(fl.filter_neurons(neurons_L4, tuning='tuned'))
@@ -71,7 +70,6 @@ def compute_scaling_factor_kEE(neurons, connections, target_k_EE,new_N):
     #Use these to get the probability of connections and number of neurons
     count=len(conn_filtered)
     p_EE = count/norm
-    print(p_EE, " a ")
     N_E = len(e_neurons)
 
     #Average connectivity in data
@@ -133,6 +131,8 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
         if 'inh' in mode:
             #Add new rows and columns for the new tuned inhibition
             #Get the fraction of tuned inhibitory newurons of each type
+            normE = 0.0 
+            normX = 0.0
             for i in range(8):
 
                 #Create new entries in table
@@ -143,12 +143,16 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
                 #Compute the fraction of inh neurons with this angle
                 fractions[f"IT_{i}"] = fractions["I"] * fractions[f"ET_{i}"] / fractions["ET"]
 
+                #Get the norm to scale later all I probabilities
+                normE += ptable.loc["ET_0", f"ET_{i}"] * fractions[f"IT_{i}"] 
+                normX += ptable.loc["ET_0", f"XT_{i}"] * fractions[f"IT_{i}"] 
+
             #All inh are tuned
             fractions[f"IT"] = fractions["I"] 
 
             #Compute how much the probability has to scale for each angle difference
-            scale_E2E = [ptable.loc[f"ET_1", f"ET_{i}"] / ptable.loc["ET_1", "ET_1"] for i in range(8)]
-            scale_X2E = [ptable.loc[f"ET_1", f"XT_{i}"] / ptable.loc["ET_1", "XT_1"] for i in range(8)]
+            scale_E2E = [ptable.loc[f"ET_0", f"ET_{i}"] * fractions['I'] / normE for i in range(8)]
+            scale_X2E = [ptable.loc[f"ET_0", f"XT_{i}"] * fractions['I'] / normX for i in range(8)]
 
             #Fill the new rows and columns
             for i in range(8):
