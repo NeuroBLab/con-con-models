@@ -48,13 +48,14 @@ def solve_dynamical_system(theta_sim, pref_ori, tau_E, tau_I, aX, conn, phi, hEI
     if random_init:
         aR_t[:,0] = np.random.rand(N_E+N_I) 
     else:
-        #pass
-        aR_t[N_E:,0] = 5.0 
-        for i in range(2826):
-            aR_t[i,0] = 1.0 + 1.0 * (theta_sim == pref_ori[i]) 
-        for i in range(2826, N_E+N_I):
-            aR_t[i,0] = 1.0 
+        pass
+        #aR_t[N_E:,0] = 5.0 
+        #for i in range(2826):
+        #    aR_t[i,0] = 1.0 + 1.0 * (theta_sim == pref_ori[i]) 
+        #for i in range(2826, N_E+N_I):
+        #    aR_t[i,0] = 1.0 
 
+        #aR_t[:,0] = 1.0 + 1.0 * (theta_sim == pref_ori[:N_E+N_I]) 
 
     aR_t = system_euler(np.max(T), aR_t, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi[0], phi[1], hEI, hII, aX, dt)
 
@@ -114,7 +115,6 @@ def do_dynamics(pref_ori, tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hE
     #Results for each stimuli
     for idx_Theta in range(ntheta):
         aX=rate_X_of_Theta[:,idx_Theta]
-        #aX = 7.0 * (idx_Theta == pref_ori[ne+ni:])
 
         Results=solve_dynamical_system(idx_Theta, pref_ori, tau_E, tau_I, aX,conn, phi, hEI, hII, dt=dt, random_init=random_init)
         ResultsALL=ResultsALL+[Results]
@@ -135,7 +135,7 @@ def do_dynamics(pref_ori, tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hE
         return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
 
 def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, tau_E=0.02, tau_I=0.01, 
-                    theta_E=20.0, sigma_tE=10.0, theta_I=20.0, sigma_tI=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='nonlocal'):
+                    theta_E=20.0, sigma_tE=10.0, theta_I=20.0, sigma_tI=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='normal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -282,7 +282,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
     phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)
 
     #Make simulation and do the result
-    aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, hEI, hII,  dt=dt, orionly=orionly, random_init=True, return_all_series=True)
+    aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(units_sampled['pref_ori'].values, tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, hEI, hII,  dt=dt, orionly=orionly, random_init=True, return_all_series=True)
 
     rates = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
     units_sampled.loc[:, 'pref_ori'] = np.argmax(rates, axis=1)
@@ -350,7 +350,7 @@ def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, t
     phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)
 
     #Make simulation and do the result
-    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, dt=dt, orionly=orionly, random_init=False)
+    aE_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(units_sampled['pref_ori'].values, tau_E, tau_I, QJ, ne, ni, nx, rate_xtheta, phi, hEI, hII, dt=dt, orionly=orionly, random_init=False)
     
     rates_sample = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
     units_sampled.loc[:, 'pref_ori'] = np.argmax(rates_sample, axis=1)
