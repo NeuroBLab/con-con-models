@@ -135,7 +135,8 @@ def do_dynamics(pref_ori, tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hE
         return aE_t, rate_E_of_Theta, rate_I_of_Theta, stddev_rate_E_of_Theta
 
 def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, tau_E=0.02, tau_I=0.01, 
-                    theta_E=20.0, sigma_tE=10.0, theta_I=20.0, sigma_tI=10.0, V_r=10, dt=0.005, orionly=False, prepath="data", local_connectivity=True, mode='normal'):
+                    theta_E=20.0, sigma_tE=10.0, theta_I=20.0, sigma_tI=10.0, V_r=10, dt=0.005, 
+                    cos_b=[0.175, 0.154], orionly=False, prepath="data", local_connectivity=True, mode='normal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -161,7 +162,7 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units_sampled, connections_sampled, QJ, n_neurons = msa.sample_matrix(units, connections, k_ee, N, J, g, prepath=prepath, mode=mode)
+    units_sampled, connections_sampled, QJ, n_neurons = msa.sample_matrix(units, connections, k_ee, N, J, g, cos_b=cos_b, prepath=prepath, mode=mode)
     ne, ni, nx = n_neurons
 
     #Store the original preferred orientation got from the table

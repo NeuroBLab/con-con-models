@@ -324,9 +324,16 @@ def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments
     #rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
 
     #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
-    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
-    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
-    allids = fl.filter_neurons(v1_neurons, tuning="matched")["id"]
+    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
+    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="tuned")["id"]
+    allids = fl.filter_neurons(v1_neurons, tuning="tuned")["id"]
+    #l23_ids = fl.filter_neurons(v1_neurons)["id"]
+    #l4_ids  = fl.filter_neurons(v1_neurons)["id"]
+    #allids = fl.filter_neurons(v1_neurons)["id"]
+
+    prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread='ax_clean')["id"]
+    prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread='ax_clean')["id"]
+    preallids = fl.filter_neurons(v1_neurons, tuning="matched", proofread='ax_clean')["id"]
 
     layers = ["Total", "L23", "L4"]
 
@@ -347,24 +354,20 @@ def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments
 
         #Compute the currents we get from those 
         current = {}
-        current["Total"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=allids, shift=shift)
-        current["L23"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=l23_ids, shift=shift)
-        current["L4"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=l4_ids, shift=shift)
+        current["Total"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=preallids, shift=shift)
+        current["L23"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=prel23_ids, shift=shift)
+        current["L4"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=prel4_ids, shift=shift)
 
         #Get the average and error of the current for each angle
         for key in layers: 
             avr_cur[key][:, i] = np.mean(current[key], axis=0) 
             std_cur[key][:, i] = np.std(current[key], axis=0) 
 
-    #Finish averages
-    for key in layers: 
-        avr_cur[key] /= nexperiments
-        std_cur[key] /= nexperiments
 
     #Normalize accordingly
-    maxcur = np.max(avr_cur["Total"])
+    maxcur = 1. #np.max(avr_cur["Total"])
     for key in layers: 
-        avr_cur[key] /= maxcur
+        avr_cur[key] /= maxcur 
         std_cur[key] /= maxcur
 
     #Return first two moments of the bootstrap average estimator. 
