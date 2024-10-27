@@ -24,7 +24,12 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
     #Get the submatrix of rates in L4
     act_matrix = act_matrix[neurons_L4['id'], :]
 
-    if mode=='normal':
+    if mode == 'random':
+        #In the random case, it suffices to just sample from the system's statistics. 
+        #Doing that, fractions of tuned/untuned and each pref ori is respected.
+        idx_selected = np.random.choice(np.arange(0, n), size=n_sample, replace=True)
+        act_matrix = act_matrix[idx_selected, :] 
+    else:
         #In the normal case, each neuron has a predefined orientation that we must match.
         #So we have to sample from the system, shifting at zero, and then shift again to each neuron's ori
 
@@ -45,11 +50,6 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
 
         #The tuned ones have to to be moved back to their pref oris
         act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.loc[:n_tuned_sample-1, 'pref_ori'])
-    else:
-        #In the random case, it suffices to just sample from the system's statistics. 
-        #Doing that, fractions of tuned/untuned and each pref ori is respected.
-        idx_selected = np.random.choice(np.arange(0, n), size=n_sample, replace=True)
-        act_matrix = act_matrix[idx_selected, :] 
 
     return act_matrix
 
@@ -79,7 +79,7 @@ def compute_scaling_factor_kEE(neurons, connections, target_k_EE,new_N):
     return (target_k_EE/k_EE_data) * (len(neurons)/new_N)
 
 
-def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlocal'):
+def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='normal', cos_a=[0.9807840158851815, 1.051784991962299], cos_b=[0.17446353427026207, 0.15346752188086193]):
     #Get the scaling for a correct definition of k_ee
     #scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
     #scaling_prob=compute_scaling_factor_kEE(units, connections, k_ee, N)
@@ -91,18 +91,70 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
 
     #Read the connection probabilities between each paper of populations 
     #This was previously estimated from data
-    if mode == 'random':
-        ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
-        #Scale to get our desired k_ee 
-        scaling_prob = k_ee / (N*fractions['E']*ptable.loc['E', 'E']) 
-        ptable *= scaling_prob 
-    else:
+    if mode=='normal' or 'tuned' in mode:
         ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
         av_prob = ptable.loc['E', 'E']
         ptable = pd.read_csv(f"{prepath}/model/prob_cleanaxons.csv", index_col="Population") 
         #Scale to get our desired k_ee. In this case the avg E-E probability is taken from connectomics
         scaling_prob = k_ee / (N * fractions['E'] * av_prob) 
         ptable *= scaling_prob
+    #Unstructured network from connectomics
+    elif mode == 'random':
+        ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
+        #Scale to get our desired k_ee 
+        scaling_prob = k_ee / (N*fractions['E']*ptable.loc['E', 'E']) 
+        ptable *= scaling_prob 
+    elif mode=='cosine':
+        #Computing the scaling to get our desired k_ee 
+        ptable_con = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
+        scaling_prob = k_ee / (N*fractions['E']*ptable_con.loc['E', 'E']) 
+
+        #Compute the modulation we will add to our connectomic probability
+        nangles = 8
+        theta =  np.arange(nangles)
+        cosine = np.cos(2*np.pi*theta/nangles)
+
+        #Observe that modulated[0] > 1 and modulated[pi/2] < 1 to keep the average correct
+        modulated_EE = cos_a[0] + cos_b[1] * cosine
+        modulated_EX = cos_a[0] + cos_b[1] * cosine
+
+        #Define our new table from scratch, creating the colums
+        ETcols = [f'ET_{i}' for i in range(nangles)]
+        XTcols = [f'XT_{i}' for i in range(nangles)]
+        columns = ETcols + ['I'] + XTcols  #+ ['XU']
+        ptable = pd.DataFrame(columns= columns)
+
+
+        #Then we fill all the postsynaptic rows
+        for i in theta:
+            #Create the rows
+            ptable.loc[f"ET_{i}", :] = 0. 
+
+            #Fill the values for each set of columns
+            ptable.loc[f"ET_{i}", ETcols] = np.roll(ptable_con.loc['E', 'E'] * modulated_EE, i)
+            ptable.loc[f"ET_{i}", "I"] = ptable_con.loc['E', 'I'] 
+            ptable.loc[f"ET_{i}", XTcols] = np.roll(ptable_con.loc['E', 'E'] * modulated_EX, i)
+        
+        #Do the same with inhibitory neurons. There's no L4 postsynaptic so this is all.
+        ptable.loc['I', :] = 0
+        ptable.loc["I", ETcols] = ptable_con.loc['I', 'E']
+        ptable.loc["I", 'I'] = ptable_con.loc['I', 'I']
+        ptable.loc["I", XTcols] = ptable_con.loc['I', 'X']
+
+        #free intermediate memory
+        del ptable_con
+
+        ptable *= scaling_prob
+
+        #Redistribute the fraction of untuned neurons equally between tuned ones
+        labels = [f"ET_{i}" for i in range(8)]
+        fractions[labels] += fractions['EU'] * fractions[labels] / fractions['ET']
+        labels = [f"XT_{i}" for i in range(8)]
+        fractions[labels] += fractions['XU'] * fractions[labels] / fractions['XT']
+
+        #Add the total number of untuned to the total number of tuned now
+        fractions["ET"] += fractions['EU']
+        fractions["XT"] += fractions['XU']
 
 
 
@@ -260,6 +312,8 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='nonlo
     #n_neurons[1] = ni_new
     # ---
 
+    print(N)
+    print(Q.shape)
     units_sampled = sample_units(N, start_col[1:] - start_col[:-1], column_names, fractions)
     connections_sampled = sample_connections(Q)
 

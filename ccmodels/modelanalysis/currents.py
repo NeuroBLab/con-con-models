@@ -21,11 +21,11 @@ def get_model_prefcurrentori(units_sampled, rates_sampled, vij):
     return np.argmax(currents, axis=1) 
 
 
-def bootstrap_mean_current(units, vij, rates, tuning=['matched', 'matched'], cell_type=['exc', 'exc']):
-    neurons_L4  = fl.filter_neurons(units, layer='L4', tuning=tuning[0], cell_type='exc')
-    neurons_L23 = fl.filter_neurons(units, layer='L23', tuning=tuning[0], cell_type=cell_type[0])
+def bootstrap_mean_current(units, vij, rates, tuning=['matched', 'matched'], cell_type=['exc', 'exc'], proof=['ax_clean', None]):
+    neurons_L4  = fl.filter_neurons(units, layer='L4', tuning=tuning[0], cell_type='exc', proofread=proof[0])
+    neurons_L23 = fl.filter_neurons(units, layer='L23', tuning=tuning[0], cell_type=cell_type[0], proofread=proof[0])
 
-    neurons_L23_post = fl.filter_neurons(units, layer='L23', tuning=tuning[1], cell_type=cell_type[1])
+    neurons_L23_post = fl.filter_neurons(units, layer='L23', tuning=tuning[1], cell_type=cell_type[1], proofread=proof[1])
 
     currents = {}
 
