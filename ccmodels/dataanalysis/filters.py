@@ -60,20 +60,16 @@ def filter_neurons(v1_neurons, layer=None, tuning=None, cell_type=None, proofrea
     elif proofread == 'ax_non':
         mask_proof = v1_neurons['axon_proof'] == 'non'
     elif proofread == 'ax_clean':
-        mask_proof = v1_neurons['axon_proof'] == 'clean'
+        mask_proof = v1_neurons['axon_proof'] != 'non'
     elif proofread == 'ax_extended':
         mask_proof = v1_neurons['axon_proof'] == 'extended'
-    elif proofread == 'ax_checked':
-        mask_proof = v1_neurons['axon_proof'] != 'non'
 
     elif proofread == 'dn_non':
         mask_proof = v1_neurons['dendr_proof'] == 'non'
     elif proofread == 'dn_clean':
-        mask_proof = v1_neurons['dendr_proof'] == 'clean'
+        mask_proof = v1_neurons['dendr_proof'] != 'non'
     elif proofread == 'dn_extended':
         mask_proof = v1_neurons['dendr_proof'] == 'extended'
-    elif proofread == 'dn_checked':
-        mask_proof = v1_neurons['dendr_proof'] != 'non'
 
     
     return v1_neurons[mask_layer & mask_cellt & mask_tuned & mask_proof]

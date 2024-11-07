@@ -316,7 +316,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
     return aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates, units_sampled, connections_sampled, QJ_copy
 
 
-def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, theta_I, sigma_tE, sigma_tI, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, orionly=False, prepath="data", mode='normal'):
+def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, theta_I, sigma_tE, sigma_tI, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, cos_b=[0.175, 0.154], orionly=False, prepath="data", mode='normal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -342,7 +342,7 @@ def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, t
         Use scipy.initial_ivp (default, False; discouraged, as it is WAY slower than the fixed-step method)
     """
 
-    units_sampled, connections_sampled, QJ, n_neurons = msa.sample_matrix(units, connections, k_ee, N, J, g, prepath=prepath, mode=mode)
+    units_sampled, connections_sampled, QJ, n_neurons = msa.sample_matrix(units, connections, k_ee, N, J, g, prepath=prepath, mode=mode, cos_b=cos_b)
     ne, ni, nx = n_neurons
 
     rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode=mode)

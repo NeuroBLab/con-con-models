@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+import ccmodels.dataanalysis.filters as fl
 import ccmodels.utils.angleutils as au
 
 import scipy.integrate as scpint
@@ -252,4 +253,11 @@ def load_synthetic_data(suffix, prepath="data"):
     v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=True)
     v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
 
-    return v1_neurons, v1_connections, rates
+    #Get the number of neurons of each type and store it
+    ne = len(fl.filter_neurons(v1_neurons, cell_type='exc', layer='L23'))
+    ni = len(fl.filter_neurons(v1_neurons, cell_type='inh', layer='L23'))
+    nx = len(fl.filter_neurons(v1_neurons, cell_type='exc', layer='L4'))
+
+    n_neurons = [ne, ni, nx]
+
+    return v1_neurons, v1_connections, rates, n_neurons

@@ -115,8 +115,8 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
         cosine = np.cos(2*np.pi*theta/nangles)
 
         #Observe that modulated[0] > 1 and modulated[pi/2] < 1 to keep the average correct
-        modulated_EE = cos_a[0] + cos_b[1] * cosine
-        modulated_EX = cos_a[0] + cos_b[1] * cosine
+        modulated_EE = cos_a[0] + cos_b[0] * cosine
+        modulated_EX = cos_a[1] + cos_b[1] * cosine
 
         #Define our new table from scratch, creating the colums
         ETcols = [f'ET_{i}' for i in range(nangles)]
@@ -133,7 +133,7 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
             #Fill the values for each set of columns
             ptable.loc[f"ET_{i}", ETcols] = np.roll(ptable_con.loc['E', 'E'] * modulated_EE, i)
             ptable.loc[f"ET_{i}", "I"] = ptable_con.loc['E', 'I'] 
-            ptable.loc[f"ET_{i}", XTcols] = np.roll(ptable_con.loc['E', 'E'] * modulated_EX, i)
+            ptable.loc[f"ET_{i}", XTcols] = np.roll(ptable_con.loc['E', 'X'] * modulated_EX, i)
         
         #Do the same with inhibitory neurons. There's no L4 postsynaptic so this is all.
         ptable.loc['I', :] = 0
