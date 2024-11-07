@@ -55,35 +55,50 @@ def example_tuning_curves(ax, angles, v1_neurons, rates):
     plotutils.get_xticks(ax, half=True)
 
 
-def single_neuron_current(ax, ax_curr, angles, v1_neurons, v1_connections, rates, vij, neuron_id, n_examples=10):
+def single_neuron_current(ax, ax_curr, angles, v1_neurons, v1_connections, rates, vij, neuron_id, n_examples=5):
     current = curr.get_input_to_neuron(v1_neurons, v1_connections, neuron_id, vij, rates, shifted=False)
-    current = plotutils.shift(current) / current.max()
-    rate_neuron = plotutils.shift(rates[neuron_id,:]) / rates[neuron_id,:].max()
+    print(current)
+    current = current  / current.max()
+    rate_neuron = rates[neuron_id,:] / rates[neuron_id,:].max()
+
+    c_rate = cr.pal_extended[3] 
+    c_current = cr.pal_extended[1]
 
 
-    ax.plot(angles, current,      lw=1, color='grey')
-    ax.plot(angles, rate_neuron,  lw=1, color='green')
+    ax.plot(np.arange(8), current,      lw=2, color=c_current, label='Rate')
+    ax.plot(np.arange(8), rate_neuron,  lw=2, color=c_rate, label='Current')
 
     max_values = np.array([np.argmax(current), np.argmax(rate_neuron)]) 
     y_max_values = 0.1 + np.array([current[max_values[0]], rate_neuron[max_values[1]]])
-    max_values = au.index_to_angle(max_values)
+    max_values = max_values
 
-    #TODO two shades of gray would be better
-    colors = ['gray', 'green']
-
-
-    ax.scatter(max_values, y_max_values, c=colors, marker='v') 
+    ax.scatter(max_values, y_max_values, c=[c_current, c_rate], marker='v') 
+    ax.axvline(max_values[0], ls=":", color=c_current)
+    ax.axvline(max_values[1], ls=":", color=c_rate)
     ax.set_ylim(0, 1.1)
  
     pre_ids = fl.connections_to(neuron_id, v1_connections).values
-    pre_ids = pre_ids[:n_examples]
-    for i in range(n_examples):
-        current = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[neuron_id], pre_ids=[pre_ids[i]], shift=False)
-        current = plotutils.add_symmetric_angle(current[0,:])
-        ax_curr.plot(angles, current, lw=1, color='grey')
+    maxcurr = []
+    current_amount = []
+    for id in pre_ids:
+        current = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[neuron_id], pre_ids=[id], shift=False)
+        current = current[0, :]
+        
+        max_idx = np.argmax(current)
+
+        maxcurr.append(max_idx)
+        current_amount.append(current[max_idx])
 
 
-    #ax.axvline(au.index_to_angle(v1_neurons.loc[neuron_id, 'pref_ori']), ls=':', color='gray')
+    bins = np.arange(-0.5, 8.5, 1)
+    ax_curr.hist(maxcurr, histtype='step', bins=bins, weights=current_amount, density=False, color=c_current)
+    ax_curr.axvline(max_values[0], ls=":", color=c_current)
+    ax_curr.axvline(max_values[1], ls=":", color=c_rate)
+
+    for axis in [ax, ax_curr]:
+        axis.set_xlim(-1, 8)
+        axis.set_xticks([0, 8], ['0', 'π'])
+
 
 
 
@@ -103,7 +118,7 @@ def plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, 
     pref_ori_reshuffle = pref_ori_reshuffle[tuned_neurons['id']]
 
     bins = np.arange(-3.5, 5.5, 1)
-    for po,color,lab in zip([pref_ori, pref_ori_reshuffle], ['green', 'gray'], ['Data', 'Reshuffle']):
+    for po,color,lab in zip([pref_ori, pref_ori_reshuffle], [cr.pal_extended[1], 'gray'], ['Data', 'Reshuffle']):
         hist, _ = np.histogram(po, bins=bins, density=True)
         hist = hist / hist.sum()
         hist = plotutils.add_symmetric_angle(hist)
@@ -113,47 +128,46 @@ def plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, 
     plotutils.get_xticks(ax, max=np.pi, half=True)
     ax.set_yticks([0, 0.1, 0.2])
 
-    ax.set_xlabel("Sampled θ")
-    ax.set_ylabel("P(θ)")
+    ax.set_xlabel("Δθ")
+    ax.set_ylabel("Fraction")
+    ax.legend(loc='best', ncols=2)
+
+
 
 def in_degree_dist(ax, v1_neurons, v1_connections):
+    filtered_postconns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[None, 'L23'], cell_type=['exc', 'exc'], proofread=[None, None])
+    in_degrees = filtered_postconns['post_id'].value_counts()
 
-    unit_table = v1_neurons.copy()
-    connections_table = v1_connections.copy()
+    bins = np.logspace(1, 2.3, 40)
+    nobs = len(in_degrees)
+    weight = np.ones(nobs) / nobs
+    ax.hist(in_degrees, bins=bins, weights=weight, histtype='step',color='#808080',label='No proofr.', density=False)
 
+    filtered_postconns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[None, 'L23'], cell_type=['exc', 'exc'], proofread=[None, 'dn_clean'])
+    in_degrees = filtered_postconns['post_id'].value_counts()
+    nobs = len(in_degrees)
+    weight = np.ones(nobs) / nobs
 
-    # put pref orientation of not-selective neurons to nan
-    mask_not_selective=(unit_table['tuning_type']=='not_selective')
-    unit_table.loc[mask_not_selective, 'pref_ori'] = np.nan
-
-
-    # focus on orientation, take preferred orientation mod pi
-    mask_selective=(unit_table['tuning_type']=='orientation')|(unit_table['tuning_type']=='direction')
-    unit_table.loc[mask_selective, 'tuning_type'] ='selective'
-
-
-    # Filter unit_table to consider only rows where axon_proof is not 'non'
-    filtered_unit_table = fl.filter_neurons(unit_table, proofread='minimum')
-
-    # Join connections_table with filtered_unit_table on pre_pt_root_id and pt_root_id
-    merged_table = pd.merge(connections_table, filtered_unit_table, left_on='pre_id', right_on='id', how='inner')
-
-    # Group by post_pt_root_id and count unique pre_pt_root_id values for each group
-    pre_pt_count_per_post = merged_table.groupby('post_id')['pre_id'].nunique().reset_index()
-    pre_pt_count_per_post.columns = ['post_id', 'pre_count']
+    ax.hist(in_degrees, bins=bins, weights=weight, histtype='step',color='#303030',label='Dndr. proofr.', density=False)
 
 
-    ax.hist(pre_pt_count_per_post['pre_count'].values,np.arange(0,10**3,1),density=True,histtype='step',color='k',label='Observed')
-    ax.axvline(x=700,ls='--',color='r',label='Estimated')
-    ax.set_xscale('log')
-    ax.set_yscale('log')
+    
+    l23neurons = fl.filter_neurons(v1_neurons, cell_type='exc')
+    dendrites = fl.filter_neurons(l23neurons, proofread='dn_clean')['id'] 
+    axons = fl.filter_neurons(l23neurons, proofread='ax_clean')['id']  
+    proofconnections = fl.synapses_by_id(v1_connections, pre_ids=axons, post_ids=dendrites, who='both')
+    potential_links = len(axons) * len(dendrites)
+    p = len(proofconnections) / potential_links
+
+    ax.axvline(x=len(l23neurons) * p ,ls='--',color='r',label='Estimated')
+
 
     ax.set_xlabel(r'Number of presyn. neurons')
     ax.set_ylabel(r'Fraction')
-    ax.legend(loc=(0.4, 0.6))
+    ax.legend(loc=(0.025, 0.65))
 
-    ax.set_yticks([1e-4, 1e-2, 1e-0])
-    ax.set_ylim(1e-4, 1.0)
+    ax.set_xscale('log')
+    ax.set_xlim(1, 1000)
 
 
 
@@ -227,7 +241,7 @@ def plot_resultant_dist(ax, v1_neurons, rates):
 
 def plot_figure(figname):
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=1.75), layout='constrained')
+    fig = plt.figure(figsize=sty.two_col_size(ratio=1.3), layout='constrained')
 
     axes = fig.subplot_mosaic(
         """
@@ -235,7 +249,7 @@ def plot_figure(figname):
         ABD
         EFG
         HIJ
-        """, gridspec_kw={"width_ratios":[1, 1, 1.3], "height_ratios":[0.3, 1.0, 0.8, 0.8]}
+        """, gridspec_kw={"width_ratios":[1, 1, 1.3], "height_ratios":[0.3, 1.0, 0.9, 0.9]}
     )
 
     units, connections, rates = loader.load_data()
@@ -251,12 +265,14 @@ def plot_figure(figname):
     show_image(axes['A'], "network_schema.png")
     show_image(axes['B'], "3d_reconstruction.png")
 
-    single_neuron_current(axes['E'], axes['H'], angles, matched_neurons, matched_connections, rates, vij, 0)
+    single_neuron_current(axes['E'], axes['H'], angles, matched_neurons, matched_connections, rates, vij, 7)
     single_neuron_current(axes['F'], axes['I'], angles, matched_neurons, matched_connections, rates, vij, 2)
 
-    axes['H'].set_xlabel("Δθ")
-    plotutils.get_xticks(axes['H'], half=True)
-    axes['E'].set_xticks([])
+    axes['E'].legend(loc=(0.2, 0.7))
+
+    for key in 'EHFI':
+        axes[key].set_xlabel("θ")
+    axes['H'].set_ylabel('μ(θ)')
 
     fraction_tuned(axes['C'], matched_neurons) 
     plot_resultant_dist(axes['D'], matched_neurons, rates)
@@ -275,7 +291,7 @@ def plot_figure(figname):
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-#plot_figure('fig1.pdf')
+plot_figure('fig1new.pdf')
 
 
 

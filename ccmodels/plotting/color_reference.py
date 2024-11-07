@@ -1,6 +1,7 @@
 import met_brewer as metb
 
 pal = metb.met_brew('Egypt', brew_type='discrete') 
+pal_extended = metb.met_brew("Juarez", brew_type='discrete')
 
 # Color reference to identify each layer through the paper
 lcolor = {
@@ -17,6 +18,11 @@ lcolor['Total_modelE'] = lcolor['Total']
 
 # Color reference to identify each layer through the paper
 angles=["darkorange", "gold", "purple", "violet"]
+
+#Markers over lines for plots as function of delta theta
+ms = 3
+mc = "#303030"
+
 
 
 # --------------------------------
@@ -37,9 +43,9 @@ def darken(color, n, factor):
     c = hex2rgb(color) 
     new_colors = []
     newc = [0,0,0]
-    for i in range(n):
+    for i in range(1,n+1):
         for k in range(3):
-            newc[k] = max(int(c[k]*factor), 0)
+            newc[k] = max(int(c[k] - c[k]*factor*i), 0)
         new_colors.append(rgb2hex(newc))
 
     return new_colors
@@ -48,9 +54,9 @@ def ligthen(color, n, factor):
     c = hex2rgb(color) 
     new_colors = []
     newc = [0,0,0]
-    for i in range(n):
+    for i in range(1,n+1):
         for k in range(3):
-            newc[k] = min(int(c[k] + (255-c[k])*factor), 255)
+            newc[k] = min(int(c[k] + (255-c[k])*factor*i), 255)
         new_colors.append(rgb2hex(newc))
 
     return new_colors
