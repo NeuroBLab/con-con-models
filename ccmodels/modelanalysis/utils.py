@@ -220,15 +220,16 @@ def compute_circular_variance(rates, orionly=False):
 ##### I/O 
 ##################################################################
 
-def write_synthetic_data(suffix, units_sampled, connections_sampled, re, ri, rx, prepath="data"):
+def write_synthetic_data(suffix, units_sampled, connections_sampled, re, ri, rx, target_pref_ori, prepath="data"):
 
     units_sampled.to_csv(f'{prepath}/model/simulations/unit_table_{suffix}.csv', index=False)
     connections_sampled.to_csv(f'{prepath}/model/simulations/connections_table_{suffix}.csv', index=False)
     rates_sample = np.vstack([re, ri, rx])
 
     np.save(f'{prepath}/model/simulations/activity_table_{suffix}.npy', rates_sample)
+    np.save(f'{prepath}/data/model/target_ori_{suffix}.npy', target_pref_ori)
 
-def load_synthetic_data(suffix, prepath="data"):
+def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     """
     Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
     All returned values are inside a 3-element list.
@@ -260,4 +261,7 @@ def load_synthetic_data(suffix, prepath="data"):
 
     n_neurons = [ne, ni, nx]
 
-    return v1_neurons, v1_connections, rates, n_neurons
+    #Get pref ori
+    target_ori = np.load(f'{prepath}/data/model/target_ori_{suffix}.npy', dtype=int)
+    
+    return v1_neurons, v1_connections, rates, n_neurons, target_ori

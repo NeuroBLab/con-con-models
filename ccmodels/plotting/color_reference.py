@@ -12,6 +12,8 @@ lcolor = {
     "Total" : "gray"
 }
 
+print(pal)
+
 #For the things in the model that do not need to be different
 lcolor['L4_modelE'] = lcolor['L4']
 lcolor['Total_modelE'] = lcolor['Total']

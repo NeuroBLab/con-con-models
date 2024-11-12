@@ -325,11 +325,6 @@ def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments
 
     #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
     l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
-    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="tuned")["id"]
-    allids = fl.filter_neurons(v1_neurons, tuning="tuned")["id"]
-    #l23_ids = fl.filter_neurons(v1_neurons)["id"]
-    #l4_ids  = fl.filter_neurons(v1_neurons)["id"]
-    #allids = fl.filter_neurons(v1_neurons)["id"]
 
     prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread='ax_clean')["id"]
     prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread='ax_clean')["id"]
@@ -344,12 +339,13 @@ def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments
         avr_cur[key] = np.zeros((nangles, nexperiments))
         std_cur[key] = np.zeros((nangles, nexperiments))
 
+    rates = utl.get_untuned_rate(v1_neurons, rates)
+
     #Prepare to do experiments...
     for i in range(nexperiments): 
         #Bootstrap sample the entire table. If only one experiment is used, we do not bootstrap, just use the 
         #table as it is.
         con_boots_total = tuned_connections.sample(frac=frac, replace=replace) 
-
         vij = loader.get_adjacency_matrix(v1_neurons, con_boots_total)
 
         #Compute the currents we get from those 
@@ -360,7 +356,7 @@ def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments
 
         #Get the average and error of the current for each angle
         for key in layers: 
-            avr_cur[key][:, i] = np.mean(current[key], axis=0) 
+            avr_cur[key][:, i] = np.sum(current[key], axis=0) 
             std_cur[key][:, i] = np.std(current[key], axis=0) 
 
 
@@ -373,6 +369,83 @@ def bootstrap_system_currents(v1_neurons, tuned_connections, rates, nexperiments
     #Return first two moments of the bootstrap average estimator. 
     return avr_cur, std_cur 
 
+def bootstrap_system_currents_shuffle(v1_neurons, tuned_connections, rates, nexperiments, frac=1.0, replace=True, shift=True):
+
+    #The number of columns of the rates variables give the number of angles
+    nangles = rates.shape[1]
+
+    #In this case, we process the entire table
+    if nexperiments==1 and frac==1.0:
+        replace=False
+
+    #Get the untuned rates
+    #rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
+
+    #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
+    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
+
+    prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread='ax_clean')["id"]
+    prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread='ax_clean')["id"]
+    preallids = fl.filter_neurons(v1_neurons, tuning="matched", proofread='ax_clean')["id"]
+    #prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
+    #prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
+    #preallids = fl.filter_neurons(v1_neurons, tuning="matched")["id"]
+
+    layers = ["Total", "L23", "L4"]
+
+    #Initialize the currents 
+    avr_cur = {}
+    for key in layers: 
+        avr_cur[key] = np.zeros((nangles, nexperiments))
+
+    tuned = fl.filter_neurons(v1_neurons, tuning='tuned')
+    rates_shifted = pd.DataFrame(utl.shift_multi(rates[tuned['id'], :], tuned['pref_ori']))
+    #rates_shifted = pd.DataFrame(utl.shift_multi(rates, v1_neurons['pref_ori']))
+
+    #Prepare to do experiments...
+    for i in range(nexperiments): 
+        #Bootstrap sample the entire table. 
+        con_boots_total = tuned_connections.sample(frac=frac, replace=replace) 
+
+        #Bootsrap weights and rates
+        con_boots_total.loc[:, 'syn_volume'] = tuned_connections.loc[:, 'syn_volume'].sample(frac=frac, replace=replace).values
+        rates_sample = rates_shifted.sample(n=rates.shape[0], replace=replace)
+        rates_sample = utl.shift_multi(rates_sample.values, -v1_neurons['pref_ori'])
+        #rates_sample = rates_shifted.values
+        #rates_sample = utl.shift_multi(rates_sample, v1_neurons['pref_ori'])
+
+        #Set the untuned neurons
+        rates_sample = utl.get_untuned_rate(v1_neurons, rates_sample)
+
+        vij = loader.get_adjacency_matrix(v1_neurons, con_boots_total)
+
+        #Compute the currents we get from those 
+        current = {}
+        current["Total"] = get_currents_subset(v1_neurons, vij, rates_sample, post_ids=l23_ids, pre_ids=preallids, shift=shift)
+        current["L23"] = get_currents_subset(v1_neurons, vij, rates_sample, post_ids=l23_ids, pre_ids=prel23_ids, shift=shift)
+        current["L4"] = get_currents_subset(v1_neurons, vij, rates_sample, post_ids=l23_ids, pre_ids=prel4_ids, shift=shift)
+
+        #Get the average and error of the current for each angle
+        for key in layers: 
+            avr_cur[key][:, i] = np.sum(current[key], axis=0) 
+
+
+    #Normalize accordingly
+    maxcur = 1. #np.max(avr_cur["Total"])
+    for key in layers: 
+        avr_cur[key] /= maxcur 
+
+    #Return first two moments of the bootstrap average estimator. 
+    return avr_cur
+
+
+
+
+
+
+
+
+
 def bootstrap_system_currents_peaks(v1_neurons, tuned_connections, rates, frac=1.0, shift=True):
     """
     Computes the average input current to neurons in the L2/3, as well as the proportion of it
@@ -383,9 +456,10 @@ def bootstrap_system_currents_peaks(v1_neurons, tuned_connections, rates, frac=1
     nangles = rates.shape[1]
 
     #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
-    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
-    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
-    allids = fl.filter_neurons(v1_neurons, tuning="matched")["id"]
+    l23_ids_post = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
+    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread='ax_clean')["id"]
+    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread='ax_clean')["id"]
+    allids = fl.filter_neurons(v1_neurons, tuning="matched", proofread='ax_clean')["id"]
 
     #Prepare to do experiments...
     #Bootstrap sample the entire table. 
@@ -395,8 +469,8 @@ def bootstrap_system_currents_peaks(v1_neurons, tuned_connections, rates, frac=1
 
     #Compute the currents we get from those 
     current = {}
-    current["Total"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=allids, shift=shift)
-    current["L23"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=l23_ids, shift=shift)
-    current["L4"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids, pre_ids=l4_ids, shift=shift)
+    current["Total"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids_post, pre_ids=allids, shift=shift)
+    current["L23"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids_post, pre_ids=l23_ids, shift=shift)
+    current["L4"] = get_currents_subset(v1_neurons, vij, rates, post_ids=l23_ids_post, pre_ids=l4_ids, shift=shift)
     
     return current 
