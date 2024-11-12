@@ -230,7 +230,7 @@ def slide_size(fraction_w, fraction_h, software='powerpoint', ratio=16/9):
 # -------------------------
 
 #Does all text formatting at once
-def format_text(usetex=False, font="Helvetica", label_fs=12, tick_fs=10, legend_fs=10, pdffonttype=3, title_fs=12, **kwargs):
+def format_text(usetex=False, font="Helvetica", label_fs=10, tick_fs=9, legend_fs=9, pdffonttype=3, title_fs=12, **kwargs):
     #Font and sizes
     mpl.rcParams["font.family"] = font
 
@@ -242,8 +242,11 @@ def format_text(usetex=False, font="Helvetica", label_fs=12, tick_fs=10, legend_
 
     #Set TeX mode to beautiful math, even if usetex if false
     mpl.rcParams["text.usetex"] = usetex
-    mpl.rcParams["mathtext.fontset"] = "cm"
+    mpl.rcParams["mathtext.fontset"] = "custom"
     
+    mpl.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
+    mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
+    mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 
     #Type 3 is smaller, type 42 is more compliant and sometimes required
     mpl.rcParams["pdf.fonttype"] = pdffonttype

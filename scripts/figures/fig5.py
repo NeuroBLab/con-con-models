@@ -34,19 +34,20 @@ def diff_emergent2target_prefori(ax, pref_ori, target_ori, color):
 
     #ax.hist(diff_ori, bins=bins,  weights=w, density=False, histtype='step', color=color)
 
-    ax.set_xlabel("θtarget - θemerg")
+    ax.set_xlabel(r"$\hat \theta _\text{targt}- \hat \theta _\text{emerg}$")
     ax.set_ylabel('Count')
     ax.set_xticks([-4, 0, 4], ['-π/2', '0', 'π/2'])
+    ax.set_yticks([0, 0.25, 0.5])
 
 def plot_ratedist(ax, re, color):
-    bins = np.logspace(-2, 2, 50)
+    bins = np.linspace(0.01, 10, 50)
     w = np.ones(re.size) / re.size
 
     ax.hist(re.ravel(), density=False,  weights=w, histtype='step', bins=bins, color=color)
 
-    ax.set_xlabel("Rate")
-    ax.set_ylabel('Prob.')
-    ax.set_xscale('log')
+    ax.set_xlabel("Rate (spk/s)")
+    ax.set_ylabel('Fract. of neurons')
+    #ax.set_xscale('log')
     return
 
 
@@ -95,7 +96,7 @@ def conn_prob_osi(axL23, axL4, v1_neurons, v1_connections, colorL23, colorL4, ha
 
         #Then just adjust axes and put a legend
         axes[layer].tick_params(axis='both', which='major')
-        axes[layer].set_xlabel('∆θ')
+        axes[layer].set_xlabel(r"$\hat \theta _\text{targt}- \theta$")
 
 
         plotutils.get_xticks(axes[layer], max=np.pi, half=True)
@@ -126,17 +127,22 @@ def plot_figure(figname):
     filename = 'prueba'
     sty.master_format()
     #fig, axes = plt.subplots(figsize=sty.two_col_size(height=9.5), ncols=2, nrows=2, layout="constrained")
-    fig, axes = plt.subplot_mosaic("""
-    AABB
-    CCDE
-    """, figsize=sty.two_col_size(height=9.5), layout='constrained') 
+    fig, axes = plt.subplot_mosaic(
+    """
+    ABC
+    DEL
+    """,
+    #"""
+    #AABB
+    #CCDE
+    #""", 
+    figsize=sty.two_col_size(height=9.5), layout='constrained') 
 
     #colors = [cr.lcolor['L23_modelE'], 'yellow', 'black', 'green']
-    colors23 = [cr.lcolor['L23']] + cr.darken(cr.lcolor['L23'], 3, 0.2)
-    colors4 = [cr.lcolor['L4']] + cr.darken(cr.lcolor['L4'], 3, 0.17)
+    colors23 = [cr.lcolor['L23']] + cr.darken(cr.lcolor['L23'], 3, 0.25)
+    colors4 = [cr.lcolor['L4']] + cr.darken(cr.lcolor['L4'], 3, 0.2)
 
 
-    target_ori = np.loadtxt(f'{filename}_original_pref_ori', dtype=int)
 
     plots = []
 
@@ -147,10 +153,11 @@ def plot_figure(figname):
         if len(reshuffle_mode) > 1:
             filepath = f'{filename}_{reshuffle_mode[:3]}'
         else:
+
             filepath = f'{filename}'
 
 
-        units_sample, connections_sample, rates_sample, n_neurons = utl.load_synthetic_data(filepath)
+        units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(filepath)
         QJ = loader.get_adjacency_matrix(units_sample, connections_sample)
         ne, ni, nx = n_neurons
 
@@ -169,10 +176,13 @@ def plot_figure(figname):
         p1, p2 = conn_prob_osi(axes['D'], axes['E'], units_sample, connections_sample, c23, c4)
         plots.append((p1, p2))
 
-    axes['C'].legend(plots, ['Original', 'Reshuffled', 'L23 reshuf.', 'L4 reshuf.'], loc='best', handlelength=2.0, handler_map={tuple: HandlerTuple(ndivide=None)})
-    axes['D'].set_ylabel('P(Δθ)')
+    axes['L'].set_axis_off()
+    axes['L'].legend(plots, ['Original', 'Reshuffled', 'L23 reshuffled.', 'L4 reshuffled'], loc=(0.0, 0.5), handlelength=3.0, handler_map={tuple: HandlerTuple(ndivide=None)})
 
 
+    axes2label = [axes[key] for key in 'ABCDE']
+    label_pos  = [0.8, 0.9] * 5 
+    sty.label_axes(axes2label, label_pos)
     
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")

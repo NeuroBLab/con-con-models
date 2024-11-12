@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 import sys
 import os 
@@ -21,10 +22,22 @@ import ccmodels.plotting.styles as sty
 import ccmodels.plotting.color_reference as cr
 
 
+def plot_posterior(ax, file):
+    posterior_data = pd.read_csv(file)
+    bins = np.linspace(0, 5, 40)
+
+    ax.hist(posterior_data['J'].values,  density=True,  histtype='step',  bins=bins, label=r' $J^{EE}$', color=cr.lcolor['L23'])
+    ax.hist(posterior_data['J'].values * posterior_data['g'].values,  density=True,  histtype='step',  bins=bins, label=r' $J^{EI}$', color=cr.lcolor['L23_modelI'])
+
+    ax.legend(loc=(0.6, 0.5))
+
+    ax.set_xlabel("Coupling")
+    ax.set_ylabel("Post. density")
 
 
 def plot_ratedist(ax, rates, re, ri):
-    bins = np.logspace(-2, 2, 50)
+    #bins = np.logspace(-2, 2, 50)
+    bins = np.linspace(0.01, 10, 50)
 
     w = np.ones(ri.size) / ri.size
     ax.hist(ri.ravel(),  density=False, weights=w,  histtype='step',  bins=bins, label='Model I', color=cr.lcolor['L23_modelI'])
@@ -40,9 +53,12 @@ def plot_ratedist(ax, rates, re, ri):
 
     #ax.hist(rates.ravel(),     density=False,  histtype='step',  bins=bins, label='Data E', color=cr.lcolor['L23'])
 
-    ax.set_xlabel("Rate")
-    ax.set_ylabel('Fraction')
-    ax.set_xscale('log')
+    ax.set_xlabel("Rate (spk/s)")
+    ax.set_ylabel('Fract. of neurons')
+    #ax.set_xscale('log')
+
+    #ax.set_xticks([0.01, 1, 100])
+
     ax.legend()
     return
 
@@ -51,17 +67,18 @@ def plot_tuning_curves(ax, units, rates, units_sample, rates_sample):
     #Plot the model results first
     neurons_L23 = fl.filter_neurons(units_sample, layer='L23',tuning='untuned', cell_type='exc')
     rates23 = rates_sample[neurons_L23['id'], :]
-    ax.plot(np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0), color=cr.lcolor['L23'] )
+    ax.plot(np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']+4), axis=0), color=cr.lcolor['L23'] )
 
     #Then get the real data
     neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
     rates23 = rates[neurons_L23['id'], :]
     #ax.plot(np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0), ls="none", marker='o', color=cr.lcolor['L23'])
-    ax.scatter(np.arange(0,8), np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0), color=cr.lcolor['L23'], marker='o', s=cr.ms, zorder=3)
+    ax.scatter(np.arange(0,8), np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']+4), axis=0), color=cr.lcolor['L23'], marker='o', s=cr.ms, zorder=3)
 
-    ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
-    ax.set_xlabel('θ')
-    ax.set_ylabel('r(θ)')
+    #ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
+    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
+    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
+    ax.set_ylabel('rate')
 
     return
 
@@ -84,8 +101,8 @@ def circular_variance(ax, units, rates, re, ri):
     #ax.plot(edges, hist, color=cr.lcolor['L23'], ls='none', marker='o')
     ax.scatter(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', s=cr.ms, zorder=3)
 
-    ax.set_xlabel("CirVar")
-    ax.set_ylabel("p(CirVar)")
+    ax.set_xlabel("Circ. Var.")
+    ax.set_ylabel("Frac. of neurons")
 
 def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
@@ -120,8 +137,8 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
-    ax.set_xlabel('∆θ')
-    ax.set_ylabel("p")
+    ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
+    ax.set_ylabel("p(∆θ)")
 
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
@@ -147,8 +164,8 @@ def plot_currents(ax, units, vij, rates, units_sample, QJ, rates_sample):
         ax.scatter(np.arange(9), mean, color=cr.lcolor[layer], marker='o', s=cr.ms, zorder=3)
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_xlabel('Δθ')
-    ax.set_ylabel('μ')
+    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
+    ax.set_ylabel("μ(∆θ)")
 
 
 #Defining Parser
@@ -173,19 +190,28 @@ def plot_figure(figname):
     sty.master_format()
     fig, axes = plt.subplots(figsize=sty.two_col_size(height=9.5), ncols=3, nrows=2, layout="constrained")
 
-    units_sample, connections_sample, rates_sample, n_neurons = utl.load_synthetic_data("prueba")
+    units_sample, connections_sample, rates_sample, n_neurons = utl.load_synthetic_data("best_vic")
     QJ = loader.get_adjacency_matrix(units_sample, connections_sample)
     ne, ni, nx = n_neurons
     re = rates_sample[:ne, :]
     ri = rates_sample[ne:ne+ni, :]
 
-    plot_ratedist(axes[0,0], rates, re, ri)
-    plot_tuning_curves(axes[0,1], units, rates, units_sample, rates_sample)
-    circular_variance(axes[0,2], units, rates, re, ri)
-    plot_currents(axes[1,1], units, vij, rates, units_sample, QJ, rates_sample)
+    plot_posterior(axes[0,0], "data/model/placeholder.csv")
+    plot_ratedist(axes[0,1], rates, re, ri)
+    plot_tuning_curves(axes[0,2], units, rates, units_sample, rates_sample)
+    circular_variance(axes[1,0], units, rates, re, ri)
+    conn_prob_osi(axes[1,1], units_sample, connections_sample)
+    plot_currents(axes[1,2], units, vij, rates, units_sample, QJ, rates_sample)
 
-    conn_prob_osi(axes[1,0], units_sample, connections_sample)
+    axes2label = [axes[0,k] for k in range(3)] + [axes[1,k] for k in range(3)]
+    label_pos  = [0.8, 0.9] * 6 
+    sty.label_axes(axes2label, label_pos)
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
+
+numbers = {'J' : 1.5 + np.random.randn(1000), 'g' : 2 + np.random.randn(1000)}
+df = pd.DataFrame(data=numbers)
+df.to_csv("data/model/placeholder.csv", index=False)
+
 
 plot_figure("fig4.pdf")
