@@ -262,6 +262,6 @@ def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     n_neurons = [ne, ni, nx]
 
     #Get pref ori
-    target_ori = np.load(f'{prepath}/data/model/target_ori_{suffix}.npy', dtype=int)
+    target_ori = np.load(f'{prepath}/model/target_ori_{suffix}.npy').astype(int)
     
     return v1_neurons, v1_connections, rates, n_neurons, target_ori

@@ -114,6 +114,7 @@ def plot_ratedist(ax, v1_neurons, rates):
     ax.set_ylabel('Neuron fract.')
     ax.set_xlabel('rate (spk/s)')
 
+
 def plot_synvoldist(ax, v1_neurons, v1_connections):
     bins = np.logspace(-2, 2, 40)
 
@@ -232,9 +233,10 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates):
     plotutils.get_xticks(ax, max=np.pi, half=True)
     plotutils.get_xticks(ax_normalized, max=np.pi, half=True)
 
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta$')
-    ax_normalized.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta$')
+    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
+    ax_normalized.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
 
+    ax.set_ylim(0, 1.05)
     ax.set_ylabel('μ(Δθ)')
     ax_normalized.set_ylabel('μ(Δθ)/μ(0)')
 #"""
@@ -327,28 +329,34 @@ def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates):
 
 def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, nexperiments=1000): 
 
-    angles = plotutils.get_angles(kind="centered", half=True)
+    angles = np.arange(9)
     tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="pre") 
 
     prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=700)
+    print(prob_pref_ori)
+    print()
+    print()
+    
 
     #Plot
     for layer in ['Total', 'L23', 'L4']:
         ax.plot(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.lcolor[layer], label=layer)
         ax.scatter(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.mc, zorder=3, s=cr.ms) 
 
-    plotutils.get_xticks(ax, max=np.pi, half=True)
 
     ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
     ax.set_ylabel("Probability")
 
+    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.25, 0.5])
 
 
 def plot_tuning_curves(ax, units, rates):
 
+    p4legend = [] 
+
     #Plot the real data
-    angles = np.arange(8)
+    angles = np.arange(9)
     for layer in ['L23', 'L4']:
         neurons_layer = fl.filter_neurons(units, layer=layer, tuning='matched')
         rateslayer= rates[neurons_layer['id'], :]
@@ -358,14 +366,17 @@ def plot_tuning_curves(ax, units, rates):
         #std_rates  = np.std(rates_shifted,  axis=0) #/ np.sqrt(rates_shifted.shape[0])
 
         #ax.fill_between(angles, mean_rates - std_rates, mean_rates + std_rates, color=cr.lcolor[layer], alpha=0.2)
-        ax.plot(angles, mean_rates, color=cr.lcolor[layer])
-        ax.scatter(angles, mean_rates, color=cr.mc, marker='o', s=cr.ms, zorder=3)
+        p, = ax.plot(angles, plotutils.shift(mean_rates), color=cr.lcolor[layer], label=layer) 
+        p4legend.append(p)
+        ax.scatter(angles, plotutils.shift(mean_rates), color=cr.mc, marker='o', s=cr.ms, zorder=3)
 
-    ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
+    #ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
+    ax.axvline(4, color='gray', ls=':')
+    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_xlabel('θ')
     ax.set_ylabel('r(θ)')
 
-    return
+    return p4legend
 
 
 def plot_figure3(figname):
@@ -382,34 +393,49 @@ def plot_figure3(figname):
 
 
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=2.5), layout="constrained")
-    ghostax = fig.add_axes([0,0,1,1])
-    ghostax.axis('off')
+    fig = plt.figure(figsize=sty.two_col_size(ratio=1.9), layout="constrained")
+    #ghostax = fig.add_axes([0,0,1,1])
+    
+    #ghostax.axis('off')
 
     axes = fig.subplot_mosaic(
         """
-        ABCD
-        EFGH
-        """
+        XABL
+        YCEF
+        WDHG
+        """, width_ratios=[0.4, 1, 1, 1]
+        #"""
+        #ABCD
+        #EFGH
+        #"""
     )
 
-    plot_ratedist(axes['A'], matched_neurons, rates)
-    plot_tuning_curves(axes['B'], units, rates) 
-    axes['A'].legend(loc='best')
+    plot_ratedist(axes['A'],  matched_neurons, rates)
+    p4legend = plot_tuning_curves(axes['B'], units, rates) 
     plot_synvoldist(axes['C'], matched_neurons, matched_connections)
 
     conn_prob_osi(axes['E'], axes['F'], matched_neurons, matched_connections)
     plot_sampling_current(axes['D'], axes['H'], matched_neurons, matched_connections, rates)
     tuning_prediction_performance(axes['G'], matched_neurons, matched_connections, rates)
 
-    #Legend axis
-    #axes['L'].axis('off')
-    #handles, labels = axes['C'].get_legend_handles_labels()
-    #axes['L'].legend(handles, labels, ncols=1, loc=(0,0.0), alignment='left')
 
-    axes2label = [axes[k] for k in 'ABCDEFGH']
+    axes2label = [axes[k] for k in 'ABCEFDHG']
     label_pos  = [0.8, 0.9] * 8 
     sty.label_axes(axes2label, label_pos)
+
+    for key in 'XYW':
+        axes[key].set_axis_off()
+
+    axes['X'].text(0., 0.5, "Rate\nStatistics", horizontalalignment='center', verticalalignment='center', weight='bold')
+    axes['Y'].text(0., 0.5, "Connectivity\nStatistics", horizontalalignment='center', verticalalignment='center', weight='bold')
+    axes['W'].text(0., 0.5, "Current\nStatistics", horizontalalignment='center', verticalalignment='center', weight='bold')
+
+    #Legend axis
+    axes['L'].axis('off')
+    handles, labels = axes['B'].get_legend_handles_labels()
+    axes['L'].legend(handles, labels, loc=(0., 0.5), handlelength=1.2)#, ncols=1, loc=(0,0.0), alignment='left')
+    #axes['L'].set_axis_off()
+    #axes['L'].legend(p4legend,loc='best')
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 

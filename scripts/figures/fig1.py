@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import argparse
 import pandas as pd
+from scipy.stats import ttest_ind 
 
 import sys
 import os 
@@ -14,6 +15,7 @@ import ccmodels.modelanalysis.utils as mutl
 import ccmodels.dataanalysis.currents as dcr
 import ccmodels.dataanalysis.currents as curr
 import ccmodels.utils.angleutils as au
+import ccmodels.dataanalysis.utils as utl
 
 
 import ccmodels.plotting.styles as sty 
@@ -75,18 +77,23 @@ def single_neuron_current(ax, v1_neurons, v1_connections, rates, vij, neuron_id,
     ax.set_ylim(0, 1.1)
 
 
-def plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, vij, rates, nbootstrap=100):
+def plot_matchingprefori_data(ax, matched_neurons, matched_connections, vij, rates, nbootstrap=100):
 
     bins = np.arange(-3.5, 5.5, 1)
+    angles = np.arange(9)
+
+    rates = utl.get_untuned_rate(matched_neurons, rates)
 
     tuned_neurons = fl.filter_neurons(matched_neurons, tuning='tuned', layer='L23')
-    tuned_connections = fl.synapses_by_id(matched_connections, pre_ids=matched_neurons['id'], post_ids=tuned_neurons['id'], who='both')
+    proofread     = fl.filter_neurons(matched_neurons, proofread='ax_clean') 
+    tuned_connections = fl.synapses_by_id(matched_connections, pre_ids=proofread['id'], post_ids=tuned_neurons['id'], who='both')
 
     pref_ori = dcr.fraction_prefori_predicted(matched_neurons, tuned_connections, vij, rates)
     pref_ori = pref_ori[tuned_neurons['id']]
 
     hist, _ = np.histogram(pref_ori, bins=bins, density=True)
     hist = hist / hist.sum()
+    print(hist)
     hist = plotutils.add_symmetric_angle(hist)
     ax.plot(angles, hist, color=cr.pal_extended[1], label='Data')
 
@@ -109,10 +116,14 @@ def plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, 
         av_hist += hist 
         std_hist += hist**2 
 
+
+    print(hist)
     av_hist /= nbootstrap
     std_hist /= nbootstrap
 
     std_hist = np.sqrt(std_hist - av_hist**2)
+
+
 
 
     av_hist = plotutils.add_symmetric_angle(av_hist)
@@ -120,29 +131,30 @@ def plot_matchingprefori_data(ax, angles, matched_neurons, matched_connections, 
     ax.fill_between(angles, av_hist-std_hist, av_hist+std_hist, alpha=0.2, color='gray')
     ax.plot(angles, av_hist, color='gray', label='Reshuffle')
 
-    plotutils.get_xticks(ax, max=np.pi, half=True)
+
+    ax.set_xticks([0, 4, 8], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.1, 0.2])
-    ax.set_xlabel(r"$\hat \theta - \theta(\mu)$")
+    ax.set_xlabel(r"$\hat \theta - \hat \theta(\mu)$")
     ax.set_ylabel("Neuron fraction")
     ax.legend(loc='best', ncols=2)
 
 
 
 def in_degree_dist(ax, v1_neurons, v1_connections):
-    filtered_postconns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[None, 'L23'], cell_type=['exc', 'exc'], proofread=[None, None])
-    in_degrees = filtered_postconns['post_id'].value_counts()
+    #filtered_postconns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[None, 'L23'], cell_type=['exc', 'exc'], proofread=[None, None])
+    #in_degrees = filtered_postconns['post_id'].value_counts()
 
     bins = np.logspace(1, 2.3, 25)
-    nobs = len(in_degrees)
-    weight = np.ones(nobs) / nobs
-    ax.hist(in_degrees, bins=bins, weights=weight, histtype='step',color='#808080',label='No proofr.', density=False)
+    #nobs = len(in_degrees)
+    #weight = np.ones(nobs) / nobs
+    #ax.hist(in_degrees, bins=bins, weights=weight, histtype='step',color='#808080',label='No proofr.', density=False)
 
     filtered_postconns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[None, 'L23'], cell_type=['exc', 'exc'], proofread=[None, 'dn_clean'])
     in_degrees = filtered_postconns['post_id'].value_counts()
     nobs = len(in_degrees)
     weight = np.ones(nobs) / nobs
 
-    ax.hist(in_degrees, bins=bins, weights=weight, histtype='step',color='#303030',label='Dndr. proofr.', density=False)
+    ax.hist(in_degrees, bins=bins, weights=weight, histtype='step',color='#303030',label='Observed', density=False)
 
 
     
@@ -276,10 +288,10 @@ def plot_figure(figname):
     matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
 
     vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
-    angles = plotutils.get_angles(kind="centered", half=True)
+    #angles = plotutils.get_angles(kind="centered", half=True)
 
     show_image(axes['A'], "sketch1.png")
-    show_image(axes['B'], "3d_reconstruction.png")
+    show_image(axes['B'], "new_neurons.png")
 
     fraction_tuned(axes['C'], matched_neurons) 
     plot_resultant_dist(axes['D'], matched_neurons, rates)
@@ -292,7 +304,7 @@ def plot_figure(figname):
         axes[key].set_xlabel("θ")
         axes[key].set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
 
-    plot_matchingprefori_data(axes['G'], angles, matched_neurons, matched_connections, vij, rates)
+    plot_matchingprefori_data(axes['G'], matched_neurons, matched_connections, vij, rates)
     in_degree_dist(axes['H'], units, connections) 
 
 
@@ -306,4 +318,4 @@ def plot_figure(figname):
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure('fig1new.pdf')
+plot_figure('fig1.pdf')
