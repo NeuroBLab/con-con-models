@@ -170,7 +170,7 @@ def strength_tuned_untuned(v1_neurons, v1_connections):
     return sampled_strenghts
 
 
-def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=["ax_clean", None], half=True, nangles=16, n_samps=1000):
+def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=["ax_clean", None], half=True, nangles=16, n_samps=1000, frac=1.0):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
     for a specific layer as a function of the difference in preferred orientation
     
@@ -229,7 +229,7 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
 
     #Bootstrap sampling
     for i in range(n_samps):
-        boot_samp = conn_from_tunedpre.sample(frac = 1, replace = True)
+        boot_samp = conn_from_tunedpre.sample(frac = frac, replace = True)
 
         #Calculate how many connections we have per each delta_theta, using the bins as explained before.
         #sort is False so we get them ordered by the index 
@@ -667,7 +667,7 @@ def get_fraction_populations(units):
 
     return pd.Series(fractions)
 
-def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clean', None]):
+def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clean', None], frac=1.0):
     """
     Computes the connection probability between neurons depending on the difference of orientation between them.
 
@@ -675,8 +675,8 @@ def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clea
     """
 
     #Extract bootstrapped stats
-    l23_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L23', half=half, proofread=proofread)
-    l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', half=half, proofread=proofread)
+    l23_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L23', half=half, proofread=proofread, frac=frac)
+    l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', half=half, proofread=proofread, frac=frac)
 
     return l23_boots, l4_boots
 
