@@ -26,8 +26,6 @@ def system_euler(t, aR, tau_E, tau_I, QJ_ij, N_E, N_I, N_X, phi_int_E, phi_int_I
         #Input to the neurons
         MU_over_tau=np.matmul(QJ_ij, aALL)
 
-        #F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * MU_over_tau[0:N_E])) / tau_E;
-        #F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*MU_over_tau[N_E::])) / tau_I;
         F[0:N_E] = (-aALL[0:N_E] + phi_int_E(tau_E * (MU_over_tau[0:N_E] - hEI))) / tau_E;
         F[N_E:]  = (-aALL[N_E:(N_E+N_I)] + phi_int_I(tau_I*(MU_over_tau[N_E::] - hII))) / tau_I;
 
@@ -181,7 +179,9 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
 
     rates_sample = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
     units_sampled.loc[:, 'pref_ori'] = np.argmax(rates_sample, axis=1)
+    #units_sampled.loc[:, 'tuning_type'] = 'selective' 
 
+    """
     rates_L23 = np.vstack([rate_etheta, rate_itheta])
     osi = mut.compute_orientation_selectivity_index(rates_L23)
     _, cvr = mut.compute_circular_variance(rates_L23, orionly=True)
@@ -191,31 +191,6 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     units_sampled.loc[mask_osi, 'tuning_type'] = 'selective' 
     mask_osi = np.where(cvr < thresori)[0]
     units_sampled.loc[mask_osi, 'tuning_type'] = 'not_selective' 
-
-    """
-    osi = mut.compute_orientation_selectivity_index(rates_sample)
-    
-    mask_osi = osi >= 0.4
-    units_sampled.loc[mask_osi, 'tuning_type'] = 'selective' 
-    units_sampled.loc[~mask_osi, 'tuning_type'] = 'not_selective' 
-
-    start = 20
-    tserieslen = aE_t.shape[1]
-    mitad = (tserieslen - start) // 2
-
-    ne = n_neurons[0]
-
-    pref_ori_1 = np.empty(ne)
-    pref_ori_2 = np.empty(ne)
-    for i in range(ne):
-        pref_ori_1[i] = np.argmax(np.mean(aE_t[i, start:mitad+start, :], axis=0))
-        pref_ori_2[i] = np.argmax(np.mean(aE_t[i, start+mitad:-1, :], axis=0))
-
-    units_sampled.loc[:, 'tuning_type'] = 'not_selective'
-    condition_selective = np.full(N, False) 
-    condition_selective[:ne] = pref_ori_1 == pref_ori_2
-    units_sampled.loc[condition_selective, 'tuning_type'] = 'selective'
-    units_sampled.loc[ne+ni:, 'tuning_type'] = 'selective'
     """
     return aE_t, aI_t, rate_etheta, rate_itheta, rate_xtheta, stddev_rates, units_sampled, connections_sampled, QJ, [ne, ni, nx], tunedL23_ids, original_prefori 
 

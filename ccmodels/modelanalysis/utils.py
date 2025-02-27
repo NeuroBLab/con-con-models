@@ -227,7 +227,7 @@ def write_synthetic_data(suffix, units_sampled, connections_sampled, re, ri, rx,
     rates_sample = np.vstack([re, ri, rx])
 
     np.save(f'{prepath}/model/simulations/activity_table_{suffix}.npy', rates_sample)
-    np.save(f'{prepath}/data/model/target_ori_{suffix}.npy', target_pref_ori)
+    np.save(f'{prepath}/model/simulations/target_ori_{suffix}.npy', target_pref_ori)
 
 def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     """
@@ -262,6 +262,6 @@ def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     n_neurons = [ne, ni, nx]
 
     #Get pref ori
-    target_ori = np.load(f'{prepath}/model/target_ori_{suffix}.npy').astype(int)
+    target_ori = np.load(f'{prepath}/model/simulations/target_ori_{suffix}.npy').astype(int)
     
     return v1_neurons, v1_connections, rates, n_neurons, target_ori

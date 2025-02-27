@@ -42,25 +42,25 @@ function readCSVdata(prepath="data")
     fracfile = DataFrame(CSV.File("$prepath/model/fractions_populations.csv"))
 
     #Get the fraction of EIX, in that order
-    fractions = [fracfile[1,2], fracfile[2,2], fracfile[3,2]]
+    fractions :: Vector{Float64} = [fracfile[1,2], fracfile[2,2], fracfile[3,2]]
 
     #Get the fraction of each angle for L23
     #Note that in the CSV ET and XT are intertwined so we need to 
     #use the fancy slicing
-    total_ET = fracfile[4,2]
-    tunedfrac = fracfile[8:2:8+15, 2] / total_ET
+    total_ET ::Float64 = fracfile[4,2]
+    tunedfrac :: Vector{Float64} = fracfile[8:2:8+15, 2] / total_ET
     #Tunedfrac goes twice in order to account for inhibitory populations
     fractions = [fractions; tunedfrac; tunedfrac] 
 
     #Same for L4
-    total_XT = fracfile[6,2]
+    total_XT :: Float64= fracfile[6,2]
     tunedfrac = fracfile[9:2:8+15, 2] / total_XT
     fractions = [fractions; tunedfrac]
 
 
     #Read connectomics probabilities of connection
     probfile = DataFrame(CSV.File("$prepath/model/prob_connectomics.csv"))
-    probtable = Matrix(probfile[:, 2:end])
+    probtable = Matrix{Float64}(probfile[:, 2:end])
 
     #Get the weights between two different populations
     #in a nice dictionary, using E=1, I=2, X=3
@@ -68,13 +68,13 @@ function readCSVdata(prepath="data")
 
     #Read the unit table and add an id to each row
     units = DataFrame(CSV.File("$prepath/preprocessed/unit_table.csv"))
-    units[:, :id] = 1:nrow(units)
+    units[:, :id] .= 1:nrow(units)
 
     #Get the ids of each population we are interested in
-    L23ix = filter([:layer, :tuning_type] => (l, t) -> (l=="L23")&&(t != "not_matched"), units).id
-    L4ix = filter([:layer, :tuning_type] => (l, t) -> (l=="L4")&&(t != "not_matched"), units).id
-    pref_ori = Int.(filter(:tuning_type => t -> t != "not_matched", units).pref_ori)
-    tunedL4   = Int.(filter([:layer, :tuning_type] => (l, t) -> (t != "not_selective")&&(t != "not_matched")&&(l=="L4"), units).pref_ori)
+    L23ix :: Vector{Int} = filter([:layer, :tuning_type] => (l, t) -> (l=="L23")&&(t != "not_matched"), units).id
+    L4ix :: Vector{Int} = filter([:layer, :tuning_type] => (l, t) -> (l=="L4")&&(t != "not_matched"), units).id
+    pref_ori :: Vector{Int} = Int.(filter(:tuning_type => t -> t != "not_matched", units).pref_ori)
+    tunedL4  :: Vector{Int}   = Int.(filter([:layer, :tuning_type] => (l, t) -> (t != "not_selective")&&(t != "not_matched")&&(l=="L4"), units).pref_ori)
 
     #Normalize synaptic volumes
     links = DataFrame(CSV.File("$prepath/preprocessed/connections_table.csv"))
@@ -88,9 +88,9 @@ function readCSVdata(prepath="data")
     X_units = filter([:cell_type, :layer] => (c,l) -> c=="exc" && l=="L4", units)
 
     #...get them as Set to speed up a lot the search below
-    Eixs = Set(E_units.pt_root_id)
-    Iixs = Set(I_units.pt_root_id)
-    Xixs = Set(X_units.pt_root_id)
+    Eixs :: Set{Int} = Set(E_units.pt_root_id)
+    Iixs :: Set{Int} = Set(I_units.pt_root_id)
+    Xixs :: Set{Int} = Set(X_units.pt_root_id)
 
     #Get the synaptic weights from each pair of populations
     popweights[(1,1)] = filter([:pre_pt_root_id, :post_pt_root_id] => (pre, post) -> (pre in Eixs)&&(post in Eixs), links).syn_volume
@@ -152,7 +152,7 @@ function sampleL4rates(rates_L4, rates_sampled, fractions_L4, ntunedx, L4oris, m
         shifted_L4 = shift_multi(rates_L4, nangles .- L4oris)
 
         #Take the untuned neurons and set them to their mean
-        @views shifted_L4[ntunedx+1:end] .= mean(shifted_L4[ntunedx+1:end], dims=2)
+        @views shifted_L4[ntunedx+1:end, :] .= mean(shifted_L4[ntunedx+1:end, :], dims=2)
 
         #Sample ids for selected rates to use 
         idx_tuned = rand(1:ntunedx, ntuned_sample)
@@ -219,12 +219,12 @@ function sample_matrix!(Q, ne, ni, nx, k_ee, J, g, probtable, fractions, popweig
     #neurons that with a certain tuning. Basically, start_col is [1, n_neurons_theta=0, n_neurons_theta=0]
     ones8 = ones(8)
     frac_conect = [ones8*ne/N; ones8*ni/N; ones8*nx/N]
-    start_col = Vector{Integer}(undef, Ncols+1)
+    start_col = Vector{Int}(undef, Ncols+1)
     start_col[1] = 1
     @views start_col[2:Ncols+1] .= Int.(round.(cumsum(N*fractions[4:end] .* frac_conect)))
 
     frac_conect = [ones8*ne/(ne+ni); ones8*ni/(ne+ni)]
-    start_row = Vector{Integer}(undef, Nrows+1)
+    start_row = Vector{Int}(undef, Nrows+1)
     start_row[1] = 1
     @views start_row[2:Nrows+1] .= Int.(round.(cumsum((ne+ni)*fractions[4:19] .* frac_conect)))
 
