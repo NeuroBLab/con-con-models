@@ -312,8 +312,6 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
     #n_neurons[1] = ni_new
     # ---
 
-    print(N)
-    print(Q.shape)
     units_sampled = sample_units(N, start_col[1:] - start_col[:-1], column_names, fractions)
     connections_sampled = sample_connections(Q)
 

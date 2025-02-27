@@ -13,8 +13,10 @@ data/model/k400*
 data/model/5pars*
 data/model/sbi_networks/test
 data/model/*_net/
+data/model/simulations/
 sbi-logs/
 ccmodels/victor/
+
 
 #Virtual environment folders
 virtual/

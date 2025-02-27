@@ -81,7 +81,7 @@ def plot_tuning_curves(ax, units, rates, tuning_curves, tuning_error):
 
     #Plot the model results first
     ax.plot(tuning_curves, color=cr.lcolor['L23'] )
-    ax.fill_between(angles, tuning_curves - tuning_error, tuning_curves + tuning_error, color = c, alpha = 0.2)
+    ax.fill_between(angles, tuning_curves - tuning_error, tuning_curves + tuning_error, color = cr.lcolor['L23'], alpha = 0.2)
 
     #Then get the real data
     neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
@@ -209,7 +209,8 @@ def compute_currents(units_sample, QJ, rates_sample):
 
 def plot_currents(ax, units, vij, rates, currmean, currerr):
 
-    for layer in ['L23', 'L4', 'Total']:
+    #for layer in ['L23', 'L4', 'Total']:
+    for layer in ['L23', 'L4']:
         ax.plot(currmean[layer], label=layer, color=cr.lcolor[layer])
         ax.fill_between(np.arange(9), currmean[layer]-currerr[layer], currmean[layer]+currerr[layer], alpha=0.2, color=cr.lcolor[layer])
 
@@ -256,7 +257,7 @@ parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
 args = parser.parse_args()
 
-def plot_figure(figname, generate_data = True):
+def plot_figure(figname, generate_data = False):
 
     # load files
     units, connections, rates = loader.load_data()
@@ -287,7 +288,8 @@ def plot_figure(figname, generate_data = True):
         currerr  = {'L23' : np.zeros(9), 'L4' : np.zeros(9), 'Total' : np.zeros(9)} 
 
         for j in range(nexp):
-            units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_ale_{j}")
+            #units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_ale_{j}")
+            units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_search_{j}")
             QJ = loader.get_adjacency_matrix(units_sample, connections_sample)
             ne, ni, nx = n_neurons
 
@@ -390,4 +392,4 @@ df = pd.DataFrame(data=numbers)
 df.to_csv("data/model/placeholder.csv", index=False)
 
 
-plot_figure("fig4.pdf")
+plot_figure("newpars.pdf")

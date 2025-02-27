@@ -193,6 +193,8 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
     tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23", proofread=proofread[1])
     post_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
 
+    print(pre_units_by_angle)
+
 
     #Prepare variables for computing statistics 
     if half:
@@ -667,7 +669,7 @@ def get_fraction_populations(units):
 
     return pd.Series(fractions)
 
-def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clean', None], frac=1.0):
+def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clean', None], frac=1.0, n_samps=1000):
     """
     Computes the connection probability between neurons depending on the difference of orientation between them.
 
@@ -675,8 +677,8 @@ def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clea
     """
 
     #Extract bootstrapped stats
-    l23_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L23', half=half, proofread=proofread, frac=frac)
-    l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', half=half, proofread=proofread, frac=frac)
+    l23_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L23', half=half, proofread=proofread, frac=frac, n_samps=n_samps)
+    l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', half=half, proofread=proofread, frac=frac, n_samps=n_samps)
 
     return l23_boots, l4_boots
 

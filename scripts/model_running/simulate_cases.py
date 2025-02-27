@@ -42,7 +42,9 @@ print(pars.shape)
 
 #pars = [1.3, 1.0, 24.15, 9.33, 100.47, 85.42] 
 mode = 'cosine'
-filename = 'best_ale'
+filename = "best_search" #'best_ale'
+
+pars = np.array([  2.4183798 ,   2.54088253,  10.02267932,   3.83874689, 93.21315129, 164.0631539 ])
 
 units, connections, rates = loader.load_data()
 connections = fl.remove_autapses(connections)
@@ -52,8 +54,14 @@ diff_ori = np.empty(0, dtype=int)
 
 for i in range(nreps):
     print(f"SIMULATION ID: {i}")
+    #old pars
+    #aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, k, N, pars[0], pars[1], hEI=pars[4], hII=pars[5],  
+    #                                                                                                                                    theta_E=pars[2], sigma_tE=pars[3], theta_I=pars[2], sigma_tI=pars[3], cos_b=[beta, 0.2],
+    #                                                                                                                                    mode=mode, local_connectivity=False, orionly=True)
+
+    #new pars
     aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, k, N, pars[0], pars[1], hEI=pars[4], hII=pars[5],  
-                                                                                                                                        theta_E=pars[2], sigma_tE=pars[3], theta_I=pars[2], sigma_tI=pars[3], cos_b=[beta, 0.2],
+                                                                                                                                        theta_E=19., sigma_tE=pars[2], theta_I=19., sigma_tI=pars[3], cos_b=[beta, 0.2],
                                                                                                                                         mode=mode, local_connectivity=False, orionly=True)
 
     utl.write_synthetic_data(f"{filename}_{i}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath="data")
