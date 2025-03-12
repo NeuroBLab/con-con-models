@@ -2,7 +2,7 @@
 #SBATCH -J sbitrain # Job name
 #SBATCH -o train.%j.out	# Name of stdout output file(%j expands to jobId)
 #SBATCH -e train.%j.err	# Name of stderr output file(%j expands to jobId)
-#SBATCH --partition=short,AMD,metis
+#SBATCH --partition=short
 #SBATCH -c 8
 #SBATCH --mem 1500
 

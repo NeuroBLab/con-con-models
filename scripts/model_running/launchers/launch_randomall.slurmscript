@@ -2,7 +2,7 @@
 #SBATCH -J randc # Job name
 #SBATCH -o rand.%j.out	# Name of stdout output file(%j expands to jobId)
 #SBATCH -e rand.%j.err	# Name of stderr output file(%j expands to jobId)
-#SBATCH --partition=short,AMD,metis
+#SBATCH --partition=short
 #SBATCH -c 1
 #SBATCH --mem 1500 
 #SBATCH --array=0-99
