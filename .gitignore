@@ -1,19 +1,25 @@
 # Files not to track
 __pycache__
 .DS_Store
+
 dev
 data_full
+
 todos.md
+
 ccmodels.egg-info/
+
 scripts/figures/output/
 scripts/figures/posterfigures/
 scripts/figures/talkfigures/
+
 data/in_processing/connections_table_*
 data/model/k400*
 data/model/5pars*
 data/model/sbi_networks/test
 data/model/*_net/
 data/model/simulations/
+
 sbi-logs/
 ccmodels/victor/
 

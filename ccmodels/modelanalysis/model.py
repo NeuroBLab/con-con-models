@@ -134,7 +134,7 @@ def do_dynamics(pref_ori, tau_E, tau_I, QJ, ne, ni, nx, rate_X_of_Theta, phi, hE
 
 def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, tau_E=0.02, tau_I=0.01, 
                     theta_E=20.0, sigma_tE=10.0, theta_I=20.0, sigma_tI=10.0, V_r=10, dt=0.005, 
-                    cos_b=[0.175, 0.154], orionly=False, prepath="data", local_connectivity=True, mode='normal'):
+                    cos_b=[0.175, 0.154, 0., 0., 0., 0.], orionly=False, prepath="data", local_connectivity=True, mode='normal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X
@@ -291,7 +291,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
     return aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates, units_sampled, connections_sampled, QJ_copy
 
 
-def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, theta_I, sigma_tE, sigma_tI, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, cos_b=[0.175, 0.154], orionly=False, prepath="data", mode='normal'):
+def make_simulation_cluster(units, connections, rates, k_ee, N, J, g, theta_E, theta_I, sigma_tE, sigma_tI, hEI=0., hII=0., tau_E=0.02, tau_I=0.01,  V_r=10, dt=0.005, cos_b=[0.175, 0.154, 0., 0., 0., 0.], orionly=False, prepath="data", mode='normal'):
     """
     This function makes an entire simulation for a set of parameters. It returns a sample time series for a
     single estimuli, and then the vector of rates for each one of the stimulus for E,I,X

@@ -79,7 +79,7 @@ def compute_scaling_factor_kEE(neurons, connections, target_k_EE,new_N):
     return (target_k_EE/k_EE_data) * (len(neurons)/new_N)
 
 
-def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='normal', cos_a=[0.9807840158851815, 1.051784991962299], cos_b=[0.17446353427026207, 0.15346752188086193]):
+def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='normal', cos_a=[0.9807840158851815, 1.051784991962299, 1.0, 1.0, 1.0, 1.0], cos_b=[0.17446353427026207, 0.15346752188086193, 0.0, 0.0, 0.0, 0.0]):
     #Get the scaling for a correct definition of k_ee
     #scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
     #scaling_prob=compute_scaling_factor_kEE(units, connections, k_ee, N)
@@ -91,7 +91,7 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
 
     #Read the connection probabilities between each paper of populations 
     #This was previously estimated from data
-    if mode=='normal' or 'tuned' in mode:
+    if mode=='normal' in mode:
         ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
         av_prob = ptable.loc['E', 'E']
         ptable = pd.read_csv(f"{prepath}/model/prob_cleanaxons.csv", index_col="Population") 
@@ -117,29 +117,48 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
         #Observe that modulated[0] > 1 and modulated[pi/2] < 1 to keep the average correct
         modulated_EE = cos_a[0] + cos_b[0] * cosine
         modulated_EX = cos_a[1] + cos_b[1] * cosine
+        modulated_EI = cos_a[2] + cos_b[2] * cosine 
+        modulated_IE = cos_a[3] + cos_b[3] * cosine 
+        modulated_II = cos_a[4] + cos_b[4] * cosine 
+        modulated_IX = cos_a[5] + cos_b[5] * cosine 
 
         #Define our new table from scratch, creating the colums
         ETcols = [f'ET_{i}' for i in range(nangles)]
         XTcols = [f'XT_{i}' for i in range(nangles)]
-        columns = ETcols + ['I'] + XTcols  #+ ['XU']
+        ITcols = [f'IT_{i}' for i in range(nangles)]
+        #columns = ETcols + ['I'] + XTcols  #+ ['XU']
+        columns = ETcols + ITcols + XTcols  #+ ['XU']
         ptable = pd.DataFrame(columns= columns)
-
 
         #Then we fill all the postsynaptic rows
         for i in theta:
+            fractions[f"IT_{i}"] = fractions['I'] * fractions[f"ET_{i}"]  / fractions["ET"]
+
             #Create the rows
             ptable.loc[f"ET_{i}", :] = 0. 
 
             #Fill the values for each set of columns
             ptable.loc[f"ET_{i}", ETcols] = np.roll(ptable_con.loc['E', 'E'] * modulated_EE, i)
-            ptable.loc[f"ET_{i}", "I"] = ptable_con.loc['E', 'I'] 
+            #ptable.loc[f"ET_{i}", "I"] = ptable_con.loc['E', 'I'] 
+            ptable.loc[f"ET_{i}", ITcols] = np.roll(ptable_con.loc['E', 'I'] * modulated_EI, i)
             ptable.loc[f"ET_{i}", XTcols] = np.roll(ptable_con.loc['E', 'X'] * modulated_EX, i)
+
+        #Do the same with inhibitory neurons. There's no L4 postsynaptic so this is all.
+        #I do not merge this inside the above loop because I want to have first all ET rows and then all IT ones
+        for i in theta:
+            ptable.loc[f"IT_{i}", :] = 0. 
+
+            ptable.loc[f"IT_{i}", ETcols] = np.roll(ptable_con.loc['I', 'E'] * modulated_IE, i)
+            #ptable.loc[f"ET_{i}", "I"] = ptable_con.loc['E', 'I'] 
+            ptable.loc[f"IT_{i}", ITcols] = np.roll(ptable_con.loc['I', 'I'] * modulated_II, i)
+            ptable.loc[f"IT_{i}", XTcols] = np.roll(ptable_con.loc['I', 'X'] * modulated_IX, i)
+
         
         #Do the same with inhibitory neurons. There's no L4 postsynaptic so this is all.
-        ptable.loc['I', :] = 0
-        ptable.loc["I", ETcols] = ptable_con.loc['I', 'E']
-        ptable.loc["I", 'I'] = ptable_con.loc['I', 'I']
-        ptable.loc["I", XTcols] = ptable_con.loc['I', 'X']
+        #ptable.loc['I', :] = 0
+        #ptable.loc["I", ETcols] = ptable_con.loc['I', 'E']
+        #ptable.loc["I", 'I'] = ptable_con.loc['I', 'I']
+        #ptable.loc["I", XTcols] = ptable_con.loc['I', 'X']
 
         #free intermediate memory
         del ptable_con
@@ -157,77 +176,10 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
         fractions["XT"] += fractions['XU']
 
 
-
     #Get the number of neurons we have, from the fractions
     n_neurons = np.array([fractions['E'], fractions['I'], fractions['X']]) * N
     n_neurons = np.round(n_neurons).astype(int)
 
-    #In this mode we do not work with untuned neurons
-    if 'tuned' in mode:
-
-        #Redistribute the fraction of untuned neurons equally between tuned ones
-        labels = [f"ET_{i}" for i in range(8)]
-        fractions[labels] += fractions['EU'] * fractions[labels] / fractions['ET']
-        labels = [f"XT_{i}" for i in range(8)]
-        fractions[labels] += fractions['XU'] * fractions[labels] / fractions['XT']
-
-        #Add the total number of untuned to the total number of tuned now
-        fractions["ET"] += fractions['EU']
-        fractions["XT"] += fractions['XU']
-
-        #Eliminate them from our tables
-        ptable = ptable.drop(index=['EU'], columns=['EU', 'XU'])
-        fractions = fractions.drop(index=['EU', 'XU'])
-
-        #Further make all inh tuned
-        if 'inh' in mode:
-            #Add new rows and columns for the new tuned inhibition
-            #Get the fraction of tuned inhibitory newurons of each type
-            normE = 0.0 
-            normX = 0.0
-            for i in range(8):
-
-                #Create new entries in table
-                ptable.loc[:, f"IT_{i}"] = 0 
-                ptable.loc[f"IT_{i}", :] = 0 
-
-
-                #Compute the fraction of inh neurons with this angle
-                fractions[f"IT_{i}"] = fractions["I"] * fractions[f"ET_{i}"] / fractions["ET"]
-
-                #Get the norm to scale later all I probabilities
-                normE += ptable.loc["ET_0", f"ET_{i}"] * fractions[f"IT_{i}"] 
-                normX += ptable.loc["ET_0", f"XT_{i}"] * fractions[f"IT_{i}"] 
-
-            #All inh are tuned
-            fractions[f"IT"] = fractions["I"] 
-
-            #Compute how much the probability has to scale for each angle difference
-            scale_E2E = [ptable.loc[f"ET_0", f"ET_{i}"] * fractions['I'] / normE for i in range(8)]
-            scale_X2E = [ptable.loc[f"ET_0", f"XT_{i}"] * fractions['I'] / normX for i in range(8)]
-
-            #Fill the new rows and columns
-            for i in range(8):
-                for j in range(8):
-                    #Angle difference...
-                    diff_angle = au.angle_dist(i, j)
-
-                    #Presynaptic inhibition to E and I. Just take the original inh  weight and multiply by the L23 scale 
-                    ptable.loc[f"ET_{i}", f"IT_{j}"] = ptable.loc[f"ET_{j}", "I"] * scale_E2E[diff_angle] 
-                    ptable.loc[f"IT_{i}", f"IT_{j}"] = ptable.loc["I", "I"] * scale_E2E[diff_angle] 
-
-                    #Postsynaptic inhibition. We do basically the same.
-                    ptable.loc[f"IT_{i}", f"ET_{j}"] = ptable.loc["I", f"ET_{j}"] * scale_E2E[diff_angle] 
-                    ptable.loc[f"IT_{i}", f"IT_{j}"] = ptable.loc["I", "I"] * scale_E2E[diff_angle] 
-                    ptable.loc[f"IT_{i}", f"XT_{j}"] = ptable.loc["I", f"XT_{j}"] * scale_X2E[diff_angle] 
-
-            #Now the untuned I is not necessary anymore
-            ptable = ptable.drop(index=['I'], columns=['I'])
-
-            #Put the columns in the order we like: EIX
-            reordered_cols = np.hstack([np.arange(8), np.arange(16, 24), np.arange(8,16)])
-            reordered_cols = ptable.columns[reordered_cols]
-            ptable = ptable[reordered_cols]
         
 
     #presynaptic (columns) + postsynaptic (rows) names of indices that we will use to build the matrix 
@@ -300,24 +252,12 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
             #Assign our weighted block to the matrix
             Q[r0:rf, c0:cf] = flips * J * block 
 
-    #Change by hand the amount of inhibitory neurons!! From 5% to 3% -> a 40% reduction
-    #ne, ni, nx = n_neurons
-    #ni_new = round(0.6*ni)
-    #Q = np.delete(Q, slice(ne+ni_new, ne+ni), axis=1) 
-    #Q = np.delete(Q, slice(ne+ni_new, ne+ni), axis=0) 
-    #diff = ni-ni_new
-    #start_col[9:] -= diff 
-    #start_row[-1] -= diff 
-    #N -= diff 
-    #n_neurons[1] = ni_new
-    # ---
-
-    units_sampled = sample_units(N, start_col[1:] - start_col[:-1], column_names, fractions)
+    units_sampled = sample_units(N, start_col[1:] - start_col[:-1], column_names)
     connections_sampled = sample_connections(Q)
 
     return units_sampled, connections_sampled, Q, n_neurons
 
-def sample_units(N, neurons_per_pop, column_names, fractions):
+def sample_units(N, neurons_per_pop, column_names):
 
     units_sampled = {'cell_type':[],'layer':[], 'pref_ori':[], 'tuning_type':[]}
 
