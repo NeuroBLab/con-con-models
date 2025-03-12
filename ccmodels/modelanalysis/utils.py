@@ -222,12 +222,12 @@ def compute_circular_variance(rates, orionly=False):
 
 def write_synthetic_data(suffix, units_sampled, connections_sampled, re, ri, rx, target_pref_ori, prepath="data"):
 
-    units_sampled.to_csv(f'{prepath}/model/simulations/unit_table_{suffix}.csv', index=False)
-    connections_sampled.to_csv(f'{prepath}/model/simulations/connections_table_{suffix}.csv', index=False)
+    units_sampled.to_csv(f'{prepath}/model/auxtemp/unit_table_{suffix}.csv', index=False)
+    connections_sampled.to_csv(f'{prepath}/model/auxtemp/connections_table_{suffix}.csv', index=False)
     rates_sample = np.vstack([re, ri, rx])
 
-    np.save(f'{prepath}/model/simulations/activity_table_{suffix}.npy', rates_sample)
-    np.save(f'{prepath}/model/simulations/target_ori_{suffix}.npy', target_pref_ori)
+    np.save(f'{prepath}/model/auxtemp/activity_table_{suffix}.npy', rates_sample)
+    np.save(f'{prepath}/model/auxtemp/target_ori_{suffix}.npy', target_pref_ori)
 
 def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     """
@@ -243,9 +243,9 @@ def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
         Which version of the dataset to use.
     """
 
-    v1_neurons = pd.read_csv(f'{prepath}/model/simulations/unit_table_{suffix}.csv')
-    v1_connections = pd.read_csv(f'{prepath}/model/simulations/connections_table_{suffix}.csv')
-    rates = np.load(f'{prepath}/model/simulations/activity_table_{suffix}.npy')
+    v1_neurons = pd.read_csv(f'{prepath}/model/auxtemp/unit_table_{suffix}.csv')
+    v1_connections = pd.read_csv(f'{prepath}/model/auxtemp/connections_table_{suffix}.csv')
+    rates = np.load(f'{prepath}/model/auxtemp/activity_table_{suffix}.npy')
 
     #Angles are integers to avoid any roundoff error
     v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
@@ -262,6 +262,6 @@ def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     n_neurons = [ne, ni, nx]
 
     #Get pref ori
-    target_ori = np.load(f'{prepath}/model/simulations/target_ori_{suffix}.npy').astype(int)
+    target_ori = np.load(f'{prepath}/model/auxtemp/target_ori_{suffix}.npy').astype(int)
     
     return v1_neurons, v1_connections, rates, n_neurons, target_ori

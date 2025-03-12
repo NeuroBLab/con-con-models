@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH -J comp # Job name
+#SBATCH -o comp.%j.out	# Name of stdout output file(%j expands to jobId)
+#SBATCH -e comp.%j.err	# Name of stderr output file(%j expands to jobId)
+#SBATCH --partition=short,AMD,metis
+#SBATCH -c 1
+#SBATCH --mem 1500 
+
+srun python comparison_test.py 123456 
+srun python comparison_test.py 654321 
+srun python comparison_test.py 987654 
