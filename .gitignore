@@ -19,10 +19,14 @@ data/model/5pars*
 data/model/sbi_networks/test
 data/model/*_net/
 data/model/simulations/
+data/model/auxtemp/
 
 sbi-logs/
 ccmodels/victor/
 
+#For SLURM programs
+*.err
+*.out
 
 #Virtual environment folders
 virtual/

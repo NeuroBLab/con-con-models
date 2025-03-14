@@ -7,5 +7,5 @@
 #SBATCH --mem 1500 
 #SBATCH --array=0-99
 
-srun python optimize_w_sigma.py $SLURM_ARRAY_TASK_ID 0.4 0.2 opti_pruebas
-#srun python optimize_w_tc.py $SLURM_ARRAY_TASK_ID 0.4 0.2 opti_pruebas
+srun python scripts/model_running/launchers/optimize_w_sigma.py $SLURM_ARRAY_TASK_ID 0.4 0.2 opti_pruebas
+#srun python scripts/model_running/launchers/optimize_w_tc.py $SLURM_ARRAY_TASK_ID 0.4 0.2 opti_pruebas
