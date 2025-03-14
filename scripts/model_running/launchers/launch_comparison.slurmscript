@@ -6,6 +6,6 @@
 #SBATCH -c 1
 #SBATCH --mem 1500 
 
-srun python comparison_test.py 123456 
-srun python comparison_test.py 654321 
-srun python comparison_test.py 987654 
+srun python scripts/model_running/launchers/comparison_test.py 123456 
+srun python scripts/model_running/launchers/comparison_test.py 654321 
+srun python scripts/model_running/launchers/comparison_test.py 987654 
