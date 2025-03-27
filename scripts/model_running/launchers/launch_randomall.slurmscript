@@ -7,12 +7,12 @@
 #SBATCH --array=0-99
 
 #random pars with betas, without and with SBtI
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false randpars no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false sbi_rand randnet.sbi 
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randpars no
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_rand randnet.sbi 
 
 #perfectly tuned network 
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID true tunedpars no
-srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID true sbi_tuned tunednet.sbi 
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedpars no
+srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tuned tunednet.sbi 
 
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false kinpars no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false sbi_kin kinnet.sbi 
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID kin kinpars no
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID kin sbi_kin kinnet.sbi 

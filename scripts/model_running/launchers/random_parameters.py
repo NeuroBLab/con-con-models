@@ -2,7 +2,6 @@ import numpy as np
 import sys
 import os
 
-#sys.path.append("../../../../con-con-models/")
 sys.path.append(os.getcwd())
 
 import ccmodels.dataanalysis.processedloader as loader
@@ -16,7 +15,8 @@ import ccmodels.utils.watermark as wtm
 import torch
 
 simid = int(sys.argv[1])
-tunedinh = bool(sys.argv[2]) 
+#tunedinh = bool(sys.argv[2]) 
+sample_mode = sys.argv[2] #normal, tunedinh, kin 
 savefolder = sys.argv[3]
 sbinet = sys.argv[4]
 
@@ -47,14 +47,13 @@ local_connectivity = False
 mode = 'cosine'
 
 N = 8000
-kee = 400
 
 def dosim(pars):
     tuning_curve = np.zeros(8)
     conprob      = np.zeros(8)
-    J,g,sigmaE,sigmaI,hEI,hII,bL23,bL4=pars 
+    J,g,sigmaE,sigmaI,hEI,hII,bL23,bL4,kee=pars 
 
-    if tunedinh:
+    if sample_mode == 'tunedinh':
         cos_modulation = [bL23, bL4, bL23, bL23, bL23, bL4]
     else:
         cos_modulation = [bL23, bL4, 0., 0., 0., 0.] 
@@ -90,8 +89,14 @@ if len(sbinet) < 5:
     hEI = 50 + 100*np.random.rand(nsims)
     hII = 100 + 400*np.random.rand(nsims)
     b23 = 0.1 + 0.5*np.random.rand(nsims) 
-    b4  = 0.1 + 0.5*np.random.rand(nsims) 
-    header = wtm.add_metadata(extra="Using random betas, single run for each network")
+    b4  = 0.1 + 0.5*np.random.rand(nsims)     
+
+    if sample_mode == 'kin':
+        kee = 30 + 570*np.random.rand(nsims)
+    else:
+        kee = 400 * np.ones(nsims)
+
+    header = wtm.add_metadata(extra="Using random betas, single run for each network. Sample mode = {sample_mode}")
 else:
     nsims = 100
     posterior = msbi.load_posterior(f"{datafolder}/model/sbi_networks/{sbinet}") 
@@ -107,15 +112,20 @@ else:
     summary_data = torch.tensor(summary_data)
 
     posterior_samples = posterior.sample((nsims,), x=summary_data.float()).numpy()
-    J,g,sigmaE,sigmaI,hEI,hII,b23,b4 = np.transpose(posterior_samples) 
 
-    header = wtm.add_metadata(extra=f"SBI simulation using network {sbinet}")
+    if sample_mode == 'kin':
+        J,g,sigmaE,sigmaI,hEI,hII,b23,b4,kee = np.transpose(posterior_samples) 
+    else:
+        J,g,sigmaE,sigmaI,hEI,hII,b23,b4 = np.transpose(posterior_samples) 
+        kee = 400 * np.ones(nsims)
+
+    header = wtm.add_metadata(extra=f"SBI simulation using network {sbinet} with sample mode {sample_mode}")
 
 
 np.savetxt(f"{datafolder}/model/simulations/{savefolder}/metadata{simid}", [], header=header)
 output = open(f'{datafolder}/model/simulations/{savefolder}/{simid}.txt', 'a')
 for i in range(nsims):
-    pars     = [J[i], g[i], sigmaE[i], sigmaI[i], hEI[i], hII[i], b23[i], b4[i]]
+    pars     = [J[i], g[i], sigmaE[i], sigmaI[i], hEI[i], hII[i], b23[i], b4[i], kee[i]]
     tcurve, conprob = dosim(pars)
     result = np.concatenate((pars, tcurve, conprob))
     np.savetxt(output, result[np.newaxis, :])
