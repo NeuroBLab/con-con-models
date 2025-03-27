@@ -15,12 +15,13 @@ networkname = sys.argv[2]
 
 datafolder = "data"
 
-nfiles = 100
+nfiles = 300
 params = np.empty((0,8))
 summary_stats = np.empty((0,16)) 
 
 for i in range(nfiles):
     inputfile = np.loadtxt(f"{datafolder}/model/simulations/{inputfolder}/{i}.txt")
+    print(i)
     if inputfile.size > 0:
         params = np.vstack((params, inputfile[:, :8]))
         summary_stats = np.vstack((summary_stats, inputfile[:, 8:]))
