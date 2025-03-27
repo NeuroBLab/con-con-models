@@ -2,18 +2,17 @@
 #SBATCH -J randc # Job name
 #SBATCH -o rand.%j.out	# Name of stdout output file(%j expands to jobId)
 #SBATCH -e rand.%j.err	# Name of stderr output file(%j expands to jobId)
-#SBATCH --partition=short
 #SBATCH -c 1
 #SBATCH --mem 1500 
-#SBATCH --array=0-299
+#SBATCH --array=0-99
 
 #random pars with betas, without and with SBtI
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false randpars no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false sbi_rand randnet.sbi 
 
 #perfectly tuned network 
-srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID true tunedpars no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID true sbi_tuned tunednet.sbi 
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID true tunedpars no
+srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID true sbi_tuned tunednet.sbi 
 
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false kinpars no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID false sbi_kin kinnet.sbi 

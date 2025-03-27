@@ -93,6 +93,7 @@ if len(sbinet) < 5:
     b4  = 0.1 + 0.5*np.random.rand(nsims) 
     header = wtm.add_metadata(extra="Using random betas, single run for each network")
 else:
+    nsims = 100
     posterior = msbi.load_posterior(f"{datafolder}/model/sbi_networks/{sbinet}") 
 
     neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
