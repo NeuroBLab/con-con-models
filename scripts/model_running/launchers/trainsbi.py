@@ -12,6 +12,12 @@ import ccmodels.utils.watermark as wtm
 
 inputfolder = sys.argv[1]
 networkname = sys.argv[2]
+sample_mode = sys.argv[3]
+
+if sample_mode == 'kin':
+    nparameters = 9
+else:
+    nparameters = 8
 
 datafolder = "data"
 
@@ -21,10 +27,9 @@ summary_stats = np.empty((0,16))
 
 for i in range(nfiles):
     inputfile = np.loadtxt(f"{datafolder}/model/simulations/{inputfolder}/{i}.txt")
-    print(i)
     if inputfile.size > 0:
-        params = np.vstack((params, inputfile[:, :8]))
-        summary_stats = np.vstack((summary_stats, inputfile[:, 8:]))
+        params = np.vstack((params, inputfile[:, :nparameters]))
+        summary_stats = np.vstack((summary_stats, inputfile[:, nparameters:]))
 
 params = torch.tensor(params)
 summary_stats = torch.tensor(summary_stats)
@@ -52,5 +57,5 @@ msbi.save_posterior(f"{datafolder}/model/sbi_networks/{networkname}.sbi", poster
 
 output = open(f'{datafolder}/model/sbi_networks/{networkname}_metadata.txt', 'w')
 gitc = wtm.get_commit_hash()
-output.write("Network generated with commit hash: {gitc}.")
+output.write("Network generated with commit hash: {gitc} and sample mode {sample_mode}")
 output.close()
