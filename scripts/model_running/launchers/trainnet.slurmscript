@@ -6,6 +6,6 @@
 #SBATCH -c 8
 #SBATCH --mem 1500
 
-srun python scripts/model_running/launchers/trainsbi.py randpars randnet 
-#srun python scripts/model_running/launchers/trainsbi.py tunedpars tunednet 
-#srun python scripts/model_running/launchers/trainsbi.py kinpars kinnet 
+srun python scripts/model_running/launchers/trainsbi.py randpars randnet normal
+#srun python scripts/model_running/launchers/trainsbi.py tunedpars tunednet tunedinh 
+#srun python scripts/model_running/launchers/trainsbi.py kinpars kinnet kin 
