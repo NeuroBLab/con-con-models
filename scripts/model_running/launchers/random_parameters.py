@@ -17,7 +17,6 @@ import ccmodels.utils.watermark as wtm
 import torch
 
 simid = int(sys.argv[1])
-#tunedinh = bool(sys.argv[2]) 
 sample_mode = sys.argv[2] #normal, tunedinh, kin 
 savefolder = sys.argv[3]
 sbinet = sys.argv[4]
@@ -70,10 +69,12 @@ def dosim(pars):
 
     if neurons_L23.pref_ori.nunique() == 8:
         utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
-        units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
-        conprob = compute_conn_prob(units_sample, connections_sample, n_samps=1)['L23']
+        #units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
+        rates_sample = utl.format_synthetic_data_4conprob(units_sample, connections_sample, re, ri, rx)
+        conprob = compute_conn_prob(units_sample, connections_sample, n_samps=1)
     else:
-        conprob = np.array([0.,0.,0.,1.,0.,0.,0.,0.])
+        trivial_conprob= np.array([0.,0.,0.,1.,0.,0.,0.,0.])
+        conprob = {'L23':trivial_conprob, 'L4':trivial_conprob}
 
     return tuning_curve, conprob, re
 
@@ -105,9 +106,9 @@ else:
 
     rates23 = rates[neurons_L23['id'], :]
     tcurvedata = np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0)
-    means_data = compute_conn_prob(units, connections)['L23']
+    means_data = compute_conn_prob(units, connections)
 
-    summary_data = np.concatenate((tcurvedata, means_data))
+    summary_data = np.concatenate((tcurvedata, means_data['L23'], means_data['L4']))
     summary_data = torch.tensor(summary_data)
 
     posterior_samples = posterior.sample((nsims,), x=summary_data.float()).numpy()
@@ -129,8 +130,10 @@ warnings.simplefilter("ignore")
 for i in range(nsims):
     pars     = [J[i], g[i], sigmaE[i], sigmaI[i], hEI[i], hII[i], b23[i], b4[i], kee[i]]
     tcurve, conprob, re = dosim(pars)
-    result = np.concatenate((pars, tcurve, conprob))
+    result = np.concatenate((pars, tcurve, conprob['L23'], conprob['L4']))
     np.savetxt(output, result[np.newaxis, :])
-    np.save(f'{datafolder}/model/simulations/{savefolder}/{simid}_rates{i}.npy', re) 
+
+    idx_sample = np.random.choice(re.shape[0], N_2save)
+    np.save(f'{datafolder}/model/simulations/{savefolder}/{simid}_rates{i}.npy', re[idx_sample]) 
 
 output.close()
