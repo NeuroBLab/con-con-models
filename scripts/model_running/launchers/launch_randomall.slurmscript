@@ -7,7 +7,7 @@
 #SBATCH --array=0-99
 
 #random pars with betas, without and with SBtI
-srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randpars no
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randpars no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_rand randnet.sbi 
 #srun python scripts/model_running/launchers/random_parameters_with_rates.py $SLURM_ARRAY_TASK_ID normal sbi_normal_RATES randnet.sbi 
 
@@ -15,5 +15,10 @@ srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TA
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedpars no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tuned tunednet.sbi 
 
+#variable kin
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID kin kinpars no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID kin sbi_kin kinnet.sbi 
+
+#k = 140 
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randlowk no
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowk randlowk.sbi 
