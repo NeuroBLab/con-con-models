@@ -2,6 +2,8 @@ import numpy as np
 import sys
 import os
 
+import warnings
+
 sys.path.append(os.getcwd())
 
 import ccmodels.dataanalysis.processedloader as loader
@@ -36,7 +38,6 @@ def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=1000):
 
     return meandata 
 
-nreps = 1
 
 units, connections, rates = loader.load_data(prepath=datafolder, orientation_only=True)
 connections = fl.remove_autapses(connections)
@@ -46,7 +47,9 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 8000
+N = 4000
+N_2save = 200
+fixed_kee = 200
 
 def dosim(pars):
     tuning_curve = np.zeros(8)
@@ -60,31 +63,25 @@ def dosim(pars):
     else:
         cos_modulation = [bL23, bL4, 0., 0., 0., 0.] 
 
-    for j in range(nreps):
-        aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=19., sigma_tE=sigmaE, theta_I=19.0, sigma_tI=sigmaI, cos_b=cos_modulation, mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
+    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=19., sigma_tE=sigmaE, theta_I=19.0, sigma_tI=sigmaI, cos_b=cos_modulation, mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
 
-        neurons_L23 = fl.filter_neurons(units_sample, layer='L23', cell_type='exc')
-        tuning_curve += np.mean(dutl.shift_multi(re, neurons_L23['pref_ori']), axis=0) 
+    neurons_L23 = fl.filter_neurons(units_sample, layer='L23', cell_type='exc')
+    tuning_curve += np.mean(dutl.shift_multi(re, neurons_L23['pref_ori']), axis=0) 
 
-        if neurons_L23.pref_ori.nunique() == 8:
-            utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
-            units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
-            conprob += compute_conn_prob(units_sample, connections_sample, n_samps=1)['L23']
-        else:
-            conprob += np.array([0.,0.,0.,1.,0.,0.,0.,0.])
+    if neurons_L23.pref_ori.nunique() == 8:
+        utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
+        units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
+        conprob = compute_conn_prob(units_sample, connections_sample, n_samps=1)['L23']
+    else:
+        conprob = np.array([0.,0.,0.,1.,0.,0.,0.,0.])
 
-
-
-    tuning_curve /=  nreps
-    conprob /= nreps
-
-    return tuning_curve, conprob
+    return tuning_curve, conprob, re
 
 
-nsims = 1000
+nsims = 10 
 
 if len(sbinet) < 5:
-    J = 1.0 + 3*np.random.rand(nsims)
+    J = 4*np.random.rand(nsims)
     g = 5*np.random.rand(nsims)
     sigmaE = 7 + 5*np.random.rand(nsims)
     sigmaI = 7 + 5*np.random.rand(nsims)
@@ -96,11 +93,11 @@ if len(sbinet) < 5:
     if sample_mode == 'kin':
         kee = 30 + 570*np.random.rand(nsims)
     else:
-        kee = 400 * np.ones(nsims)
+        kee = fixed_kee * np.ones(nsims)
 
     header = wtm.add_metadata(extra="Using random betas, single run for each network. Sample mode = {sample_mode}")
 else:
-    nsims = 100
+    nsims = 5 
     posterior = msbi.load_posterior(f"{datafolder}/model/sbi_networks/{sbinet}") 
 
     neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
@@ -121,17 +118,19 @@ else:
         b4  = np.zeros(J.shape)
     else:
         J,g,sigmaE,sigmaI,hEI,hII,b23,b4 = np.transpose(posterior_samples) 
-        kee = 400 * np.ones(nsims)
+        kee = fixed_kee * np.ones(nsims)
 
     header = wtm.add_metadata(extra=f"SBI simulation using network {sbinet} with sample mode {sample_mode}")
 
 
 np.savetxt(f"{datafolder}/model/simulations/{savefolder}/metadata{simid}", [], header=header)
 output = open(f'{datafolder}/model/simulations/{savefolder}/{simid}.txt', 'a')
+warnings.simplefilter("ignore")
 for i in range(nsims):
     pars     = [J[i], g[i], sigmaE[i], sigmaI[i], hEI[i], hII[i], b23[i], b4[i], kee[i]]
-    tcurve, conprob = dosim(pars)
+    tcurve, conprob, re = dosim(pars)
     result = np.concatenate((pars, tcurve, conprob))
     np.savetxt(output, result[np.newaxis, :])
+    np.save(f'{datafolder}/model/simulations/{savefolder}/{simid}_rates{i}.npy', re) 
 
 output.close()
