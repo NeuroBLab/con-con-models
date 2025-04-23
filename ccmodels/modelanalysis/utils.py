@@ -265,3 +265,11 @@ def load_synthetic_data(suffix, load_pref_ori=False, prepath="data"):
     target_ori = np.load(f'{prepath}/model/auxtemp/target_ori_{suffix}.npy').astype(int)
     
     return v1_neurons, v1_connections, rates, n_neurons, target_ori
+
+def format_synthetic_data_4conprob(units_sampled, connections_sampled, re, ri, rx):
+    #Angles are integers to avoid any roundoff error
+    units_sampled.loc[:, "pref_ori"] = units_sampled["pref_ori"].astype("Int64")
+
+    connections_sampled["delta_ori"] = au.construct_delta_ori(units_sampled, connections_sampled, half=True)
+    connections_sampled.loc[:, "delta_ori"] = connections_sampled["delta_ori"].astype("Int64")
+    return np.vstack([re, ri, rx])
