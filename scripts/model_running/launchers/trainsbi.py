@@ -39,7 +39,7 @@ if sample_mode == 'kin':
     summary_stats = torch.tensor(summary_stats)
 
     #Do the SBI
-    j0, jf = 1., 4.
+    j0, jf = 0., 4.
     g0, gf = 0., 5.
     #theta0, thetaf = 19., 19.
     sigmaE0, sigmaEf = 7., 12.
@@ -55,7 +55,7 @@ else:
     summary_stats = torch.tensor(summary_stats)
 
     #Do the SBI
-    j0, jf = 1., 4.
+    j0, jf = 0., 4.
     g0, gf = 0., 5.
     #theta0, thetaf = 19., 19.
     sigmaE0, sigmaEf = 7., 12.
