@@ -78,10 +78,10 @@ def dosim(pars):
     tuning_curve /=  nreps
     conprob /= nreps
 
-    return tuning_curve, conprob
+    return tuning_curve, conprob, re
 
 
-nsims = 1000
+nsims = 10
 
 if len(sbinet) < 5:
     J = 1.0 + 3*np.random.rand(nsims)
@@ -100,7 +100,7 @@ if len(sbinet) < 5:
 
     header = wtm.add_metadata(extra="Using random betas, single run for each network. Sample mode = {sample_mode}")
 else:
-    nsims = 100
+    nsims = 10
     posterior = msbi.load_posterior(f"{datafolder}/model/sbi_networks/{sbinet}") 
 
     neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
@@ -116,9 +116,7 @@ else:
     posterior_samples = posterior.sample((nsims,), x=summary_data.float()).numpy()
 
     if sample_mode == 'kin':
-        J,g,sigmaE,sigmaI,hEI,hII,kee = np.transpose(posterior_samples) 
-        b23 = np.zeros(J.shape)
-        b4  = np.zeros(J.shape)
+        J,g,sigmaE,sigmaI,hEI,hII,b23,b4,kee = np.transpose(posterior_samples) 
     else:
         J,g,sigmaE,sigmaI,hEI,hII,b23,b4 = np.transpose(posterior_samples) 
         kee = 400 * np.ones(nsims)
@@ -130,8 +128,8 @@ np.savetxt(f"{datafolder}/model/simulations/{savefolder}/metadata{simid}", [], h
 output = open(f'{datafolder}/model/simulations/{savefolder}/{simid}.txt', 'a')
 for i in range(nsims):
     pars     = [J[i], g[i], sigmaE[i], sigmaI[i], hEI[i], hII[i], b23[i], b4[i], kee[i]]
-    tcurve, conprob = dosim(pars)
-    result = np.concatenate((pars, tcurve, conprob))
+    tcurve, conprob, re = dosim(pars)
+    result = np.concatenate((pars, tcurve, conprob, re.ravel()))
     np.savetxt(output, result[np.newaxis, :])
 
 output.close()
