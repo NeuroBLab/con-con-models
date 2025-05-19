@@ -1,0 +1,1 @@
+Network generated with commit hash: {gitc}. This network was generated when I mistakenly send a 'randpar' simulation but actually requested another tunedpar one. This was trained on 300 simulations. 
