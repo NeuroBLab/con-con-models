@@ -270,6 +270,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
     units_sampled.loc[~mask_osi, 'tuning_type'] = 'not_selective' 
     """
 
+    """
     start = 20
     tserieslen = aE_t.shape[1]
     mitad = (tserieslen - start) // 2
@@ -287,6 +288,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
     condition_selective[:ne] = pref_ori_1 == pref_ori_2
     units_sampled.loc[condition_selective, 'tuning_type'] = 'selective'
     units_sampled.loc[ne+ni:, 'tuning_type'] = 'selective'
+    """
 
     return aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates, units_sampled, connections_sampled, QJ_copy
 
