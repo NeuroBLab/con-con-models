@@ -115,11 +115,11 @@ def circular_variance(ax, units, rates, cved, cvid):
     ax.set_xlabel("Circ. Var.")
     ax.set_ylabel("Frac. of neurons")
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True):
+def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=10):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=n_samps)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
@@ -142,6 +142,7 @@ def conn_prob_osi(ax, probmean, proberr, half=True):
         ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
         ax.plot(angles, probmean[layer], color = c, label = layer)
         ax.scatter(angles, probmean[layer], color = cr.mc, s=cr.ms, zorder = 3)
+        
 
 
     ax.axvline(0, color="gray", ls=":")
@@ -154,8 +155,8 @@ def conn_prob_osi(ax, probmean, proberr, half=True):
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
 
-"""
-def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
+#"""
+def conn_prob_osi_data(ax, v1_neurons, v1_connections, half=True):
 
     #Get the data to be plotted 
     conprob = {}
@@ -179,9 +180,9 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
         high_band = plotutils.add_symmetric_angle(high_band.values)
         meandata  = plotutils.add_symmetric_angle(meandata.values)
 
-        ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
-        ax.plot(angles, meandata, color = c, label = layer)
-        ax.scatter(angles, meandata, color = cr.mc, s=cr.ms, zorder = 3)
+        #ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
+        ax.plot(angles, meandata, color = c, ls = "--", label = layer, markersize=cr.ms, marker='o')
+        #ax.scatter(angles, meandata, color = c, s=cr.ms, zorder = 3)
 
 
     ax.axvline(0, color="gray", ls=":")
@@ -193,7 +194,8 @@ def conn_prob_osi(ax, v1_neurons, v1_connections, half=True):
 
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
-"""
+#"""
+
 def compute_currents(units_sample, QJ, rates_sample):
 
     currents = mcur.bootstrap_mean_current(units_sample, QJ, rates_sample, tuning=['matched', 'matched'], cell_type=['exc', 'exc'], proof=[None, None])
@@ -205,7 +207,6 @@ def compute_currents(units_sample, QJ, rates_sample):
         currmean[layer] = curr
 
     return currmean 
-
 
 def plot_currents(ax, units, vij, rates, currmean, currerr):
 
@@ -219,7 +220,8 @@ def plot_currents(ax, units, vij, rates, currmean, currerr):
     totalmean = currents['Total'].mean(axis=0).max()
     for layer in ['L23', 'L4', 'Total']:
         mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
-        ax.scatter(np.arange(9), mean, color=cr.lcolor[layer], marker='o', s=cr.ms, zorder=3)
+        #ax.scatter(np.arange(9), mean, color=cr.lcolor[layer], marker='o', s=cr.ms, zorder=3)
+        ax.plot(np.arange(9), mean, color=cr.lcolor[layer], marker='o', ms=cr.ms, ls = "--")
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
@@ -289,7 +291,8 @@ def plot_figure(figname, generate_data = False):
 
         for j in range(nexp):
             #units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_ale_{j}")
-            units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_search_{j}")
+            #units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_search_{j}")
+            units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"definitive_random_{j}")
             QJ = loader.get_adjacency_matrix(units_sample, connections_sample)
             ne, ni, nx = n_neurons
 
@@ -329,6 +332,9 @@ def plot_figure(figname, generate_data = False):
             currerr[layer]  -= currerr[layer]**2
             currerr[layer] = np.sqrt(currerr[layer])
 
+        print("!!")
+        print(probmean)
+
         tuning_curve     /= nexp
         tuning_curve_err /= nexp
         tuning_curve_err -= tuning_curve**2
@@ -343,7 +349,7 @@ def plot_figure(figname, generate_data = False):
         np.save(f"{args.save_destination}/{figname}_tuning_error", tuning_curve_err) 
         np.save(f"{args.save_destination}/{figname}_probmeanL23", probmean['L23'])
         np.save(f"{args.save_destination}/{figname}_proberroL23", proberr['L23'])
-        np.save(f"{args.save_destination}/{figname}_probmeanL4", proberr['L4'])
+        np.save(f"{args.save_destination}/{figname}_probmeanL4", probmean['L4'])
         np.save(f"{args.save_destination}/{figname}_proberroL4", proberr['L4'])
         np.save(f"{args.save_destination}/{figname}_currmeanL23", currmean['L23'])
         np.save(f"{args.save_destination}/{figname}_currerroL23", currerr['L23'])
@@ -374,22 +380,25 @@ def plot_figure(figname, generate_data = False):
         currmean['LT'] = np.load(f"{args.save_destination}/{figname}_currmeanLT.npy")
         currerr['LT'] = np.load(f"{args.save_destination}/{figname}_currerroLT.npy")
 
-    plot_posterior(axes[0,0], "cosine_0402_POST")
+    print(probmean)
+
+    #plot_posterior(axes[0,0], "cosine_0402_POST")
     plot_ratedist(axes[0,1], rates, allratesE, allratesI)
     plot_tuning_curves(axes[0,2], units, rates, tuning_curve, tuning_curve_err) 
     circular_variance(axes[1,0], units, rates, allcircvE, allcircvI) 
     conn_prob_osi(axes[1,1], probmean, proberr) 
+    conn_prob_osi_data(axes[1,1], units, connections)
     plot_currents(axes[1,2], units, vij, rates, currmean, currerr) 
 
     axes2label = [axes[0,k] for k in range(3)] + [axes[1,k] for k in range(3)]
     label_pos  = [0.8, 0.9] * 6 
     sty.label_axes(axes2label, label_pos)
 
-    fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
+    fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
 numbers = {'J' : 1.5 + np.random.randn(1000), 'g' : 2 + np.random.randn(1000)}
 df = pd.DataFrame(data=numbers)
 df.to_csv("data/model/placeholder.csv", index=False)
 
 
-plot_figure("newpars.pdf")
+plot_figure("19may", generate_data=True)
