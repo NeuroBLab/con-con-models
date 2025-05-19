@@ -16,6 +16,8 @@ import ccmodels.modelanalysis.sbi_utils as msbi
 import ccmodels.utils.watermark as wtm
 import torch
 
+from scipy.stats import skew
+
 simid = int(sys.argv[1])
 sample_mode = sys.argv[2] #normal, tunedinh, kin 
 savefolder = sys.argv[3]
@@ -108,29 +110,33 @@ else:
     tcurvedata = np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0)
     means_data = compute_conn_prob(units, connections)
 
-    #For CV + rate dist
+    #Take the tuning curve at three points: start, minimum, and end 
+    cvo, cvd = utl.compute_circular_variance(tcurvedata, orionly=True)
+    r0 = tcurvedata[0] 
+    rf = tcurvedata[-1] 
+
+    #Connection probability reduction at beginning and end for L23 adn L4
+    pL23 = 0.5 * (means_data['L23'][0] + means_data['L23'][-1]) 
+    pL4  = 0.5 * (means_data['L4'][0] + means_data['L4'][-1]) 
+
+    summary_data = np.zeros(10)
+    summary_data[0] = r0
+    summary_data[1] = rf
+    summary_data[2] = cvd 
+    summary_data[3] = pL23 
+    summary_data[4] = pL4 
+
     cvoexp, cvdexp = utl.compute_circular_variance(rates23, orionly=True)
 
-    bins = np.linspace(0.,1.,9)
-    cvdist, _ = np.histogram(cvdexp, bins=bins, density=True)
+    summary_data[5] = np.mean(cvdexp)
+    summary_data[6] = np.std(cvdexp)
+    summary_data[7] = skew(cvdexp) 
 
-    bins = np.linspace(0.,2.,9)
-    rdist = np.zeros(8)
-    nsampled = 200
-    for nrep in range(100):
-        idx = np.random.choice(rates23.shape[0], nsampled)
-        distsample, _ = np.histogram(rates23[idx, :].ravel(), bins=bins, density=False)
-        rdist += distsample
-
-
-    rdist /= 100
-
+    logrates = np.log(rates23.flatten()) 
+    summary_data[8] = np.mean(logrates) 
+    summary_data[9] = np.std(logrates) 
     
-
-    #summary_data = np.concatenate((tcurvedata, means_data['L23'], means_data['L4']))
-    summary_data = np.concatenate((means_data['L23'], means_data['L4'], cvdist, rdist))
     summary_data = torch.tensor(summary_data)
-
 
     posterior_samples = posterior.sample((nsims,), x=summary_data.float()).numpy()
 

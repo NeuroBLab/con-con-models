@@ -8,4 +8,15 @@
 
 #srun python scripts/model_running/launchers/trainsbi.py randpars randnet normal
 #srun python scripts/model_running/launchers/trainsbi.py tunedpars tunednet tunedinh 
-srun python scripts/model_running/launchers/trainsbi.py kinpars kinnet kin 
+#srun python scripts/model_running/launchers/trainsbi.py kinpars kinnet kin 
+#srun python scripts/model_running/launchers/trainsbi.py randlowk rlwnet normal
+
+#low k 
+#srun python scripts/model_running/launchers/trainsbi.py randlowk rlwnetCV normal
+#srun python scripts/model_running/launchers/trainsbi.py tunedlowk tlknetCV tunedinh 
+
+#high k
+#srun python scripts/model_running/launchers/trainsbi.py randhighk rhgnetCV normal
+
+#Mini!
+srun python scripts/model_running/launchers/trainsbi_mini.py randlowk rlwnetMINI normal
