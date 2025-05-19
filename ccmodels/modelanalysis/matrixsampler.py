@@ -271,6 +271,9 @@ def sample_units(N, neurons_per_pop, column_names):
     units_sampled['pial_dist_y'] = np.zeros(N)
     units_sampled['pial_dist_z'] = np.zeros(N)
 
+    #In simulations we consider all neurons to be selective
+    units_sampled['tuning_type']  += ['selective']*N
+
     total=0
     for npop, population in zip(neurons_per_pop, column_names):
         #npop = round(N * fractions[population])
@@ -280,10 +283,10 @@ def sample_units(N, neurons_per_pop, column_names):
 
         if 'T' in population:
             units_sampled['pref_ori']  += [int(population[-1])]*npop 
-            units_sampled['tuning_type']  += ['selective']*npop 
+            #units_sampled['tuning_type']  += ['selective']*npop 
         else:
             units_sampled['pref_ori']  += [0]*npop 
-            units_sampled['tuning_type']  += ['not_selective']*npop 
+            #units_sampled['tuning_type']  += ['not_selective']*npop 
 
     return pd.DataFrame(data=units_sampled)
 
