@@ -16,7 +16,7 @@ scripts/figures/talkfigures/
 data/in_processing/connections_table_*
 data/model/k400*
 data/model/5pars*
-data/model/sbi_networks/test
+data/model/sbi_networks/
 data/model/*_net/
 data/model/simulations/
 data/model/auxtemp/
