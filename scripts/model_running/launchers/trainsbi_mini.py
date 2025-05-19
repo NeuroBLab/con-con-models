@@ -11,6 +11,8 @@ import ccmodels.modelanalysis.sbi_utils as msbi
 import ccmodels.modelanalysis.utils as mut
 import ccmodels.utils.watermark as wtm
 
+from scipy.stats import skew
+
 inputfolder = sys.argv[1]
 networkname = sys.argv[2]
 sample_mode = sys.argv[3]
@@ -29,39 +31,48 @@ def load_rates(simid):
 
 nfiles = 100
 params = np.empty((0, nparameters))
-summary_stats = np.empty((0,24)) 
+summary_stats = np.empty((0,5)) 
 
 for i in range(nfiles):
     inputfile = np.loadtxt(f"{datafolder}/model/simulations/{inputfolder}/{i}.txt")
     if inputfile.size > 0:
         params = np.vstack((params, inputfile[:, :nparameters]))
         #Observe that even if mode is NOT kin, the indegree is always stored as a parameter (it's just 400) so the summary stats start always from 9 and does not depend on nparameters
-        summary_stats = np.vstack((summary_stats, inputfile[:, 9:]))
+        #Take the tuning curve at three points: start, minimum, and end 
+        cvo, cvd = mut.compute_circular_variance(inputfile[:, 9:17], orionly=True)
+        r0 = inputfile[:, 9]
+        rf = inputfile[:, 16]
+
+        #Connection probability reduction at beginning and end for L23 adn L4
+        pL23 = 0.5 * (inputfile[:,17] + inputfile[:,24]) 
+        pL4  = 0.5 * (inputfile[:,25] + inputfile[:,32]) 
+
+        stats = np.vstack((r0, rf, cvd, pL23, pL4)).transpose()
+
+        summary_stats = np.vstack((summary_stats, stats))
+
         
 
 #Lets add another 16 summary stats, CV + rate dists
 sims_per_file = 1000
-cvbins = np.linspace(0., 1., 9)
-ratebins = np.linspace(0., 2., 9)
 
 #Increase the size of the summary stats
-summary_stats = np.hstack((summary_stats, np.zeros((summary_stats.shape[0], 16))))
+summary_stats = np.hstack((summary_stats, np.zeros((summary_stats.shape[0], 5))))
 
 for sim in range(sims_per_file * nfiles):
     rates = load_rates(sim)
 
     cvo, cvd = mut.compute_circular_variance(rates, orionly=True)
-    h, e = np.histogram(cvd, bins=cvbins, density=True)
-    summary_stats[sim, 24:32] = h 
+    summary_stats[sim, 5] = np.mean(cvd)
+    summary_stats[sim, 6] = np.std(cvd)
+    summary_stats[sim, 7] = skew(cvd) 
 
-    #Density is false because if not we get simulations with 0 in all the bins (all rates can be >2 sometimes)
-    h, e  = np.histogram(rates.flatten(), bins=ratebins, density=False)
-    summary_stats[sim, 32:] = h 
+    logrates = np.log(rates.flatten()) 
+    summary_stats[sim, 8] = np.mean(logrates) 
+    summary_stats[sim, 9] = np.std(logrates) 
 
-
-#Leave apart the tuning curve
-summary_stats = summary_stats[:, 8:]
-
+print(summary_stats.shape)
+exit()
 
         
 if sample_mode == 'kin':
