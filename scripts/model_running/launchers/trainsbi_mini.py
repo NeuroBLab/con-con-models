@@ -72,7 +72,6 @@ for sim in range(sims_per_file * nfiles):
     summary_stats[sim, 9] = np.std(logrates) 
 
 print(summary_stats.shape)
-exit()
 
         
 if sample_mode == 'kin':
@@ -115,9 +114,12 @@ prior = sbiut.BoxUniform(low=prior_lowbound, high=prior_highbound)
 posterior = msbi.train_sbi(prior, params, summary_stats)
 
 #Save the results
+print("Save network at")
+print(f"{datafolder}/model/sbi_networks/{networkname}.sbi")
 msbi.save_posterior(f"{datafolder}/model/sbi_networks/{networkname}.sbi", posterior)
-
+print("Network saved?")
 output = open(f'{datafolder}/model/sbi_networks/{networkname}_metadata.txt', 'w')
 gitc = wtm.get_commit_hash()
 output.write(f"Network generated with commit hash: {gitc} and sample mode {sample_mode} using L23 L4 CV rates entirely")
 output.close()
+print("eof")

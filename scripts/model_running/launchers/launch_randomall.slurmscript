@@ -27,8 +27,9 @@
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randlowk no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowk rlwnet.sbi 
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowkCV rlwnetCV.sbi 
-srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowkMINI rlwnetMINI.sbi 
+#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowkMINI rlwnetMINI.sbi 
 
 # k =200 tuned
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedlowk no
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedlowkCV tlknetCV.sbi 
+srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedlowkMINI tunedlowkMINI.sbi 
