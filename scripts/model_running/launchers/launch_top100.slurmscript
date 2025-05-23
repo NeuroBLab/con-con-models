@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH -J randc # Job name
+#SBATCH -o rand.%j.out	# Name of stdout output file(%j expands to jobId)
+#SBATCH -e rand.%j.err	# Name of stderr output file(%j expands to jobId)
+#SBATCH -c 1
+#SBATCH --mem 1400 
+
+srun python scripts/model_running/launchers/top100.py normal top100normal 
+#srun python scripts/model_running/launchers/top100.py tunedinh top100tuned 
+

@@ -23,24 +23,6 @@ import ccmodels.plotting.utils as plotutils
 
 
 
-def plot_posterior(ax, folder):
-    parcols =['J', 'g', 'thetaE', 'sigmaE', 'hEI', 'hII']
-    p, s= msbi.get_simulations_summarystats(f"data/model/{folder}", parcols, ['mean_re', 'mean_cve_dir','indiv_traj_std'] + [f'rate_tuning_{i}' for i in range(8)])
-    posterior_data = p.numpy()
-
-    bins = np.linspace(0, 5, 40)
-
-    ax.hist(posterior_data[:, 0],  density=True,  histtype='step',  bins=bins, label=r' $J^{EE}$', color=cr.lcolor['L23'])
-    ax.hist(posterior_data[:,0] * posterior_data[:,1],  density=True,  histtype='step',  bins=bins, label=r' $J^{EI}$', color=cr.lcolor['L23_modelI'])
-
-    ax.legend(loc=(0.6, 0.5))
-
-    ax.set_xlabel("Coupling")
-    ax.set_ylabel("Post. density")
-                                     
-
-
-
 def plot_ratedist(ax, rates, re, ri):
     #bins = np.logspace(-2, 2, 50)
     bins = np.linspace(0.01, 10, 50)
@@ -55,15 +37,10 @@ def plot_ratedist(ax, rates, re, ri):
 
     hist = hist / rates.size
 
-    ax.scatter(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', s=cr.ms, zorder=3, label='Data E')
+    ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', ls="--", markersize=cr.ms, zorder=3, label='Data E')
 
-    #ax.hist(rates.ravel(),     density=False,  histtype='step',  bins=bins, label='Data E', color=cr.lcolor['L23'])
-
-    ax.set_xlabel("Rate (spk/s)")
+    ax.set_xlabel("Rate (Hz)")
     ax.set_ylabel('Fract. of neurons')
-    #ax.set_xscale('log')
-
-    #ax.set_xticks([0.01, 1, 100])
 
     ax.legend()
     return
@@ -87,10 +64,11 @@ def plot_tuning_curves(ax, units, rates, tuning_curves, tuning_error):
     neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
     rates23 = rates[neurons_L23['id'], :]
     #ax.plot(np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0), ls="none", marker='o', color=cr.lcolor['L23'])
-    ax.scatter(np.arange(0,8), np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']+4), axis=0), color=cr.lcolor['L23'], marker='o', s=cr.ms, zorder=3)
+    ax.plot(np.arange(0,8), np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']+4), axis=0), color=cr.lcolor['L23'], ls="--", marker='o', markersize=cr.ms, zorder=3)
 
     #ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
+    ax.set_ylim(0, 4.1)
     ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
     ax.set_ylabel('rate')
 
@@ -102,20 +80,23 @@ def circular_variance(ax, units, rates, cved, cvid):
     units_e = fl.filter_neurons(units, layer='L23', tuning='matched', cell_type='exc')
     _, cv_data = utl.compute_circular_variance(rates[units_e['id']], orionly=True)
 
-    ax.hist(cved, bins=bins, density=True, histtype='step', color=cr.lcolor['L23']) 
-    ax.hist(cvid, bins=bins, density=True, histtype='step', color=cr.lcolor['L23_modelI'])
+    w = np.ones(cved.size) / cved.size
+    ax.hist(cved, bins=bins, density=False, weights=w, histtype='step', color=cr.lcolor['L23']) 
+    w = np.ones(cvid.size) / cvid.size
+    ax.hist(cvid, bins=bins, density=False, weights=w, histtype='step', color=cr.lcolor['L23_modelI'])
 
-    #ax.hist(cv_data, bins=bins, density=True, alpha=0.5, color=cr.lcolor['L23']) 
-    hist, edges = np.histogram(cv_data, density=True, bins=bins)
+    w = np.ones(cv_data.size) / cv_data.size
+    hist, edges = np.histogram(cv_data, density=False, weights=w, bins=bins)
     edges = 0.5*(edges[1:] + edges[:-1])
 
     #ax.plot(edges, hist, color=cr.lcolor['L23'], ls='none', marker='o')
-    ax.scatter(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', s=cr.ms, zorder=3)
+    ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', markersize=cr.ms, zorder=3, ls="--")
+
 
     ax.set_xlabel("Circ. Var.")
     ax.set_ylabel("Frac. of neurons")
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=10):
+def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
 
     #Get the data to be plotted 
     conprob = {}
@@ -129,19 +110,18 @@ def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=10):
 
     return meandata
 
-def conn_prob_osi(ax, probmean, proberr, half=True):
+def conn_prob_osi(ax, probmean, proberr, layer, half=True):
 
     #Plot it!
     angles = plotutils.get_angles(kind="centered", half=half)
 
-    for layer in ["L23", "L4"]:
-        low_band  = probmean[layer] - proberr[layer]
-        high_band = probmean[layer] + proberr[layer]
-        c = cr.lcolor[layer]
+    low_band  = probmean[layer] - proberr[layer]
+    high_band = probmean[layer] + proberr[layer]
+    c = cr.lcolor[layer]
 
-        ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
-        ax.plot(angles, probmean[layer], color = c, label = layer)
-        ax.scatter(angles, probmean[layer], color = cr.mc, s=cr.ms, zorder = 3)
+    ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
+    ax.plot(angles, probmean[layer], color = c, label = layer)
+    ax.scatter(angles, probmean[layer], color = cr.mc, s=cr.ms, zorder = 3)
         
 
 
@@ -149,6 +129,8 @@ def conn_prob_osi(ax, probmean, proberr, half=True):
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
+    ax.set_ylim(0.5, 1.1)
+
     ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
     ax.set_ylabel("p(∆θ)")
 
@@ -156,39 +138,36 @@ def conn_prob_osi(ax, probmean, proberr, half=True):
     plotutils.get_xticks(ax, max=np.pi, half=True)
 
 #"""
-def conn_prob_osi_data(ax, v1_neurons, v1_connections, half=True):
+def conn_prob_osi_data(ax, v1_neurons, v1_connections, layer, half=True, n_samps = 100):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=100)
 
     #Plot it!
     angles = plotutils.get_angles(kind="centered", half=half)
 
-    for layer in ["L23", "L4"]:
-        p = conprob[layer]
-        c = cr.lcolor[layer]
+    p = conprob[layer]
+    c = cr.lcolor[layer]
 
-        #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
+    #Normalize by p(delta=0), which is at index 3
+    p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
 
-        low_band  = p['mean'] - p['std']
-        high_band = p['mean'] + p['std']
-        meandata = p['mean']
+    meandata = p['mean']
+    errdata =  p['std']
 
-        low_band  = plotutils.add_symmetric_angle(low_band.values)
-        high_band = plotutils.add_symmetric_angle(high_band.values)
-        meandata  = plotutils.add_symmetric_angle(meandata.values)
+    meandata  = plotutils.add_symmetric_angle(meandata.values)
+    errdata   = plotutils.add_symmetric_angle(errdata.values)
 
-        #ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
-        ax.plot(angles, meandata, color = c, ls = "--", label = layer, markersize=cr.ms, marker='o')
-        #ax.scatter(angles, meandata, color = c, s=cr.ms, zorder = 3)
+    ax.errorbar(angles, meandata, yerr = errdata,  color = c, ls = "--", label = layer, markersize=cr.ms, marker='o')
 
 
     ax.axvline(0, color="gray", ls=":")
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
+    ax.set_ylim(0.5, 1.1)
+
     ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
     ax.set_ylabel("p(∆θ)")
 
@@ -212,8 +191,8 @@ def plot_currents(ax, units, vij, rates, currmean, currerr):
 
     #for layer in ['L23', 'L4', 'Total']:
     for layer in ['L23', 'L4']:
-        ax.plot(currmean[layer], label=layer, color=cr.lcolor[layer])
         ax.fill_between(np.arange(9), currmean[layer]-currerr[layer], currmean[layer]+currerr[layer], alpha=0.2, color=cr.lcolor[layer])
+        ax.plot(currmean[layer], label=layer, color=cr.lcolor[layer])
 
 
     currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
@@ -224,6 +203,8 @@ def plot_currents(ax, units, vij, rates, currmean, currerr):
         ax.plot(np.arange(9), mean, color=cr.lcolor[layer], marker='o', ms=cr.ms, ls = "--")
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
+    ax.set_ylim(0, 1.1)
+
     ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
     ax.set_ylabel("μ(∆θ)")
 """
@@ -276,7 +257,7 @@ def plot_figure(figname, generate_data = False):
 
     if generate_data:
 
-        nexp = 10
+        nexp = 2
         diff_ori = np.empty(0)
         allratesE = np.empty(0)
         allratesI = np.empty(0)
@@ -330,7 +311,7 @@ def plot_figure(figname, generate_data = False):
             currmean[layer] /= nexp 
             currerr[layer]  /= nexp  
             currerr[layer]  -= currerr[layer]**2
-            currerr[layer] = np.sqrt(currerr[layer])
+            currerr[layer] = np.sqrt(currerr[layer] / nexp) 
 
         print("!!")
         print(probmean)
@@ -383,12 +364,14 @@ def plot_figure(figname, generate_data = False):
     print(probmean)
 
     #plot_posterior(axes[0,0], "cosine_0402_POST")
-    plot_ratedist(axes[0,1], rates, allratesE, allratesI)
-    plot_tuning_curves(axes[0,2], units, rates, tuning_curve, tuning_curve_err) 
-    circular_variance(axes[1,0], units, rates, allcircvE, allcircvI) 
-    conn_prob_osi(axes[1,1], probmean, proberr) 
-    conn_prob_osi_data(axes[1,1], units, connections)
-    plot_currents(axes[1,2], units, vij, rates, currmean, currerr) 
+    plot_ratedist(axes[0,0], rates, allratesE, allratesI)
+    plot_tuning_curves(axes[0,1], units, rates, tuning_curve, tuning_curve_err) 
+    circular_variance(axes[0,2], units, rates, allcircvE, allcircvI) 
+    plot_currents(axes[1,0], units, vij, rates, currmean, currerr) 
+    conn_prob_osi(axes[1,1], probmean, proberr, "L23") 
+    conn_prob_osi_data(axes[1,1], units, connections, "L23")
+    conn_prob_osi(axes[1,2], probmean, proberr, "L4") 
+    conn_prob_osi_data(axes[1,2], units, connections, "L4")
 
     axes2label = [axes[0,k] for k in range(3)] + [axes[1,k] for k in range(3)]
     label_pos  = [0.8, 0.9] * 6 
@@ -401,4 +384,4 @@ df = pd.DataFrame(data=numbers)
 df.to_csv("data/model/placeholder.csv", index=False)
 
 
-plot_figure("19may", generate_data=True)
+plot_figure("fig4normal", generate_data=True)
