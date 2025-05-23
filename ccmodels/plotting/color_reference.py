@@ -25,6 +25,8 @@ angles=["darkorange", "gold", "purple", "violet"]
 ms = 3
 mc = "#303030"
 
+#Reshuffling code
+reshuf_color = ["#353535", pal_extended[4], pal_extended[3], pal_extended[2]]
 
 
 # --------------------------------

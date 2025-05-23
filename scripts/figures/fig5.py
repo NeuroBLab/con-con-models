@@ -20,7 +20,7 @@ import ccmodels.plotting.utils as plotutils
 import ccmodels.plotting.color_reference as cr
 
 #def diff_emergent2target_prefori(ax, pref_ori, target_ori, color):
-def diff_emergent2target_prefori(ax, diff_ori, color):
+def diff_emergent2target_prefori(ax, diff_ori, color, label):
 
 
     bins = np.arange(-4.5, 5.5)
@@ -30,14 +30,14 @@ def diff_emergent2target_prefori(ax, diff_ori, color):
     hist[0] = hist[-1] #Boundary conditions for angle
 
     hist = hist / len(diff_ori)
-    ax.plot(bins[:-1]+0.5, hist, marker='.', color=color)
-
-    #ax.hist(diff_ori, bins=bins,  weights=w, density=False, histtype='step', color=color)
+    lines, = ax.plot(bins[:-1]+0.5, hist, marker='.', color=color, label=label)
 
     ax.set_xlabel(r"$\hat \theta _\text{targt}- \hat \theta _\text{emerg}$")
     ax.set_ylabel('Count')
     ax.set_xticks([-4, 0, 4], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.25, 0.5])
+    
+    return lines
 
 def plot_ratedist(ax, re, color):
     bins = np.linspace(0.01, 10, 50)
@@ -56,8 +56,10 @@ def circular_variance(ax, cved, color):
     bins = np.linspace(0,1,50)
 
     #cveo, cved = utl.compute_circular_variance(re, orionly=True)    
+    print(cved.shape)
 
-    ax.hist(cved, bins=bins, density=True, color=color, histtype='step')
+    w = np.ones(cved.size) / cved.size
+    ax.hist(cved, bins=bins, density=False, weights=w, color=color, histtype='step')
 
     ax.set_xlabel("CirVar")
     ax.set_ylabel("p(CirVar)")
@@ -87,7 +89,7 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
     #Plot it!
     angles = plotutils.get_angles(kind="centered", half=half)
     axes = {'L23': axL23, 'L4': axL4}
-    colors = {'L23': colorL23, 'L4': colorL4}
+    colors = {'L23': colorL23, 'L4': colorL23}
     plots = {'L23':None, 'L4':None}
 
     for layer in ["L23", "L4"]:
@@ -95,7 +97,7 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
         high_band = meandata[layer] + error[layer]
 
         axes[layer].fill_between(angles, low_band, high_band, color = colors[layer], alpha = 0.2)
-        plots[layer], = axes[layer].plot(angles, meandata[layer], color = colors[layer])
+        axes[layer].plot(angles, meandata[layer], color = colors[layer])
 
         axes[layer].axvline(0, color="gray", ls=":")
 
@@ -106,7 +108,7 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
 
         plotutils.get_xticks(axes[layer], max=np.pi, half=True)
     
-    return plots['L23'], plots['L4']
+    return 
 """
 def conn_prob_osi(axL23, axL4, v1_neurons, v1_connections, colorL23, colorL4, half=True):
 
@@ -160,7 +162,7 @@ args = parser.parse_args()
 
 def plot_figure(figname, generate_data=True):
 
-    nexp = 10
+    nexp = 10 
 
     # load files
     units, connections, rates = loader.load_data()
@@ -173,7 +175,8 @@ def plot_figure(figname, generate_data=True):
     vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
 
-    filename = 'best_ale'
+    #filename = 'best_ale'
+    filename = 'definitive_random'
     sty.master_format()
     fig, axes = plt.subplot_mosaic(
     """
@@ -182,15 +185,14 @@ def plot_figure(figname, generate_data=True):
     """,
     figsize=sty.two_col_size(height=9.5), layout='constrained') 
 
-    colors23 = [cr.lcolor['L23']] + cr.darken(cr.lcolor['L23'], 3, 0.25)
-    colors4 = [cr.lcolor['L4']] + cr.darken(cr.lcolor['L4'], 3, 0.2)
+    colors = cr.reshuf_color 
+    labels = ['Original', 'Reshuffled', 'L23 reshuffled.', 'L4 reshuffled']
+    legend_handles = []
 
-    plots = []
+    for i, reshuffle_mode in enumerate(['', 'all', 'L23', 'L4']):
 
-    for i, reshuffle_mode in enumerate(['', 'alltuned', 'L23tuned', 'L4tuned']):
-
-        c23 = colors23[i]
-        c4  = colors4[i]
+        c23 = colors[i]
+        label = labels[i]
 
         if generate_data:
 
@@ -214,6 +216,7 @@ def plot_figure(figname, generate_data=True):
                 rx = rates_sample[ne+ni:, :]
                 
                 exc_pref_ori = fl.filter_neurons(units_sample, cell_type='exc', layer='L23')['pref_ori'].values
+                target_ori = target_ori[:ne]
                 diff_ori = np.concatenate((diff_ori, au.signed_angle_dist_vectorized(target_ori, exc_pref_ori)))
 
                 allrates = np.concatenate((allrates, re.ravel()))
@@ -237,7 +240,7 @@ def plot_figure(figname, generate_data=True):
             np.save(f"{args.save_destination}/{figname}_{i}_circ_data", allcircv)
             np.save(f"{args.save_destination}/{figname}_{i}_probmeanL23", probmean['L23'])
             np.save(f"{args.save_destination}/{figname}_{i}_proberroL23", proberr['L23'])
-            np.save(f"{args.save_destination}/{figname}_{i}_probmeanL4", proberr['L4'])
+            np.save(f"{args.save_destination}/{figname}_{i}_probmeanL4", probmean['L4'])
             np.save(f"{args.save_destination}/{figname}_{i}_proberroL4", proberr['L4'])
 
         else:
@@ -246,18 +249,19 @@ def plot_figure(figname, generate_data=True):
             currmean = {}
             currerr  = {}
 
-            diff_ori = np.save(f"{args.save_destination}/{figname}_{i}_angl_data")
-            allrates = np.save(f"{args.save_destination}/{figname}_{i}_rate_data", allrates)
-            allcircv = np.save(f"{args.save_destination}/{figname}_{i}_circ_data", allrates)
-            probmean['L23'] = np.save(f"{args.save_destination}/{figname}_{i}_probmeanL23", probmean['L23'])
-            proberr['L23']  = np.save(f"{args.save_destination}/{figname}_{i}_proberroL23", proberr['L23'])
-            probmean['L4']  = np.save(f"{args.save_destination}/{figname}_{i}_probmeanL4", proberr['L4'])
-            proberr['L4']   = np.save(f"{args.save_destination}/{figname}_{i}_proberroL4", proberr['L4'])
+            diff_ori = np.load(f"{args.save_destination}/{figname}_{i}_angl_data.npy")
+            allrates = np.load(f"{args.save_destination}/{figname}_{i}_rate_data.npy")
+            allcircv = np.load(f"{args.save_destination}/{figname}_{i}_circ_data.npy")
+            probmean['L23'] = np.load(f"{args.save_destination}/{figname}_{i}_probmeanL23.npy")
+            proberr['L23']  = np.load(f"{args.save_destination}/{figname}_{i}_proberroL23.npy")
+            probmean['L4']  = np.load(f"{args.save_destination}/{figname}_{i}_probmeanL4.npy")
+            proberr['L4']   = np.load(f"{args.save_destination}/{figname}_{i}_proberroL4.npy")
 
 
 
         #diff_emergent2target_prefori(axes['A'], exc_pref_ori, target_ori, c23)    
-        diff_emergent2target_prefori(axes['A'], diff_ori, c23)    
+        handle = diff_emergent2target_prefori(axes['A'], diff_ori, c23, label)    
+        legend_handles.append(handle)
 
         #plot_ratedist(axes['B'], re, c23)
         plot_ratedist(axes['B'], allrates, c23)
@@ -267,11 +271,10 @@ def plot_figure(figname, generate_data=True):
 
 
         #p1, p2 = conn_prob_osi(axes['D'], axes['E'], units_sample, connections_sample, c23, c4)
-        p1, p2 = conn_prob_osi(axes['D'], axes['E'], probmean, proberr, c23, c4)
-        plots.append((p1, p2))
+        conn_prob_osi(axes['D'], axes['E'], probmean, proberr, c23, c23)
 
     axes['L'].set_axis_off()
-    axes['L'].legend(plots, ['Original', 'Reshuffled', 'L23 reshuffled.', 'L4 reshuffled'], loc=(0.0, 0.5), handlelength=3.0, handler_map={tuple: HandlerTuple(ndivide=None)})
+    axes['L'].legend(handles=legend_handles)
 
 
     axes2label = [axes[key] for key in 'ABCDE']
@@ -281,4 +284,4 @@ def plot_figure(figname, generate_data=True):
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
-plot_figure("fig5.pdf")
+plot_figure("fig5normal.pdf", generate_data=True)

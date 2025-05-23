@@ -22,10 +22,10 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 
 N = 4000
 kee = 200 
-nreps = 10
-filename = "definitive_random"
+nreps = 10 
+filename = "definitive_random_tuned"
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=1000):
+def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=10):
 
     #Get the data to be plotted 
     conprob = {}
@@ -43,7 +43,7 @@ def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=1000):
 orionly= True
 local_connectivity = False 
 mode = 'cosine'
-intmode = 'normal'
+intmode = 'tunedinh'
 
 units, connections, rates = loader.load_data()
 connections = fl.remove_autapses(connections)
@@ -77,15 +77,14 @@ for nrep in range(100):
 rdist /= 100
 rdist_density /= 100
 
-#best_pars = np.array([[1.43, 2.11, 8.465, 7.962, 93.02, 422.83, 0.42, 0.41]])
-#best_pars = np.array([[  3.37375749,   3.60363018,   7.68115589,  10.84139964, 113.75319217, 341.33113223,   0.493343  ,   0.42646622]])
-best_pars = np.array([[1.54436013e+00, 9.95247100e-01, 7.14569523e+00, 7.84802638e+00, 6.85261963e+01, 4.58259375e+02, 3.04467671e-01, 4.26403413e-01]])
 
 id = 0
-
 if  intmode=='normal':
+    best_pars = np.array([[1.32405126e+00, 5.96999824e-01, 8.16734695e+00, 8.55531502e+00,1.45977509e+02, 3.13572388e+02, 4.79209095e-01, 2.37898633e-01]])
     betas = [best_pars[id, 6], best_pars[id, 7], 0., 0., 0., 0.]
 elif intmode=='tunedinh':
+    #best_pars = np.array([[1.92722714e+00, 5.60854852e-01, 7.13633251e+00, 7.44682407e+00,1.33497223e+02, 3.84251801e+02, 3.04715216e-01, 2.62478530e-01]])
+    best_pars = np.array([[2.16435086e+00, 7.02782583e-01, 7.32673001e+00, 7.20601672e+00, 1.39987691e+02, 4.15600751e+02, 5.96647088e-01, 3.83488676e-01]])
     betas = [best_pars[id, 6], best_pars[id, 7], best_pars[id, 6], best_pars[id, 6], best_pars[id, 6], best_pars[id, 7]]
 elif intmode=='kin':
     betas = np.zeros(6) 
@@ -102,8 +101,8 @@ for i in range(nreps):
 
 
 
-    #for reshuffle_mode in ['alltuned', 'L23tuned', 'L4tuned']:
-    #    aE_t, aI_t, re, ri, stdre, units_reshuffle, connections_reshuffle, QJ_reshuffle = md.make_simulation_fixed_structure(units_sample, connections_sample, QJ, rx, n_neurons, theta_E=best_pars[2], sigma_tE=pars[3], hEI=pars[4], hII=pars[5], theta_I=pars[2], sigma_tI=pars[3],
-    #                                                                                                                                        orionly=True, reshuffle=reshuffle_mode)
+    for reshuffle_mode in ['all', 'L23', 'L4']:
+        aE_t, aI_t, re, ri, stdre, units_reshuffle, connections_reshuffle, QJ_reshuffle = md.make_simulation_fixed_structure(units_sample, connections_sample, QJ, rx, n_neurons, theta_E=19., sigma_tE=best_pars[id, 2], hEI=best_pars[id, 4], hII=best_pars[id, 5], theta_I=19., sigma_tI=best_pars[id,3],
+                                                                                                                                            orionly=True, reshuffle=reshuffle_mode)
 
-    #    utl.write_synthetic_data(f'{filename}_{reshuffle_mode[:3]}_{i}', units_reshuffle, connections_reshuffle, re, ri, rx, original_prefori, prepath='data')
+        utl.write_synthetic_data(f'{filename}_{reshuffle_mode[:3]}_{i}', units_reshuffle, connections_reshuffle, re, ri, rx, original_prefori, prepath='data')

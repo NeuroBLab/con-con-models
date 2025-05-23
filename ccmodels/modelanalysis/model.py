@@ -224,9 +224,10 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
 
     ne, ni, nx = n_neurons
 
-    if reshuffle=='alltuned':
+    if reshuffle=='all':
         ix= np.arange(0, ne+ni+nx)
         ix[0:ne] = np.random.choice(ix[0:ne], size=ne, replace=False)
+        ix[ne:ne+ni] = np.random.choice(ix[ne:ne+ni], size=ni, replace=False)
         ix[ne+ni:] = np.random.choice(ix[ne+ni:], size=nx, replace=False)
 
         QJ_copy = np.copy(QJ[:, ix])
@@ -234,7 +235,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
         ixs = np.where(np.abs(QJ_copy) > 0)
         connections_sampled = {"pre_id" : ixs[1], "post_id": ixs[0], "syn_volume":QJ_copy[ixs[0], ixs[1]]} 
         connections_sampled = pd.DataFrame(data=connections_sampled)
-    elif reshuffle=='L4tuned':
+    elif reshuffle=='L4':
         ix= np.arange(0, ne+ni+nx)
         ix[ne+ni:] = np.random.choice(ix[ne+ni:], size=nx, replace=False)
 
@@ -243,9 +244,10 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
         ixs = np.where(np.abs(QJ_copy) > 0)
         connections_sampled = {"pre_id" : ixs[1], "post_id": ixs[0], "syn_volume":QJ_copy[ixs[0], ixs[1]]} 
         connections_sampled = pd.DataFrame(data=connections_sampled)
-    elif reshuffle=='L23tuned':
+    elif reshuffle=='L23':
         ix= np.arange(0, ne+ni+nx)
         ix[0:ne] = np.random.choice(ix[0:ne], size=ne, replace=False)
+        ix[ne:ne+ni] = np.random.choice(ix[ne:ne+ni], size=ni, replace=False)
 
         QJ_copy = np.copy(QJ[:, ix])
         ixs = np.where(np.abs(QJ_copy) > 0)
@@ -258,7 +260,7 @@ def make_simulation_fixed_structure(units_sampled, connections_sampled, QJ, rate
     phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)
 
     #Make simulation and do the result
-    aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(units_sampled['pref_ori'].values, tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, hEI, hII,  dt=dt, orionly=orionly, random_init=True, return_all_series=True)
+    aE_t, aI_t, rate_etheta, rate_itheta, stddev_rates = do_dynamics(units_sampled['pref_ori'].values, tau_E, tau_I, QJ_copy, ne, ni, nx, rate_xtheta, phi, hEI, hII,  dt=dt, orionly=orionly, random_init=False, return_all_series=True)
 
     rates = np.vstack([rate_etheta, rate_itheta, rate_xtheta])
     units_sampled.loc[:, 'pref_ori'] = np.argmax(rates, axis=1)
