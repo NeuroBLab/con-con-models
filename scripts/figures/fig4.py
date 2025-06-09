@@ -132,7 +132,8 @@ def conn_prob_osi(ax, probmean, proberr, layer, half=True):
     ax.set_ylim(0.5, 1.1)
 
     ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
-    ax.set_ylabel("p(∆θ)")
+    ax.set_ylabel("p(∆θ)/p(0")
+    #ax.set_ylabel("Conn. Prob. (Normalized)")
 
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
@@ -169,33 +170,35 @@ def conn_prob_osi_data(ax, v1_neurons, v1_connections, layer, half=True, n_samps
     ax.set_ylim(0.5, 1.1)
 
     ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
-    ax.set_ylabel("p(∆θ)")
+    #ax.set_ylabel("p(∆θ)/p(0)")
+    ax.set_ylabel("Conn. Prob. \n(Normalized)")
 
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
 #"""
 
-def compute_currents(units_sample, QJ, rates_sample):
+def compute_currents(units_sample, QJ, rates_sample, k23, k4):
 
-    currents = mcur.bootstrap_mean_current(units_sample, QJ, rates_sample, tuning=['matched', 'matched'], cell_type=['exc', 'exc'], proof=[None, None])
+    currents = mcur.bootstrap_mean_current(units_sample, QJ, rates_sample, k23, k4, tuning=['matched', 'matched'], cell_type=['exc', 'exc'], proof=[None, None])
 
     totalmean = currents['Total'].mean(axis=0).max()
     currmean = {}
     for layer in ['L23', 'L4', 'Total']:
-        curr = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
+        #curr = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
+        curr = plotutils.shift(currents[layer].mean(axis=0))
         currmean[layer] = curr
 
     return currmean 
 
-def plot_currents(ax, units, vij, rates, currmean, currerr):
+def plot_currents(ax, units, vij, rates, currmean, currerr, k23, k4):
 
-    #for layer in ['L23', 'L4', 'Total']:
-    for layer in ['L23', 'L4']:
+    for layer in ['L23', 'L4', 'Total']:
+    #for layer in ['L23', 'L4']:
         ax.fill_between(np.arange(9), currmean[layer]-currerr[layer], currmean[layer]+currerr[layer], alpha=0.2, color=cr.lcolor[layer])
         ax.plot(currmean[layer], label=layer, color=cr.lcolor[layer])
 
 
-    currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
+    currents = mcur.bootstrap_mean_current(units, vij, rates, k23, k4, ['tuned', 'tuned'])
     totalmean = currents['Total'].mean(axis=0).max()
     for layer in ['L23', 'L4', 'Total']:
         mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
@@ -206,7 +209,8 @@ def plot_currents(ax, units, vij, rates, currmean, currerr):
     ax.set_ylim(0, 1.1)
 
     ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax.set_ylabel("μ(∆θ)")
+    #ax.set_ylabel("μ(∆θ)/μ(0)")
+    ax.set_ylabel("Syn. Current \n(Normalized)")
 """
 def plot_currents(ax, units, vij, rates, units_sample, QJ, rates_sample):
 
@@ -240,7 +244,14 @@ parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
 args = parser.parse_args()
 
-def plot_figure(figname, generate_data = False):
+def plot_figure(figname, is_tuned = False, generate_data = False):
+
+    if is_tuned:
+        figname += 'tuned'
+        filename = 'definitive_random_tuned'
+    else:
+        figname += 'normal'
+        filename = 'definitive_random'
 
     # load files
     units, connections, rates = loader.load_data()
@@ -255,9 +266,12 @@ def plot_figure(figname, generate_data = False):
     sty.master_format()
     fig, axes = plt.subplots(figsize=sty.two_col_size(height=9.5), ncols=3, nrows=2, layout="constrained")
 
+    k23, k4 = 200, 70 #First is fixed, the second is scaled from the connections probabilities 
+    #(it can be get as np.sum(QJ[:ne, ne+ni:] > 0, axis = 1).mean() after a simulation)
+
     if generate_data:
 
-        nexp = 2
+        nexp = 10
         diff_ori = np.empty(0)
         allratesE = np.empty(0)
         allratesI = np.empty(0)
@@ -273,7 +287,7 @@ def plot_figure(figname, generate_data = False):
         for j in range(nexp):
             #units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_ale_{j}")
             #units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_search_{j}")
-            units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"definitive_random_{j}")
+            units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"{filename}_{j}")
             QJ = loader.get_adjacency_matrix(units_sample, connections_sample)
             ne, ni, nx = n_neurons
 
@@ -294,13 +308,15 @@ def plot_figure(figname, generate_data = False):
             tuning_curve_err += tunings**2 
 
             means      = compute_conn_prob(units_sample, connections_sample)
-            print(means)
-            means_curr = compute_currents(units_sample, QJ, rates_sample)
+            means_curr = compute_currents(units_sample, QJ, rates_sample, k23, k4)
             for layer in ['L23', 'L4']:
                 probmean[layer] += means[layer]
                 proberr[layer] += means[layer]**2
                 currmean[layer] += means_curr[layer]
                 currerr[layer] += means_curr[layer]**2
+
+            currmean['Total'] += means_curr['Total']
+            currerr['Total']  += means_curr['Total']**2
 
         for layer in ['L23', 'L4']:
             probmean[layer] /= nexp
@@ -310,11 +326,19 @@ def plot_figure(figname, generate_data = False):
 
             currmean[layer] /= nexp 
             currerr[layer]  /= nexp  
-            currerr[layer]  -= currerr[layer]**2
-            currerr[layer] = np.sqrt(currerr[layer] / nexp) 
+            currerr[layer]  -= currmean[layer]**2
+            currerr[layer] = np.sqrt(currerr[layer]) 
 
-        print("!!")
-        print(probmean)
+
+        currmean['Total'] /= nexp
+        currerr['Total'] /= nexp
+        currerr['Total']  -= currmean['Total']**2
+        currerr['Total'] = np.sqrt(currerr['Total']) 
+
+        for layer in ['L23', 'L4', 'Total']:
+            currerr[layer]  /= currmean['Total'].max()
+            currmean[layer] /= currmean['Total'].max()
+
 
         tuning_curve     /= nexp
         tuning_curve_err /= nexp
@@ -358,23 +382,22 @@ def plot_figure(figname, generate_data = False):
         currerr['L23'] = np.load(f"{args.save_destination}/{figname}_currerroL23.npy")
         currmean['L4'] = np.load(f"{args.save_destination}/{figname}_currmeanL4.npy")
         currerr['L4'] = np.load(f"{args.save_destination}/{figname}_currerroL4.npy")
-        currmean['LT'] = np.load(f"{args.save_destination}/{figname}_currmeanLT.npy")
-        currerr['LT'] = np.load(f"{args.save_destination}/{figname}_currerroLT.npy")
+        currmean['Total'] = np.load(f"{args.save_destination}/{figname}_currmeanLT.npy")
+        currerr['Total'] = np.load(f"{args.save_destination}/{figname}_currerroLT.npy")
 
-    print(probmean)
 
     #plot_posterior(axes[0,0], "cosine_0402_POST")
     plot_ratedist(axes[0,0], rates, allratesE, allratesI)
     plot_tuning_curves(axes[0,1], units, rates, tuning_curve, tuning_curve_err) 
     circular_variance(axes[0,2], units, rates, allcircvE, allcircvI) 
-    plot_currents(axes[1,0], units, vij, rates, currmean, currerr) 
+    plot_currents(axes[1,0], units, vij, rates, currmean, currerr, k23, k4) 
     conn_prob_osi(axes[1,1], probmean, proberr, "L23") 
     conn_prob_osi_data(axes[1,1], units, connections, "L23")
     conn_prob_osi(axes[1,2], probmean, proberr, "L4") 
     conn_prob_osi_data(axes[1,2], units, connections, "L4")
 
     axes2label = [axes[0,k] for k in range(3)] + [axes[1,k] for k in range(3)]
-    label_pos  = [0.8, 0.9] * 6 
+    label_pos  = [-0.25, 1.05] * 6 
     sty.label_axes(axes2label, label_pos)
 
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
@@ -384,4 +407,5 @@ df = pd.DataFrame(data=numbers)
 df.to_csv("data/model/placeholder.csv", index=False)
 
 
-plot_figure("fig4normal", generate_data=True)
+plot_figure("fig4", is_tuned=False, generate_data=False)
+plot_figure("fig4", is_tuned=True, generate_data=False)
