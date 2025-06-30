@@ -24,6 +24,8 @@ data/model/auxtemp/
 sbi-logs/
 ccmodels/victor/
 
+images/*.pdf
+
 #For SLURM programs
 *.err
 *.out
