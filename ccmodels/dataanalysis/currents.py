@@ -244,7 +244,7 @@ def fraction_prefori_predicted(v1_neurons, tuned_connections, vij, rates):
 
     return au.signed_angle_dist_vectorized(idx_pref_ori, all_pref_oris)
 
-def bootstrap_mean_current(v1_neurons, tuned_connections, rates, nexperiments):
+def bootstrap_mean_current(kee, v1_neurons, tuned_connections, rates, nexperiments):
     """
     Computes the average input current to neurons in the L2/3, as well as the proportion of it
     arriving from recurrent interactions and L4
@@ -257,8 +257,9 @@ def bootstrap_mean_current(v1_neurons, tuned_connections, rates, nexperiments):
     rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
 
     #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
-    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
-    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
+    post_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
+    l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread="minimum")["id"]
+    l4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread="minimum")["id"]
 
     layers = ["Total", "L23", "L4"]
 
@@ -273,11 +274,12 @@ def bootstrap_mean_current(v1_neurons, tuned_connections, rates, nexperiments):
     for i in range(nexperiments): 
         #Bootstrap sample the entire table. If only one experiment is used, we do not bootstrap, just use the 
         #table as it is.
-        con_boots_total = tuned_connections.sample(frac=1, replace=nexperiments==1) 
+        sample_syn = tuned_connections.sample(n=int(kee * 1.35), replace=nexperiments!=1) 
 
         #In this bootstrap, get the connections from the presynaptic layer to L23
-        con_boots_l23 = fl.synapses_by_id(con_boots_total, pre_ids=l23_ids, post_ids=l23_ids, who="both")
-        con_boots_l4  = fl.synapses_by_id(con_boots_total, pre_ids=l4_ids, post_ids=l23_ids, who="both")
+        con_boots_total = fl.synapses_by_id(sample_syn, post_ids=post_ids, who="post")
+        con_boots_l23   = fl.synapses_by_id(sample_syn, pre_ids=l23_ids, post_ids=post_ids, who="both")
+        con_boots_l4    = fl.synapses_by_id(sample_syn, pre_ids=l4_ids, post_ids=post_ids, who="both")
 
         #Compute the currents we get from those 
         current = {}
@@ -294,7 +296,7 @@ def bootstrap_mean_current(v1_neurons, tuned_connections, rates, nexperiments):
     for key in layers: 
         avr_cur[key] /= nexperiments
         std_cur[key] /= nexperiments
-        std_cur[key] = np.sqrt(std_cur[key] - avr_cur[key]**2)
+        std_cur[key] = np.sqrt((std_cur[key] - avr_cur[key]**2) / nexperiments)
 
     #Normalize accordingly
     maxcur = np.max(avr_cur["Total"])
@@ -384,9 +386,9 @@ def bootstrap_system_currents_shuffle(v1_neurons, tuned_connections, rates, nexp
     #Ids of the L23/4 neurons, in order to be able to filter the corresponding pre/postsynaptic neurons
     l23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="tuned")["id"]
 
-    prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread='ax_clean')["id"]
-    prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread='ax_clean')["id"]
-    preallids = fl.filter_neurons(v1_neurons, tuning="matched", proofread='ax_clean')["id"]
+    prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched", proofread='minimum')["id"]
+    prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched", proofread='minimum')["id"]
+    preallids = fl.filter_neurons(v1_neurons, tuning="matched", proofread='minimum')["id"]
     #prel23_ids = fl.filter_neurons(v1_neurons, layer="L23", tuning="matched")["id"]
     #prel4_ids  = fl.filter_neurons(v1_neurons, layer="L4",  tuning="matched")["id"]
     #preallids = fl.filter_neurons(v1_neurons, tuning="matched")["id"]

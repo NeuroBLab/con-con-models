@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch as Box
 import argparse
-from scipy.stats import ttest_ind 
+from PIL import Image
 
 import sys
 import os 
@@ -19,6 +18,244 @@ import ccmodels.plotting.styles as sty
 import ccmodels.plotting.color_reference as cr
 import ccmodels.plotting.utils as plotutils
 
+import ccmodels.utils.angleutils as au
+
+
+#Get a simple tuning curve from the neuron with the selected id.  
+def example_tuning_curve(ax, rates, id):
+    rangle = plotutils.shift(rates[id, :])
+
+    ax.plot(np.arange(9), rangle,  lw=1, color=cr.lcolor['L23'])
+    ax.plot(np.arange(9), rangle,  lw=1, color='k', ls='none', marker='o', ms=cr.ms)
+
+    ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
+    ax.set_xlabel("θ")
+    ax.set_ylabel("Rate")
+
+#Plot an example current to the postsynaptic neuron with the selected id
+def example_current(ax, v1_neurons, connections, vij, rates, id):
+
+    currents = {}
+    
+    #Get the presynaptic filtering and compute the current 
+    pre_ids = fl.filter_neurons(v1_neurons, layer='L23', tuning='matched', proofread='minimum')
+    currents['L23'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
+
+    #Then repeat for the other layer
+    pre_ids = fl.filter_neurons(v1_neurons, layer='L4', tuning='matched', proofread='minimum')
+    currents['L4'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
+
+    #And the total current
+    pre_ids = fl.filter_neurons(v1_neurons, tuning='matched', proofread='minimum')
+    currents['Total'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
+    maxcurr = np.max(currents['Total'])
+
+
+    #For each one of the computed things, just plot it
+    for layer in currents:
+        currents[layer] = currents[layer] / maxcurr
+        shiftcur = plotutils.shift(currents[layer] )
+        ax.plot(np.arange(9), shiftcur, color=cr.lcolor[layer])
+
+
+    ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
+    ax.set_xlabel("θ")
+    ax.set_ylabel("Synaptic currents")
+
+def show_image(ax, path2im):
+    im = Image.open("images/" + path2im)
+    ax.imshow(im)
+
+def plot_currents(axes, units, rates, vij):
+
+    #Get the postsynaptic tuned neurons
+    post = fl.filter_neurons(units, layer='L23', tuning='tuned')
+    
+    #Get the presynaptic neurons in each one of the layers + the total one
+    pre = {}
+    pre["Total"]  = fl.filter_neurons(units, proofread='minimum')
+    for layer in ["L23", "L4"]:
+        pre[layer]  = fl.filter_neurons(units, layer=layer, proofread='minimum')
+    
+    #To store the results...
+    avgcurrent = {}
+    stdcurrent = {}
+
+    #We will need the maximum total current to normalize
+    current = curr.get_currents_subset(units, vij, rates, post_ids=post['id'], pre_ids=pre["Total"]['id'], shift=True)
+    avgcurrent['Total'] = np.mean(current, axis=0)
+    maxcur = np.max(avgcurrent['Total'])
+
+    #Just to plot
+    x = np.arange(9)
+
+    #Now for each one of the layers,
+    for layer in ['L23', 'L4', "Total"]:
+        #Get the presynaptic people for this case
+        pre_layer = pre[layer]
+
+        #Compute all the currents to postsynaptic neurons 
+        current = curr.get_currents_subset(units, vij, rates, post_ids=post['id'], pre_ids=pre_layer['id'], shift=True)
+
+        #Get the mean and its error
+        n = np.sqrt(current.shape[0])
+        avgcurrent[layer] = np.mean(current, axis=0)
+        stdcurrent[layer] = np.std(current, axis=0) / n
+
+        #Shift for plotting, normalize to maximum total current
+        avgcurrent[layer] = plotutils.shift(avgcurrent[layer] / maxcur)
+        stdcurrent[layer] = plotutils.shift(stdcurrent[layer] / maxcur)
+
+        #Plot 
+        axes[0].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer], color=cr.lcolor[layer], alpha=0.5)
+        axes[0].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
+        axes[0].plot(x, avgcurrent[layer], color='k', ms=cr.ms, ls='none', marker='o')
+
+        #Get the normalization for each curve
+        maxcurlayer = np.max(avgcurrent[layer])
+        avgcurrent[layer] = avgcurrent[layer] / maxcurlayer 
+        stdcurrent[layer] = stdcurrent[layer] / maxcurlayer 
+
+        #Replot the normalized thing
+        axes[1].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer],color=cr.lcolor[layer], alpha=0.5) 
+        axes[1].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
+        axes[1].plot(x, avgcurrent[layer], color='k', ms=cr.ms, ls='none', marker='o')
+
+def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 1000):
+
+    rates = dutl.get_untuned_rate(units, rates) 
+
+    #Initialize 
+    pre = {}
+    post = {}
+    in_degree = {}
+    weights = {}
+
+    #Prediction and observed pref oris
+    pref_oris_pred = {}
+    pref_ori_data = {}
+    #Difference between them and fraction correct
+    delta_target_pred_data = {}
+    fraction_correct = {}
+    abs_error = {}
+
+    #Get connections from proofread presynaptic neurons to tuned L23 ones
+    synapses = fl.filter_connections_prepost(units, connections, layer = [None, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None])
+    pre["Total"] = synapses["pre_id"].unique()
+    post["Total"] = synapses["post_id"].unique()
+    in_degree["Total"] = synapses['post_id'].value_counts().sort_index().values
+    weights["Total"] = synapses["syn_volume"]
+
+    #Unique does not sort the indices, but we will them to be sorted 
+    pre["Total"].sort()
+    post["Total"].sort()
+
+    #Repeat the very same thing but using presynaptic layers L23 and L4
+    for layer in ["L23", "L4"]:
+        synapses = fl.filter_connections_prepost(units, connections, layer = [layer, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None])
+        pre[layer]   = synapses['pre_id'].unique()
+        post[layer]  = synapses['post_id'].unique()
+        in_degree[layer] = synapses['post_id'].value_counts().sort_index().values
+        weights[layer] = synapses["syn_volume"]
+
+        pre[layer].sort()
+        post[layer].sort()
+
+
+
+    #Compute the difference in target vs predicted for our data
+    for layer in ["L23", "L4", "Total"]:
+        #Compute all the currents to postsynaptic neurons 
+        currents_data = curr.get_currents_subset(units, vij, rates, post_ids=post[layer], pre_ids=pre[layer], shift=False)
+
+        #Get their predicted pref ori and then compare with the actual postsynp neurons'  pref ori 
+        pref_oris_pred[layer] = np.argmax(currents_data, axis=1)
+        pref_ori_data[layer] = units.loc[units['id'].isin(post[layer]), 'pref_ori'].values
+        delta_target_pred_data[layer] = au.angle_dist(pref_oris_pred[layer], pref_ori_data[layer])
+
+        #Initialize for bootstrap
+        fraction_correct[layer] = np.empty(nreps)
+        abs_error[layer] = np.empty(nreps)
+
+    #Save that last one result from the loop: the prediction of pref_oris using the currents for all presynaptic neurons
+    #pref_oris_pred_total = pref_oris_pred.copy()
+    fraction_shuffled = np.empty(nreps) 
+    abs_error_shuffled = np.empty(nreps)
+
+    #Bootstrap for n repetitions 
+    for i in range(nreps):
+
+        #For each layer, get a bootstrap of our data currents to estimate mean and error
+        for layer in ["Total", "L23", "L4"]:
+            #Bootstrap (shortened to btrp) our real data
+            bootstraped_diff_angle = np.random.choice(delta_target_pred_data[layer], replace=True, size=len(delta_target_pred_data[layer]))
+
+            #Then, get the fractoin of good predictions in this bootstrapped sample and the mean difference
+            fraction_correct[layer][i] = (bootstraped_diff_angle == 0).sum() / len(bootstraped_diff_angle) 
+            abs_error[layer][i] = bootstraped_diff_angle.mean() * np.pi / 8
+
+
+
+        layer = "Total"
+        shuffled_post_oris = np.empty(len(post[layer]))
+        for pix in range(len(post[layer])):
+            k = in_degree["Total"][pix]
+            w = np.random.choice(weights[layer], replace=True, size=k)
+            pre_random = np.random.choice(len(pre[layer]), replace=True, size=k)
+            current = np.dot(w, rates[pre_random, :]) 
+            shuffled_post_oris[pix] = np.argmax(current)
+        
+        diff_angles = au.angle_dist(shuffled_post_oris, pref_ori_data[layer])
+        fraction_shuffled[i] = (diff_angles == 0).sum() / len(diff_angles) 
+        abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
+
+
+    #Position of the random level
+    linepos = abs_error_shuffled.mean() 
+    ax.axhline(linepos, color="black")
+
+    xoffset = -0.1
+    yoffset = 0.01
+
+    barpos = np.arange(3)
+
+    #Compute all currents to the postsynaptic neurons
+    for i,layer in enumerate(['L23', 'L4', "Total"]):
+
+        #delta = fraction_correct[layer].mean() 
+        #delta_err = fraction_correct[layer].std() 
+
+        delta = abs_error[layer].mean() 
+        delta_err = abs_error[layer].std() 
+
+        #For each bootstrap test, is the null hypothesis as large as our observation?
+        #The fraction of times this happened is the pvalue
+        p = np.mean(abs_error_shuffled <= abs_error[layer])
+
+        print(abs_error_shuffled.mean())
+
+        if p < 0.001:
+            sign = '***'
+        elif p < 0.01:
+            sign = '**'
+        elif p < 0.05:
+            sign = '*'
+        else:
+            sign = 'n.s.'
+
+        ax.text(barpos[i] + xoffset + 0.2 * xoffset * len(sign), linepos + yoffset, f"{sign}")
+        ax.text(barpos[i] + xoffset, linepos + yoffset + 0.02, f"p={p:.4f}", rotation='vertical')
+
+        ax.bar(barpos[i], delta, yerr=delta_err, color=cr.lcolor[layer], edgecolor='k')
+
+
+    ax.set_yticks([np.pi/6, np.pi/5, np.pi/4], ['π/6', 'π/5', 'π/4'])
+    ax.set_ylim(np.pi/6, np.pi/3.75)
+    ax.set_xticks(barpos, ['L23', 'L4', 'Total'])
+
+    return
+
+
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 
@@ -26,360 +263,7 @@ parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
 args = parser.parse_args()
 
-def plot_pref_ori(ax, v1_neurons):
-    bins = np.arange(-2.5, 9.0, 1)
-
-    for layer in ['L23', 'L4']:
-        neurons_layer = fl.filter_neurons(v1_neurons, layer=layer)
-        hist, _ = np.histogram(neurons_layer['pref_ori'].values, bins=bins)
-        ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
-
-    #ax.legend(loc='upper right', ncols=2)
-
-    ax.set_xlabel('θ')
-    ax.set_ylabel('p(θ)')
-    ax.set_xticks([0,8], ['0', 'π'])
-    ax.set_xlim(-1, 8)
-
-def conn_prob_osi(ax, ax_normalized, v1_neurons, v1_connections, half=True):
-
-    #Get the data to be plotted 
-    conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half)
-
-
-    #Plot it!
-    #angles = plotutils.get_angles(kind="centered", half=half)
-    angles = np.arange(9)
-
-    for layer in ["L23", "L4"]:
-        p = conprob[layer]
-        c = cr.lcolor[layer]
-
-        #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] #/p.loc[3, "mean"]
-
-        low_band  = p['mean'] - p['std']
-        high_band = p['mean'] + p['std']
-        meandata = p['mean']
-
-        low_band  = plotutils.add_symmetric_angle(low_band.values)
-        high_band = plotutils.add_symmetric_angle(high_band.values)
-        meandata  = plotutils.add_symmetric_angle(meandata.values)
-
-        ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
-        ax.plot(angles, meandata, color = c, label = layer)
-        ax.scatter(angles, meandata, color = cr.mc, s=cr.ms, zorder = 3)
-
-        #Normalize by p(delta=0), which is at index 3
-        low_band  /= p.loc[3, 'mean'] 
-        high_band /= p.loc[3, 'mean'] 
-        meandata  /= p.loc[3, 'mean'] 
-
-        ax_normalized.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
-        ax_normalized.plot(angles, meandata, color = c, label = layer)
-        ax_normalized.scatter(angles, meandata, color = cr.mc, s=cr.ms, zorder = 3)
-
-    ax.axvline(4, color="gray", ls=":")
-    ax_normalized.axvline(4, color="gray", ls=":")
-
-    #Then just adjust axes and put a legend
-    ax.tick_params(axis='both', which='major')
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
-    ax.set_ylabel("p(∆θ)")
-
-    ax_normalized.tick_params(axis='both', which='major')
-    ax_normalized.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
-    ax_normalized.set_ylabel("p(∆θ)/p(0)")
-
-    #plotutils.get_xticks(ax, max=np.pi, half=True)
-    #plotutils.get_xticks(ax_normalized, max=np.pi, half=True)
-    ax.set_xticks([0, 2, 4, 6, 8], ['-π/2', '', '0', '', 'π/2'])
-    ax_normalized.set_xticks([0, 2, 4, 6, 8], ['-π/2', '', '0', '', 'π/2'])
-
-    ax.set_ylim(0, 0.015)
-
-def plot_ratedist(ax, v1_neurons, rates):
-    #bins = np.logspace(-2, 2, 40)
-    bins = np.linspace(0.01, 10, 50)
-
-    for layer in ['L4', 'L23']: 
-        ids = fl.filter_neurons(v1_neurons, tuning='matched', layer=layer).loc[:, 'id'].values
-        h, edges = np.histogram(rates[ids, :].ravel(), density=True,  bins=bins)
-        dr = edges[1:] - edges[:-1]
-        ax.step(edges[:-1], h*dr, color=cr.lcolor[layer], label=layer)
-
-    #ax.set_xscale('log')
-    #ax.set_xticks([0.01, 1, 100])
-    ax.set_ylabel('Neuron fract.')
-    ax.set_xlabel('rate (spk/s)')
-
-
-def plot_synvoldist(ax, v1_neurons, v1_connections):
-    bins = np.logspace(-2, 2, 40)
-
-    for layer in ['L4', 'L23']: 
-        conns = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[layer, 'L23'], cell_type=['exc', 'exc'])
-        h, edges = np.histogram(conns['syn_volume'].values, density=True, bins=bins)
-        dv = edges[1:] - edges[:-1]
-        ax.step(edges[:-1], h*dv, color=cr.lcolor[layer])
-
-    ax.set_ylabel('Synap. fract.')
-    ax.set_xlabel('Synapse size')
-    ax.set_xscale('log')
-    ax.set_xticks([0.01, 1, 100])
-
-
-"""
-def plot_ratedist(ax,layer, v1_neurons, rates):
-    bins = np.logspace(-2, 2, 50)
-
-    tuned_neurons = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
-    untuned_neurons = fl.filter_neurons(v1_neurons, layer=layer, tuning='untuned')
-
-    tuned_rates = rates[tuned_neurons['id'], :].ravel()
-    untuned_rates = rates[untuned_neurons['id'], :].ravel()
-
-    cotuned_rates = np.empty(0)
-    orthogo_rates = np.empty(0)
-
-    nangles = rates.shape[1]
-
-    for i in range(nangles//2):
-        ortho = (i+nangles//2)%nangles
-        id_cotuned = tuned_neurons.loc[tuned_neurons['pref_ori']==i, 'id']
-        id_orthogonal =  tuned_neurons.loc[tuned_neurons['pref_ori']==ortho, 'id']
-
-        cotuned_rates = np.concatenate((cotuned_rates, rates[id_cotuned, i]) )
-        #orthogo_rates = np.concatenate((orthogo_rates, rates[id_cotuned, ortho]) )
-        orthogo_rates = np.concatenate((orthogo_rates, rates[id_orthogonal, i]) )
-
-
-    labels = ['All', 'Tuned', 'Untuned', 'Cotuned', 'Orthogonal']
-    colors = [cr.pal_extended[i] for i in range(len(labels))]
-    for i,r in enumerate([rates.ravel(), tuned_rates, untuned_rates, cotuned_rates, orthogo_rates]):
-        h, edges = np.histogram(r, density=True,  bins=bins)
-        dr = edges[1:] - edges[:-1]
-        ax.step(edges[:-1], h*dr, label=labels[i], color=colors[i])
-
-
-    ax.set_xscale('log')
-    
-
-def plot_synvoldist(ax, layer, v1_neurons, v1_connections):
-    bins = np.logspace(-3, 2, 40)
-    #bins = np.linspace(-3, 2, 40)
-
-
-    tuned_links = fl.filter_connections(v1_neurons, v1_connections, layer=layer, tuning='tuned', who='pre')
-    untuned_links = fl.filter_connections(v1_neurons, v1_connections, layer=layer, tuning='untuned', who='pre')
-
-    tuned_synvol = tuned_links['syn_volume'].values
-    untuned_synvol =  untuned_links['syn_volume'].values
-
-    cotuned_synvol = tuned_links.loc[tuned_links['delta_ori']==0, 'syn_volume'].values
-    orthogo_synvol = tuned_links.loc[tuned_links['delta_ori']==4, 'syn_volume'].values
-
-    labels = ['All', 'Tuned', 'Untuned', 'Cotuned', 'Orthogonal']
-    colors = [cr.pal_extended[i] for i in range(len(labels))]
-    for i,r in enumerate([v1_connections['syn_volume'].values, tuned_synvol, untuned_synvol, cotuned_synvol, orthogo_synvol]):
-        #h, edges = np.histogram(r, density=True, bins=bins)
-        h, edges = np.histogram(r, density=True, bins=bins)
-        dv = edges[1:] - edges[:-1]
-        ax.step(edges[:-1], h*dv, label=labels[i], color=colors[i])
-
-
-
-    ax.set_xscale('log')
-"""
-
-#""" v2
-def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates):
-    angles = plotutils.get_angles(kind="centered", half=True)
-    nexperiments = 1000 
-    frac = 550 / len(v1_connections)
-
-    #Compute the currents in the system
-    #mean_cur, std_cur = curr.bootstrap_system_currents(v1_neurons, v1_connections, rates, nexperiments, frac=frac, replace=False)
-    mean_cur = curr.bootstrap_system_currents_shuffle(v1_neurons, v1_connections, rates, nexperiments, frac=frac)
-
-    #Total current is shown just in the "unnormalized" version. Also we need to obtain
-    #the global total current to normalize according to it
-    total_cur = mean_cur['Total'].mean(axis=1)
-    norma = np.max(total_cur)
-    total_cur = plotutils.shift(total_cur)
-    ax.plot(angles, total_cur/norma, label='Total', color=cr.lcolor['Total'])
-    ax.scatter(angles, total_cur/norma, color=cr.mc, s=cr.ms, zorder=3)
-
-    #Then show L23 and L4 currents for unnormalized and normalized versions
-    for layer in ['L23', 'L4']:
-        meancur = mean_cur[layer].mean(axis=1)
-        stdcur  = mean_cur[layer].std(axis=1) / np.sqrt(mean_cur[layer].shape[1])
-
-        meancur = plotutils.shift(meancur)
-        stdcur = plotutils.shift(stdcur)
-        
-
-        ax.fill_between(angles, (meancur-stdcur)/norma, (meancur+stdcur)/norma, color=cr.lcolor[layer], alpha=0.2)
-        ax.plot(angles, meancur/norma, label=layer, color=cr.lcolor[layer])
-        ax.scatter(angles, meancur/norma, color=cr.mc, s=cr.ms, zorder=3)
-
-        stdcur  /= np.max(meancur)
-        meancur /= np.max(meancur)
-        ax_normalized.fill_between(angles, meancur-stdcur, meancur+stdcur, color=cr.lcolor[layer], alpha=0.2)
-        ax_normalized.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
-        ax_normalized.scatter(angles, meancur, color=cr.mc, s=cr.ms, zorder=3)
-
-    plotutils.get_xticks(ax, max=np.pi, half=True)
-    plotutils.get_xticks(ax_normalized, max=np.pi, half=True)
-
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax_normalized.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-
-    ax.set_ylim(0, 1.05)
-    ax.set_ylabel('μ(Δθ)')
-    ax_normalized.set_ylabel('μ(Δθ)/μ(0)')
-#"""
-
-""" 
-def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates):
-    angles = plotutils.get_angles(kind="centered", half=True)
-    nexperiments = 1000 
-    frac = 550 / len(v1_connections)
-
-    #Compute the currents in the system
-    #mean_cur, std_cur = curr.bootstrap_system_currents(v1_neurons, v1_connections, rates, nexperiments, frac=frac, replace=False)
-    mean_cur = curr.bootstrap_system_currents_shuffle(v1_neurons, v1_connections, rates, nexperiments, frac=frac)
-
-    #Total current is shown just in the "unnormalized" version. Also we need to obtain
-    #the global total current to normalize according to it
-    total_cur = mean_cur['Total'].mean(axis=1)
-    norma = np.max(total_cur)
-    total_cur = plotutils.shift(total_cur)
-    #ax.plot(angles, total_cur/norma, label='Total', color=cr.lcolor['Total'])
-    #ax.scatter(angles, total_cur/norma, color=cr.mc, s=cr.ms, zorder=3)
-
-
-    #Then show L23 and L4 currents for unnormalized and normalized versions
-    for layer in ['L23', 'L4']:
-        meancur = mean_cur[layer].mean(axis=1)
-        stdcur  = mean_cur[layer].std(axis=1) / np.sqrt(mean_cur[layer].shape[1])
-
-
-        meancur = plotutils.shift(meancur) / norma
-        stdcur = plotutils.shift(stdcur) / norma
-
-        ax.fill_between(angles, meancur-stdcur, meancur+stdcur, color=cr.lcolor[layer], alpha=0.2)
-        ax.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
-        ax.scatter(angles, meancur, color=cr.mc, s=cr.ms, zorder=3)
-
-        mc0 = mean_cur[layer][0, :] / norma 
-        mc4 = mean_cur[layer][4, :] / norma 
-
-        test = ttest_ind(mc0, mc4, equal_var=False, alternative='greater') 
-        print(test, mean_cur[layer][0, :].shape)
-        xpos = np.array([0,1]) + 3*(layer=='L4')
-        h = [meancur[4], meancur[8]]
-        ax_normalized.bar(xpos, h, color=cr.lcolor[layer])
-
-        offset = 0.2
-        sep = 0.05
-        ax_normalized.plot([xpos[0], xpos[0], xpos[1], xpos[1]], [h[0]+sep, h[0]+offset, h[0]+offset, h[1]+sep], color='black')
-        if test.pvalue > 0.05:
-            test_result = " n.s." 
-        elif test.pvalue > 0.01:
-            test_result = "  *  " 
-        elif test.pvalue > 0.001:
-            test_result = " * * " 
-        else:
-            test_result = "* * *" 
-        textoffset = [0.02, offset + 0.03]
-        ax_normalized.text(xpos[0] + textoffset[0], h[0] +textoffset[1], test_result)
-
-    
-    
-
-
-    plotutils.get_xticks(ax, max=np.pi, half=True)
-    ax_normalized.set_xticks([0,1,3,4],['0','π/2','0','π/2'])
-
-
-    ax.set_xlabel('∆θ')
-    ax.set_ylabel('μ(Δθ)')
-
-"""
-
-
-
-
-    
-def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates):
-    frac = 550 / len(v1_connections)
-
-    current = curr.bootstrap_system_currents_peaks(v1_neurons, v1_connections, rates, frac=frac)
-    bins = np.arange(-7.5, 8.5, 1)
-
-    for layer in ['L23', 'L4']:
-        pref_ori = np.argmax(current[layer], axis=1)
-        pref_ori[pref_ori > 3] = pref_ori[pref_ori > 3] - 8 
-
-        hist, _ = np.histogram(pref_ori, bins=bins)
-        ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
-
-
-def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, nexperiments=1000): 
-
-    angles = np.arange(9)
-    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="pre") 
-
-    prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=700)
-    print(prob_pref_ori)
-    print()
-    print()
-    
-
-    #Plot
-    for layer in ['Total', 'L23', 'L4']:
-        ax.plot(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.lcolor[layer], label=layer)
-        ax.scatter(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.mc, zorder=3, s=cr.ms) 
-
-
-    ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
-    ax.set_ylabel("Probability")
-
-    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_yticks([0, 0.25, 0.5])
-
-
-def plot_tuning_curves(ax, units, rates):
-
-    p4legend = [] 
-
-    #Plot the real data
-    angles = np.arange(9)
-    for layer in ['L23', 'L4']:
-        neurons_layer = fl.filter_neurons(units, layer=layer, tuning='matched')
-        rateslayer= rates[neurons_layer['id'], :]
-
-        rates_shifted = dutl.shift_multi(rateslayer, neurons_layer['pref_ori'])
-        mean_rates = np.mean(rates_shifted, axis=0)
-        #std_rates  = np.std(rates_shifted,  axis=0) #/ np.sqrt(rates_shifted.shape[0])
-
-        #ax.fill_between(angles, mean_rates - std_rates, mean_rates + std_rates, color=cr.lcolor[layer], alpha=0.2)
-        p, = ax.plot(angles, plotutils.shift(mean_rates), color=cr.lcolor[layer], label=layer) 
-        p4legend.append(p)
-        ax.scatter(angles, plotutils.shift(mean_rates), color=cr.mc, marker='o', s=cr.ms, zorder=3)
-
-    #ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
-    ax.axvline(4, color='gray', ls=':')
-    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_xlabel('θ')
-    ax.set_ylabel('r(θ)')
-
-    return p4legend
-
-
-def plot_figure3(figname):
+def plot_figure(figname):
     # load files
     units, connections, rates = loader.load_data()
     connections = fl.remove_autapses(connections)
@@ -388,7 +272,7 @@ def plot_figure3(figname):
     matched_neurons = fl.filter_neurons(units, tuning="matched")
     matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
 
-    #vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
 
 
@@ -399,77 +283,27 @@ def plot_figure3(figname):
     #ghostax.axis('off')
 
     axes = fig.subplot_mosaic(
-        """
-        XABL
-        YCEF
-        WDHG
-        """, width_ratios=[0.4, 1, 1, 1]
-        #"""
-        #ABCD
-        #EFGH
-        #"""
+        [['X', 'A1', 'B1', 'C'],
+         ['X', 'A2', 'B2', 'C']]
     )
 
-    plot_ratedist(axes['A'],  matched_neurons, rates)
-    p4legend = plot_tuning_curves(axes['B'], units, rates) 
-    plot_synvoldist(axes['C'], matched_neurons, matched_connections)
+    #units = fl.filter_neurons(units, layer='L23', tuning='tuned', proofread='dn_clean')
+    id = units['id'].values[1119] 
 
-    conn_prob_osi(axes['E'], axes['F'], matched_neurons, matched_connections)
-    plot_sampling_current(axes['D'], axes['H'], matched_neurons, matched_connections, rates)
-    tuning_prediction_performance(axes['G'], matched_neurons, matched_connections, rates)
+    example_tuning_curve(axes['A1'], rates, id)
+    example_current(axes['A2'], matched_neurons, matched_connections, vij, rates, id)
+    plot_currents([axes['B1'], axes['B2']], matched_neurons, rates, vij)
 
 
-    axes2label = [axes[k] for k in 'ABCEFDHG']
-    label_pos  = [0.8, 0.9] * 8 
-    sty.label_axes(axes2label, label_pos)
+    #plot_sampling_current(axes['B1'], axes['B2'], matched_neurons, matched_connections, rates)
+    prediction_shuffling_control(axes['C'], matched_neurons, matched_connections, rates, vij)
 
-    for key in 'XYW':
-        axes[key].set_axis_off()
 
-    axes['X'].text(0., 0.5, "Rate\nStatistics", horizontalalignment='center', verticalalignment='center', weight='bold')
-    axes['Y'].text(0., 0.5, "Connectivity\nStatistics", horizontalalignment='center', verticalalignment='center', weight='bold')
-    axes['W'].text(0., 0.5, "Current\nStatistics", horizontalalignment='center', verticalalignment='center', weight='bold')
-
-    #Legend axis
-    axes['L'].axis('off')
-    handles, labels = axes['B'].get_legend_handles_labels()
-    axes['L'].legend(handles, labels, loc=(0., 0.5), handlelength=1.2)#, ncols=1, loc=(0,0.0), alignment='left')
-    #axes['L'].set_axis_off()
-    #axes['L'].legend(p4legend,loc='best')
+    axes2label = [axes[k] for k in ['A1', 'B1', 'C']]
+    label_pos  = [[0.8, 0.9] * 3] 
+    #sty.label_axes(axes2label, label_pos)
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure3("fig2.pdf")
-
-def plot_figure():
-    sty.master_format()
-
-    fig, axes = plt.subplots(ncols=2, figsize=(12,6), layout='constrained')
-
-    units, connections, rates = loader.load_data()
-    #import ccmodels.modelanalysis.utils as mutl
-    #units, connections, rates = mutl.load_synthetic_data("reshuffled_J4")
-    connections = fl.remove_autapses(connections)
-    connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
-
-    matched_neurons = fl.filter_neurons(units, tuning="matched")
-    matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
-
-    vij = loader.get_adjacency_matrix(units, connections)
-    vij = vij[matched_neurons['id'], matched_neurons['id']]
-    angles = plotutils.get_angles(kind="centered", half=True)
-
-    #conn_prob_osi(ax, matched_neurons, matched_connections)
-
-    #tuning_prediction_performance(ax, matched_neurons, matched_connections, rates)
-    #ax.set_ylim(0, 0.5)
-
-    plot_sampling_current(axes[0], axes[1], matched_neurons, matched_connections, rates)
-
-
-    axes[0].legend()
-
-    fig.savefig(f"curr.pdf",  bbox_inches="tight")
-
-#plot_figure()
+plot_figure("fig2.pdf")

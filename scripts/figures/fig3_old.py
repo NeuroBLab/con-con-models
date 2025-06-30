@@ -1,0 +1,210 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import argparse
+from tqdm.auto import tqdm
+from PIL import Image
+
+import sys
+import os 
+sys.path.append(os.getcwd())
+
+import ccmodels.dataanalysis.currents as dcr
+import ccmodels.dataanalysis.utils as utl
+
+import ccmodels.plotting.styles as sty 
+import ccmodels.plotting.color_reference as cr
+import ccmodels.plotting.utils as plotutils
+
+import ccmodels.dataanalysis.filters as fl
+import ccmodels.dataanalysis.processedloader as loader
+
+def plot_input_current(ax, angles, avr_cur, std_cur, nexps, half=True):
+    #Normalization constants
+    for layer in ["Total", "L23", "L4"]:
+        current = avr_cur[layer]
+        curerror = std_cur[layer]
+
+        ax.fill_between(angles, plotutils.shift(current - curerror), plotutils.shift(current + curerror), color=cr.lcolor[layer], alpha=0.2)
+
+        ax.plot(angles, plotutils.shift(current), lw = 1, color = cr.lcolor[layer], zorder = 2, label = layer)
+        ax.scatter(angles, plotutils.shift(current), color = 'black', s = 5, zorder = 3)
+
+        stats_a =  {"mean":avr_cur[layer][0], "std":std_cur[layer][0], "size":nexps}
+        stats_b =  {"mean":avr_cur[layer][4], "std":std_cur[layer][4], "size":nexps}
+        plotutils.test_compare(ax, stats_a, stats_b, angles[4], angles[8], stats_b["mean"]-0.1)
+
+    plotutils.get_xticks(ax, half=half)
+
+    ax.set_xlabel("Δθ")
+    ax.set_ylabel("Avg. Current")
+
+def plot_single_current(ax, angles, inputs, nangles=16, half=True):
+
+    for r in inputs:
+        rangle = plotutils.shift(r)
+        ax.plot(angles, rangle,  lw=1)
+        ax.scatter(angles, rangle, color="black", s=5, zorder=3)
+
+    ax.set_xlabel("Δθ")
+    ax.set_ylabel("Single Synp. Current")
+    plotutils.get_xticks(ax, half=half)
+
+def plot_distrib_diffrates(ax, diffs):
+
+    """
+    nbins = 70 
+    bins = np.linspace(-10, 10, nbins)
+
+    total_diffs = [] 
+
+    for layer in ["L23", "L4"]:
+        total_diffs += diffs[layer]
+        ax.hist(diffs[layer], bins, density=True, cumulative=False, histtype='step', lw=2, color = cr.lcolor[layer])
+        #ax.axvline(np.mean(diffs[layer]), color=cr.lcolor[layer], ls=":")
+
+    ax.hist(total_diffs, bins, density=True, cumulative=False, histtype='step', lw=2, color =cr.lcolor["Total"])
+    """
+    nbins = 100 
+    bins = np.linspace(-0.3, 0.5, nbins)
+
+    diffs["Total"] = diffs["L23"] + diffs["L4"]  
+
+    for layer in ["Total", "L23", "L4"]:
+        hist, edges = np.histogram(diffs[layer], density=True, bins=bins)
+        cedges = 0.5*(edges[1:]+edges[:-1])
+        
+        ax.plot(cedges, hist, color=cr.lcolor[layer])
+
+    ax.axvline(0, color="black", ls=":")
+
+    ax.set_yscale("log")
+    ax.set_xlabel("Δ")
+    ax.set_ylabel("P(Δ)")
+
+def plot_bootstraps(ax, angles, bootstrap, half=True):
+
+    for layer in ["L23", "L4"]:
+        #angles = bootstrap[layer].index.values
+        current = bootstrap[layer]["shifted_current"]
+        ax.plot(angles, current, color=cr.lcolor[layer])
+    
+    total_activity = np.array(bootstrap["L23"]["shifted_current"]) + np.array(bootstrap["L4"]["shifted_current"])  
+    ax.plot(angles, total_activity, color=cr.lcolor["Total"])
+
+    plotutils.get_xticks(ax, half=half)
+    
+    ax.set_xlabel("Δθ")
+    ax.set_ylabel("Bootstrap Current")
+
+#TODO check the step plot
+def plot_dist_bootstrap(ax, angles, prob_pref_ori, color=cr.lcolor["Total"], label=""): 
+
+
+    #Add a zero at beginning and end for a more beatiful plot
+    #prob_pref_ori = np.insert(prob_pref_ori, [0, prob_pref_ori.size], [0, 0])
+
+    #Set for how much we will have these 0 at left and right
+    #offset = angles[2] - angles[0]
+    #left, right = angles[0] - offset, angles[-1] + offset
+    #angles = np.insert(angles, [0, angles.size], [left, right])
+
+    #Plot
+    ax.plot(angles, plotutils.shift(prob_pref_ori), color=color, label=label)
+    #ax.step(angles, prob_pref_ori, where="mid", color=color, label=label)
+    plotutils.get_xticks(ax, max=np.pi, half=True)
+
+    ax.set_xlabel("θ preferred")
+    ax.set_ylabel("P(θ)")
+
+# ----------------------------------------------------------------------------------------
+
+
+# ======================================================
+# --------------- FIGURE STRUCTURE ---------------------
+# THis is the code that loads the data, structures the 
+# location of the panels, and then call the analysis 
+# functions to fill in the panels, via the functions above.
+# ======================================================
+
+
+def plot_figure():
+
+    #Defining Parser
+    parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
+
+    #Adding and parsing arguments
+    parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
+    args = parser.parse_args()
+
+
+    sty.master_format()
+
+    fig, axes = plt.subplot_mosaic(
+        """
+        AB
+        CD
+        """, 
+        figsize=sty.two_col_size(ratio=1.5), layout="constrained", gridspec_kw={"height_ratios":[1,1]})
+
+    for k in "AB":
+        ax = axes[k]
+        ax.axvline(0.0, color="black")
+        ax.axvline(1.57, color="black", ls=":")
+
+
+    #Read and process necessary data
+    orientation_only = True
+    v1_neurons, v1_connections, rates = loader.load_data(orientation_only=orientation_only)
+
+    #Very important to use only the functionally matched data for the adjacency matrix!!
+    #We'll be out of RAM otherwise
+    matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
+    matched_connections = fl.synapses_by_id(v1_connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+    matched_connections = fl.remove_autapses(matched_connections)
+
+
+    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
+    angles = plotutils.get_angles(kind="centered", half=orientation_only)
+
+    # --------------------
+
+    print("Getting mean current")
+    nexperiments = 100 
+    avr_cur, std_cur = dcr.bootstrap_mean_current(matched_neurons, matched_connections, rates, nexperiments=nexperiments)
+
+    plot_input_current(axes["A"], angles, avr_cur, std_cur, nexperiments)
+    axes["A"].legend(loc=(0.1, 0.25))
+
+
+    # ------------
+
+    n_neurons = 3
+    inputs_single = [dcr.single_synapse_current(matched_neurons, matched_connections, vij, rates) for i in range(n_neurons)]
+    plot_single_current(axes["B"], angles, inputs_single)
+    for angle in [np.pi/2, -np.pi/2]:
+        axes["B"].axvline(angle, color="black", ls=":")
+
+    # ------------
+
+    diffrate = dcr.compute_distrib_diffrate_allsynapses(matched_neurons, matched_connections, vij, rates)
+    plot_distrib_diffrates(axes["C"], diffrate)
+
+    # ------------
+
+    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="tuned", who="pre") 
+
+    nexperiments = 10000
+
+    print("Sample pref ori ")
+    prob_pref_ori  = dcr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates)
+    plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, label="Only tuned")
+
+    print("Sample pref ori ")
+    prob_pref_ori = dcr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates)
+    plot_dist_bootstrap(axes["D"],  angles, prob_pref_ori, color="red", label="All neurons")
+
+    #axes["D"].set_ylim(0, 0.08)
+    axes["D"].legend(loc=(0.1, 0.9))
+
+    fig.savefig(args.save_destination+"fig3.pdf", bbox_inches="tight")
