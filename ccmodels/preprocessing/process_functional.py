@@ -4,12 +4,13 @@ import numpy as np
 import os
 import sys
 import argparse
+from tqdm import tqdm
 
 sys.path.append(os.getcwd())
 import ccmodels.preprocessing.utils_new as ut
 
 
-# ------------------------- Main function (program logic is below) ---------------------------------
+# ------------------------- Main functions (program logic is below) ---------------------------------
 
 #Performs a fit of the tuning curves and check if the difference between the rates at different opposed angles 
 #is significant for a given session and scan. Returns a dataframe with all the information. 
@@ -72,10 +73,14 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
     r2_dir = np.empty(n_neurons)
     pref_dir = np.empty(n_neurons)
 
-    results = pd.DataFrame(columns=['unit_ids', 'session', 'scan_idx', 'pref_ori', 'r2_ori', 'pvals_ori', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti']) 
-    results['unit_ids'] = unit_ids
+    results = pd.DataFrame()
+    results['unit_id'] = unit_ids
     results['session']  = session  * np.ones(n_neurons) 
     results['scan_idx'] = scan_idx * np.ones(n_neurons) 
+
+    #Allows to to store the rate as an array for each row
+    results['rate_ori'] = list(avgrate_ori)
+    results['rate_dir'] = list(avgrate_dir)
 
     #fit's x-axis are the angles
     thetas_ori = np.linspace(0, np.pi, 8, endpoint=False)
@@ -102,6 +107,7 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
     results['pvals_dir_anti'] = pvals_dir_anti
 
     return results
+    #return activity_ori, activity_dir
 
 
 # ------------------------- User input ---------------------------------
@@ -114,18 +120,18 @@ args = parser.parse_args()
 
 
 #Create the master table
-functional_table = pd.DataFrame(columns=['unit_ids', 'session', 'scan_idx', 'pref_ori', 'r2_ori', 'pvals_ori', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti']) 
+functional_table = pd.DataFrame(columns=['unit_id', 'session', 'scan_idx', 'rate_ori', 'pref_ori', 'r2_ori', 'pvals_ori', 'rate_dir', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti']) 
 
 folders_to_analyse = os.listdir(args.funcdatapath) 
-folders_to_analyse = ['6_6']
 
 #Get all the pairs (session, scan) in a convenient array
 session_scan_pair = []
-for f in folders_to_analyse:
+for f in tqdm(folders_to_analyse, desc="Analysing functional data"):
     session = int(f[0])
     scan    = int(f[2])
-    table = fit_tuning_curves_and_check_significance(session, scan, funcdatapath=args.funcdatapath)
 
-    functional_table = pd.concat([functional_table, table], ignore_index=True)
+    func_session = fit_tuning_curves_and_check_significance(session, scan, funcdatapath=args.funcdatapath)
+    functional_table = pd.concat([functional_table, func_session], ignore_index=True)
 
-functional_table.to_csv("data/in_processing/functional_fits.csv")
+functional_table.to_csv("data/in_processing/functional_fits.csv", index=False)
+

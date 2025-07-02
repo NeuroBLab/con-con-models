@@ -13,7 +13,7 @@ def von_mises_ori(x, k, m, a, b):
     return a*np.exp(k*np.cos(2*(x-m))) + b
 
 #Function to curve_fit an average tuning curve
-def fit_ori(thetas_ori, ydata):
+def fit_ori(thetas_ori, ydata, tol=1e-4):
 
     #Initial guess, using some info from the data
     k = 7
@@ -27,7 +27,7 @@ def fit_ori(thetas_ori, ydata):
     #Try helps us in case curve_fit fails without cutting the program
     try:
         #Fit the orientation function with the correct bounds
-        popt, _ = curve_fit(von_mises_ori, thetas_ori, ydata, p0=p0, bounds=(0, np.inf), maxfev=2000)
+        popt, _ = curve_fit(von_mises_ori, thetas_ori, ydata, p0=p0, bounds=(0, np.inf), maxfev=2000, xtol=tol, ftol=tol)
 
         #Compute the R^2 of the model from its definition and return it
         residuals = np.sum((ydata - von_mises_ori(thetas_ori, *popt))**2)
@@ -41,7 +41,7 @@ def fit_ori(thetas_ori, ydata):
         return np.zeros(len(p0)), 0.
 
 #Same as above but for direction
-def fit_dir(thetas_dir, ydata):
+def fit_dir(thetas_dir, ydata, tol=1e-4):
 
     #Initial guess
     k = 7
@@ -55,7 +55,7 @@ def fit_dir(thetas_dir, ydata):
 
     #Same as in the function above
     try:
-        popt, _ = curve_fit(von_mises_dir, thetas_dir, ydata, p0=p0, bounds=(0, np.inf), maxfev=2000)
+        popt, _ = curve_fit(von_mises_dir, thetas_dir, ydata, p0=p0, bounds=(0, np.inf), maxfev=2000, xtol=tol, ftol=tol)
 
         residuals = np.sum((ydata - von_mises_dir(thetas_dir, *popt))**2)
         sumtotal  = np.sum((ydata - ydata.mean())**2) 
