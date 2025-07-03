@@ -33,7 +33,7 @@ else:
     table.to_csv("data/model/prob_connectomics_cleanaxons_sampled.csv")
 
 #The same, without proofreading
-table = ste.estimate_conn_prob_connectomics(v1_neurons, v1_connections, pre_proofread=None)
+table = ste.estimate_conn_prob_connectomics(v1_neurons, v1_connections, proof=[None, None])
 if is_real_data:
     table.to_csv("data/model/prob_connectomics.csv")
 else:
@@ -64,7 +64,7 @@ if is_real_data:
 else:
     table.to_csv("data/model/prob_funcmatch_clearaxons_sampled.csv")
 
-table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections, pre_proofread=None)
+table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections, proof=[None,None])
 table.index.name = "Population"
 if is_real_data:
     table.to_csv("data/model/prob_funcmatch.csv")
@@ -91,7 +91,8 @@ if is_real_data:
 
     #1. Similar to to ste.boostrap_prob_A2B, but with custom tunings 
     #First, get just axon clean to dendrite clean
-    dendrites = l23neurons.loc[l23neurons['dendr_proof'] != 'non', 'id']
+    #dendrites = l23neurons.loc[l23neurons['dendr_proof'] != 'non', 'id']
+    dendrites = l23neurons.loc[:, 'id']
     axons = l23neurons.loc[l23neurons['axon_proof'] != 'non', 'id']
 
     proofconnections = fl.synapses_by_id(v1_connections, pre_ids=axons, post_ids=dendrites, who='both')
@@ -102,7 +103,8 @@ if is_real_data:
     avk[f'k_clean'] = len(l23neurons) * p
 
     #Repeat for extended ones
-    dendrites = l23neurons.loc[l23neurons['dendr_proof'] == 'extended', 'id']
+    #dendrites = l23neurons.loc[l23neurons['dendr_proof'] == 'extended', 'id']
+    dendrites = l23neurons.loc[:, 'id']
     axons = l23neurons.loc[l23neurons['axon_proof'] == 'extended', 'id']
     proofconnections = fl.synapses_by_id(v1_connections, pre_ids=axons, post_ids=dendrites, who='both')
 

@@ -29,9 +29,12 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
         Which version of the dataset to use.
     """
 
-    v1_neurons = pd.read_csv(f'{prepath}/preprocessed/unit_table.csv')
-    v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table.csv')
-    rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table.csv')
+    v1_neurons = pd.read_csv(f'{prepath}/preprocessed/unit_table_v1300.csv')
+    v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table_v1300.csv')
+    rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300.csv')
+
+    #Sort with the selective ones first in order to match the ids in activity table
+    v1_neurons = v1_neurons.sort_values(by='tuning_type', ascending=False).reset_index()
 
     #Ensure all ids are from 0 to N-1, being N number of neurons. 
     #Rename id names.
@@ -42,24 +45,9 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     func_matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
     rates = get_rates_matrix(func_matched_neurons, rates_table)
 
-    #If we are only lookin at oris, then we need to remap all of neurons's angles  
-    if orientation_only:
-        #Move the rates to 0
-        rates = utl.shift_multi(rates, func_matched_neurons['pref_ori'])
+    #v1_neurons.loc[func_matched_neurons['id'], 'pref_ori'] = np.argmax(rates, axis=1)
+    v1_neurons.loc[v1_neurons['id'].isin(func_matched_neurons['id']), 'pref_ori']= np.argmax(rates, axis=1)
 
-        #In that position it is possible to average the rates 
-        #rates = 0.5*(rates[:, 0:nangles//2] + rates[:, nangles//2:nangles])             
-        rates = rates[:, 0:nangles//2]
-
-
-        #Now get the actual pref ori in orientation space
-        #v1_neurons.loc[:, "pref_ori"] = v1_neurons.loc[:, 'pref_ori'] % (nangles//2)
-        #func_matched_neurons.loc[:, "pref_ori"] = func_matched_neurons.loc[:, 'pref_ori'] % (nangles//2)
-
-        #Put back all the rates
-        rates = utl.shift_multi(rates, -func_matched_neurons['pref_ori'])
-
-    v1_neurons.loc[func_matched_neurons['id'], 'pref_ori'] = np.argmax(rates, axis=1)
     #Angles are integers to avoid any roundoff error
     v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
 
@@ -185,7 +173,7 @@ def get_adjacency_matrix2(v1_neurons, v1_connections):
     
     return vij
 
-def get_rates_matrix(v1_neurons, v1_activity, nangles=16):
+def get_rates_matrix(v1_neurons, v1_activity, nangles=8):
     """
     Get a matrix in which the i-th row contains the i-th rate as a function of the angle, i.e., r(theta).
     The matrix is then N*nangles.  
@@ -193,7 +181,6 @@ def get_rates_matrix(v1_neurons, v1_activity, nangles=16):
 
     #Number of neurons
     N = len(v1_neurons)
-
 
     #Fill the rates
     rates = np.empty((N, nangles))
