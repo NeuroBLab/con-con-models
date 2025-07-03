@@ -6,24 +6,6 @@
 #SBATCH -c 8
 #SBATCH --mem 1500
 
-#srun python scripts/model_running/launchers/trainsbi.py randpars randnet normal
-#srun python scripts/model_running/launchers/trainsbi.py tunedpars tunednet tunedinh 
-#srun python scripts/model_running/launchers/trainsbi.py kinpars kinnet kin 
-#srun python scripts/model_running/launchers/trainsbi.py randlowk rlwnet normal
-
-#low k 
-#srun python scripts/model_running/launchers/trainsbi.py randlowk rlwnetCV normal
-#srun python scripts/model_running/launchers/trainsbi.py tunedlowk tlknetCV tunedinh 
-
-#high k
-#srun python scripts/model_running/launchers/trainsbi.py randhighk rhgnetCV normal
-
-#Mini!
-#srun python scripts/model_running/launchers/trainsbi_mini.py randlowk rlwnetMINI normal
-
-#Mini Tuned
-#srun python scripts/model_running/launchers/trainsbi_mini.py tunedlowk tunedlowkMINI tunedinh
-
-#Mini for k=400
-srun python scripts/model_running/launchers/trainsbi_mini.py randhighk randhighkMINI normal
-srun python scripts/model_running/launchers/trainsbi_mini.py tunedhighk tunedhighkMINI tunedinh
+#Mini for k=150
+srun python scripts/model_running/launchers/trainsbi_mini.py randk150  randk150_mini normal
+srun python scripts/model_running/launchers/trainsbi_mini.py tunedk150 tunedk150_mini tunedinh

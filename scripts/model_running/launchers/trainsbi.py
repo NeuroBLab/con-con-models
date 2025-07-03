@@ -72,7 +72,7 @@ if sample_mode == 'kin':
     #Do the SBI
     j0, jf = 0., 4.
     g0, gf = 0., 5.
-    #theta0, thetaf = 19., 19.
+    #theta0, thetaf = 20., 20.
     sigmaE0, sigmaEf = 7., 12.
     sigmaI0, sigmaIf = 7., 12.
     hei0, heif = 50., 150.
@@ -88,7 +88,7 @@ else:
     #Do the SBI
     j0, jf = 0., 4.
     g0, gf = 0., 5.
-    #theta0, thetaf = 19., 19.
+    #theta0, thetaf = 20., 20.
     sigmaE0, sigmaEf = 7., 12.
     sigmaI0, sigmaIf = 7., 12.
     hei0, heif = 50., 150.

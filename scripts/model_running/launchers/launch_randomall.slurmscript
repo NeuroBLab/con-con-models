@@ -1,39 +1,21 @@
 #!/bin/bash
-#SBATCH -J randc # Job name
+#SBATCH -J simulate# Job name
 #SBATCH -o rand.%j.out	# Name of stdout output file(%j expands to jobId)
 #SBATCH -e rand.%j.err	# Name of stderr output file(%j expands to jobId)
 #SBATCH -c 1
 #SBATCH --mem 1800 
 #SBATCH --array=0-99
 
-#random pars with betas, without and with SBtI
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randpars no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_rand randnet.sbi 
-#srun python scripts/model_running/launchers/random_parameters_with_rates.py $SLURM_ARRAY_TASK_ID normal sbi_normal_RATES randnet.sbi 
+# ---- k = 150 
 
-#perfectly tuned network 
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedpars no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tuned tunednet.sbi 
+# - Sample
+srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randk150 no 150
 
-#variable kin
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID kin kinpars no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID kin sbi_kin kinnet.sbi 
+# - Sample tuned
+#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedk150 no 150
 
-#k = 400 new
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randhighk no
-srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randhighkMINI randhighkMINI.sbi 
+# - SBI 
+#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randk150 randk150_mini.sbi 150 
 
-#k = 400 tuned
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedhighk no
-#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedhighkMINI tunedhighkMINI.sbi 
-
-#k = 200 
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randlowk no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowk rlwnet.sbi 
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowkCV rlwnetCV.sbi 
-#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randlowkMINI rlwnetMINI.sbi 
-
-# k =200 tuned
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedlowk no
-#srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedlowkCV tlknetCV.sbi 
-#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedlowkMINI tunedlowkMINI.sbi 
+# - SBI tuned 
+#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedk200 tunedk150_mini.sbi 150 

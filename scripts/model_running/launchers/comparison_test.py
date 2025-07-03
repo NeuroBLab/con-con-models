@@ -44,8 +44,8 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 8000
-kee = 400
+N = 3000
+kee = 150 
 
 l23 = fl.filter_neurons(units, layer='L23', tuning='matched') 
 l23id = l23['id'].values
@@ -58,7 +58,7 @@ def dosim(pars):
     conprob      = np.zeros(8)
     J,g,sigmaE,sigmaI,hEI,hII=pars 
 
-    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=19., sigma_tE=sigmaE, theta_I=19.0, sigma_tI=sigmaI, cos_b=[bL23, bL4, bL23, bL23, bL23, bL4], mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
+    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=20., sigma_tE=sigmaE, theta_I=20.0, sigma_tI=sigmaI, cos_b=[bL23, bL4, bL23, bL23, bL23, bL4], mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
 
     neurons_L23 = fl.filter_neurons(units_sample, layer='L23', cell_type='exc')
     tuning_curve += np.mean(dutl.shift_multi(re, neurons_L23['pref_ori']), axis=0) 

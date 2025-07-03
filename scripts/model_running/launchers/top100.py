@@ -157,14 +157,14 @@ def dosim(pars,kee):
         cos_modulation = [bL23, bL4, 0., 0., 0., 0.] 
 
     cv = np.empty(4)
-    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=19., sigma_tE=sigmaE, theta_I=19.0, sigma_tI=sigmaI, cos_b=cos_modulation, mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
+    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=20., sigma_tE=sigmaE, theta_I=20.0, sigma_tI=sigmaI, cos_b=cos_modulation, mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
 
     _, cvsim = utl.compute_circular_variance(re, orionly=True)    
     cv[0] = cvsim.mean()
 
     cvidx = 1
     for reshuffle_mode in ['all', 'L23', 'L4']:
-        aE_t, aI_t, re, ri, stdre, units_reshuffle, connections_reshuffle, QJ_reshuffle = md.make_simulation_fixed_structure(units_sample, connections_sample, QJ, rx, n_neurons, theta_E=19., sigma_tE=sigmaE, hEI=hEI, hII=hII, theta_I=19., sigma_tI=sigmaI, orionly=True, reshuffle=reshuffle_mode)
+        aE_t, aI_t, re, ri, stdre, units_reshuffle, connections_reshuffle, QJ_reshuffle = md.make_simulation_fixed_structure(units_sample, connections_sample, QJ, rx, n_neurons, theta_E=20., sigma_tE=sigmaE, hEI=hEI, hII=hII, theta_I=20., sigma_tI=sigmaI, orionly=True, reshuffle=reshuffle_mode)
 
         _, cvsim = utl.compute_circular_variance(re, orionly=True)    
         cv[cvidx] = cvsim.mean()
@@ -175,6 +175,7 @@ def dosim(pars,kee):
 
 sample_mode = sys.argv[1] #normal, tunedinh, kin 
 savefolder = sys.argv[2]
+fixed_kee = int(sys.argv[3]) 
 
 datafolder = "data"
 
@@ -186,9 +187,8 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 4000 
+N = 20 * fixed_kee 
 N_2save = 200
-fixed_kee = 200 
 
 ntop = 100 
 
