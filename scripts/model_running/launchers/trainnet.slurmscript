@@ -22,4 +22,8 @@
 #srun python scripts/model_running/launchers/trainsbi_mini.py randlowk rlwnetMINI normal
 
 #Mini Tuned
-srun python scripts/model_running/launchers/trainsbi_mini.py tunedlowk tunedlowkMINI tunedinh
+#srun python scripts/model_running/launchers/trainsbi_mini.py tunedlowk tunedlowkMINI tunedinh
+
+#Mini for k=400
+srun python scripts/model_running/launchers/trainsbi_mini.py randhighk randhighkMINI normal
+srun python scripts/model_running/launchers/trainsbi_mini.py tunedhighk tunedhighkMINI tunedinh
