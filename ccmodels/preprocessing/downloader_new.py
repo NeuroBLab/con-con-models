@@ -5,6 +5,8 @@ import os
 import sys
 import argparse
 
+from scipy.stats import false_discovery_control
+
 sys.path.append(os.getcwd())
 import ccmodels.utils.angleutils as au
 
@@ -52,9 +54,11 @@ mask_selected = funcp_coreg['target_id'].isin(idx_selected)
 filtered_func = funcp_coreg[mask_selected].sort_values(by=['target_id', 'r2_ori'], ascending=False)
 filtered_func = filtered_func.drop_duplicates(subset='target_id', keep='first')
 
-#Use the table to set up a critera for selectivity
+#Use the table to set up a criteria for selectivity. 
+#Since we used indepedent multiple comparisons, we can employ the Benjamini-Hochberg method (from scipy) to set FDR to 0.05
 filtered_func['tuning_type'] = 'not_selective'
-filtered_func.loc[(filtered_func['r2_ori'] > 0.5) & (filtered_func['pvals_ori'] < 0.05), 'tuning_type'] = 'selective'
+pvals_rescaled = false_discovery_control(filtered_func['pvals_ori'], method='bh')
+filtered_func.loc[(filtered_func['r2_ori'] > 0.5) & (pvals_rescaled < 0.05), 'tuning_type'] = 'selective'
 
 #Filter the columns we will actually use 
 filtered_func['target_id'] = filtered_func['target_id'].astype(int)
