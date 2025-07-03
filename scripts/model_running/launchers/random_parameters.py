@@ -20,6 +20,7 @@ simid = int(sys.argv[1])
 sample_mode = sys.argv[2] #normal, tunedinh, kin 
 savefolder = sys.argv[3]
 sbinet = sys.argv[4]
+fixed_kee = int(sys.argv[5]) 
 
 datafolder = "data"
 
@@ -46,9 +47,9 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 8000 
 N_2save = 200
-fixed_kee = 400 
+N = 20 * fixed_kee 
+
 
 def dosim(pars):
     tuning_curve = np.zeros(8)
@@ -62,7 +63,7 @@ def dosim(pars):
     else:
         cos_modulation = [bL23, bL4, 0., 0., 0., 0.] 
 
-    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=19., sigma_tE=sigmaE, theta_I=19.0, sigma_tI=sigmaI, cos_b=cos_modulation, mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
+    aE_t, aI_t, re, ri, rx, stdre, units_sample, connections_sample, QJ, n_neurons, original_tuned_ids, original_prefori = md.make_simulation(units, connections, rates, kee, N, J, g, hEI=hEI, hII=hII,theta_E=20., sigma_tE=sigmaE, theta_I=20.0, sigma_tI=sigmaI, cos_b=cos_modulation, mode=mode, local_connectivity=local_connectivity, orionly=orionly, prepath=datafolder)
 
     neurons_L23 = fl.filter_neurons(units_sample, layer='L23', cell_type='exc')
     tuning_curve += np.mean(dutl.shift_multi(re, neurons_L23['pref_ori']), axis=0) 
