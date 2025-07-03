@@ -48,9 +48,9 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 4000 
+N = 8000 
 N_2save = 200
-fixed_kee = 200 
+fixed_kee = 400 
 
 def dosim(pars):
     tuning_curve = np.zeros(8)

@@ -19,9 +19,6 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.filters as fl
 import ccmodels.dataanalysis.utils as dutl
 
-import ccmodels.plotting.styles as sty 
-import ccmodels.plotting.color_reference as cr
-import ccmodels.plotting.utils as plotutils
 import ccmodels.utils.watermark as wtm
 
 from sklearn.preprocessing import robust_scale
@@ -193,7 +190,7 @@ N = 4000
 N_2save = 200
 fixed_kee = 200 
 
-ntop = 10 
+ntop = 100 
 
 #Get all the data and store in a dict
 summary_data = {}
