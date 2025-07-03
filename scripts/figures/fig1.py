@@ -29,7 +29,7 @@ def example_tuning_curve(ax, v1_neurons, rates, layer='L23'):
     neurons_ids = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
     neurons_ids = neurons_ids['id']
 
-    id = 1 
+    id = 3 
 
     #TODO do not shift here...
     rangle = rates[neurons_ids[id], :]
@@ -63,7 +63,7 @@ def plot_tuning_curve(ax, units, rates):
 def fraction_tuned(ax, data, fstitle=8):
     barw = 0.1
     ybars = [0, barw] 
-    offset = 0.05 #To display text
+    offset = 0.02 #To display text
 
     #Create a Pandas Series which contains the number of tuned neurons in a layer
     #The value is accesed by the key of the pandas dataframe, e.g. n_tuned["L2/3"]
