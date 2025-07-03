@@ -306,4 +306,4 @@ def plot_figure(figname):
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure("fig2.pdf")
+plot_figure("fig2_v1300.pdf")

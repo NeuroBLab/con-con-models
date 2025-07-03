@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 
+import os
 import sys
 import argparse
 
+sys.path.append(os.getcwd())
 import ccmodels.utils.angleutils as au
 
 import microns_datacleaner as mic
@@ -17,18 +19,18 @@ parser.add_argument('--download_nucleus',  action='store_true', help='Boolean. I
 parser.add_argument('--download_synapses', action='store_true', help='Boolean. If true, downloads all the synapse data as well')
 args = parser.parse_args()
 
-print(args.download_nucleus)
-print(args.download_synapses)
-
 # -------------------- Nucleus download --------------------------
 
-cleaner = mic.MicronsDataCleaner(datadir="data/", version=1300)
+cleaner = mic.MicronsDataCleaner(datadir="data/", version=1300, download_policy='minimum')
 
 #Download all data related to nucleus: reference table, various classifications, functional matchs
 if args.download_nucleus:
+    print("Download nucleus data")
     cleaner.download_nucleus_data()
 
 # ----------- Format functional data ------------------------ 
+
+print("Format functional data...")
 
 #Read the result of the functional fits and chekc the coregistrated neurons
 funcprops = pd.read_csv("data/in_processing/functional_fits.csv")
@@ -60,18 +62,19 @@ func_4_units = filtered_func[['target_id', 'pref_ori', 'tuning_type']]
 
 # ------------ Format nucleus table with functional stuff ----------------
 
+print("Generate unit table...")
+
 #Process the data and obtain units and segment tables
-units, segments = cleaner.process_nucleus_data()
+units, segments = cleaner.process_nucleus_data(with_functional=False)
 units.loc[units['layer']=='L2/3', 'layer'] = 'L23'
+
+#These 3 neurons are found in the coregistration table so they should be excitatory, but the AIBS classification say they are nonneuronal.
+#Since the coregistration is manual, we favor that one and set the neurons manually to be excitatory so when we filter they do not disappear
+units.loc[(units['pt_root_id'].isin([864691135726289983,864691135569616364,864691136085014636])), 'classification_system'] = 'excitatory_neuron'
 
 #Merge the unit table with our matched functional properties
 units_with_func = units.merge(func_4_units, left_on='id', right_on='target_id', how='left')
 units_with_func = units_with_func.drop(columns='target_id') 
-
-#These 3 neurons are found in the coregistration table so they should be excitatory, but the AIBS classification say they are nonneuronal.
-#Since the coregistration is manual, we favor that one and set the neurons manually to be excitatory so when we filter they do not disappear
-unit_table = units_with_func.copy()
-unit_table.loc[(unit_table['pt_root_id'].isin([864691135726289983,864691135569616364,864691136085014636])), 'classification_system'] = 'excitatory_neuron'
 
 #Filter for our brain area and layer of interest
 #TODO use the filters!
@@ -107,11 +110,12 @@ unit_table.rename(columns={'pt_position_x':'pial_dist_x', 'pt_position_y':'pial_
 unit_table = unit_table[['pt_root_id', 'cell_type', 'tuning_type', 'layer', 'axon_proof', 'dendr_proof', 'pref_ori', 'pial_dist_x', 'pial_dist_y', 'pial_dist_z']]
 
 #Save the result
-#unit_table.to_csv("data/preprocessed/unit_table_v1300.csv")
+unit_table.to_csv("data/preprocessed/unit_table_v1300.csv", index=False)
 
 # ------------ Download synapse data ----------------
 
 if args.download_synapses:
+    print("Download synapses...")
     preunits = unit_table.loc[(unit_table['axon_proof'] != 'non') & (unit_table['layer'].isin(['L23', 'L4'])), 'pt_root_id'].values
     postunits = unit_table.loc[unit_table['layer']=='L23', 'pt_root_id'].values
 
@@ -119,19 +123,23 @@ if args.download_synapses:
 
 # ------------ Format synapse table ----------------
 
+print("Merge synapses...")
 cleaner.merge_synapses(syn_table_name="connections_table_v1300")
 synapses = pd.read_csv('data/1300/raw/connections_table_v1300.csv')
-synapses.drop(columns=["Unnamed: 0"], inplace=True)
+#synapses.drop(columns=["Unnamed: 0"], inplace=True)
 synapses.rename(columns={'size':'syn_volume'}, inplace=True)
-#synapses.to_csv("data/preprocessed/connections_table_v1300.csv")
+synapses.to_csv("data/preprocessed/connections_table_v1300.csv", index=False)
 
 # ----------- Format activity table ---------------------
 
+print("Generate activity table...")
 #Get the activity table by expanding (exploding) the rates of the selected units
 #The rate_ori column is str so we transform it to arrays first 
 activity = filtered_func[['target_id', 'rate_ori']]
-activity = activity['rate_ori'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
+activity.loc[:, 'rate_ori'] = activity['rate_ori'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
 activity = activity.explode('rate_ori')
+#Write the angle that corresponds to each one 
+activity['angle_shown'] = np.tile(np.arange(8),  len(activity)//8)
 
 #Merge and get only the areas we are interested in
 activity_merged = units.merge(activity, left_on='id', right_on='target_id', how='inner')
@@ -146,4 +154,4 @@ activity_merged = activity_merged[['pt_root_id', 'angle_shown', 'rate_ori']]
 #Rename to match columns to our codebase and save
 activity_merged.rename(columns={'pt_root_id':'neuron_id', 'rate_ori':'rate'}, inplace=True)
 
-#activity_merged.to_csv("data/preprocessed/activity_table_v1300.csv")
+activity_merged.to_csv("data/preprocessed/activity_table_v1300.csv", index=False)
