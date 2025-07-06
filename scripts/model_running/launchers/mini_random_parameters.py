@@ -22,7 +22,7 @@ simid = int(sys.argv[1])
 sample_mode = sys.argv[2] #normal, tunedinh, kin 
 savefolder = sys.argv[3]
 sbinet = sys.argv[4]
-fixed_kee = sys.argv[5] 
+fixed_kee = int(sys.argv[5]) 
 
 datafolder = "data"
 
@@ -70,7 +70,7 @@ def dosim(pars):
     tuning_curve += np.mean(dutl.shift_multi(re, neurons_L23['pref_ori']), axis=0) 
 
     if neurons_L23.pref_ori.nunique() == 8:
-        utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
+        #utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
         #units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
         rates_sample = utl.format_synthetic_data_4conprob(units_sample, connections_sample, re, ri, rx)
         conprob = compute_conn_prob(units_sample, connections_sample, n_samps=1)
