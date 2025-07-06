@@ -86,39 +86,61 @@ def get_best_params(datafolder, summary_data, ntops, is_sbi = True):
     rate_bins = np.linspace(0, 10, 20)  
     cv_bins = np.linspace(0, 1, 20)    
 
-    avg_tuning_curves = [] 
+    #avg_tuning_curves = [] 
+
+    if is_sbi:
+        n_experiments = 10
+    else:
+        n_experiments = 1
+
     # Loop over each simulation to extract the rate data and compute histograms
-    for sim_idx in range(ndata):
-        sampled_rates_here = load_rates(sim_idx, datafolder, is_sbi)
+    for sim_idx in range(ndata//n_experiments):
+
+        #Compute the first one!!!
+        sampled_rates_here = load_rates(sim_idx * n_experiments, datafolder, is_sbi)
         
-        # Compute circular variance (CV)
         _, cvd = utl.compute_circular_variance(sampled_rates_here, orionly=True)
-
-        # Compute rate histogram
         rate_hist, _ = np.histogram(sampled_rates_here.ravel(), bins=rate_bins, density=True)
-        sampled_rate_histograms.append(rate_hist)
-
-        # Compute CV histogram
         cv_hist, _ = np.histogram(cvd, bins=cv_bins, density=True)
-        sampled_cv_histograms.append(cv_hist)
+
+        #Average the rest!!!
+        for exp_ix in range(1, n_experiments):    
+
+            sampled_rates_here = load_rates(sim_idx * n_experiments + exp_ix, datafolder, is_sbi)
+            
+            _, cvd = utl.compute_circular_variance(sampled_rates_here, orionly=True)
+            rh, _ = np.histogram(sampled_rates_here.ravel(), bins=rate_bins, density=True)
+            ch, _ = np.histogram(cvd, bins=cv_bins, density=True)
+
+            rate_hist += rh
+            cv_hist   += ch
+
+        rate_hist /= n_experiments
+        cv_hist   /= n_experiments
 
         # Compute L1 mean distances to data histograms 
         rate_dist = np.abs(rate_hist - summary_data['ratehist']).mean()
-        cv_dist = np.abs(cv_hist - summary_data['cvhist']).mean()
+        cv_dist   = np.abs(cv_hist - summary_data['cvhist']).mean()
+
+        #sampled_rate_histograms.append(rate_hist)
+        #sampled_cv_histograms.append(cv_hist)
+
         rate_dists_L1.append(rate_dist)
         cv_dists_L1.append(cv_dist)
         
         # Compute average tuning curve after shifting each neuron's curve
-        avg_tuning_curve = np.mean(dutl.shift_multi(sampled_rates_here, np.argmax(sampled_rates_here, axis=1)), axis=0)
-        avg_tuning_curves.append(avg_tuning_curve)
+        #avg_tuning_curve = np.mean(dutl.shift_multi(sampled_rates_here, np.argmax(sampled_rates_here, axis=1)), axis=0)
+        #avg_tuning_curves.append(avg_tuning_curve)
 
 
     # Convert the lists to arrays for further analysis
-    sampled_rate_histograms = np.array(sampled_rate_histograms)
-    sampled_cv_histograms = np.array(sampled_cv_histograms)
-    tcurve_sim=summary_stats[:, :8]
-    P_conn23_sim=summary_stats[:, 8:16]
-    P_conn4_sim=summary_stats[:, 16:]
+    #sampled_rate_histograms = np.array(sampled_rate_histograms)
+    #sampled_cv_histograms = np.array(sampled_cv_histograms)
+
+    summary_stats = summary_stats.reshape((summary_stats.shape[0]//n_experiments, n_experiments, summary_stats.shape[1]))
+    tcurve_sim=summary_stats[:, :, :8].mean(axis=1)
+    P_conn23_sim=summary_stats[:, :, 8:16].mean(axis=1)
+    P_conn4_sim=summary_stats[:, :, 16:].mean(axis=1)
 
 
     rate_dists_L1 = np.array(rate_dists_L1)
@@ -144,7 +166,6 @@ def get_best_params(datafolder, summary_data, ntops, is_sbi = True):
     top_sims = sorted_idx[:ntops]
 
     return params[top_sims] 
-
 
 def dosim(pars,kee):
     J,g,sigmaE,sigmaI,hEI,hII,bL23,bL4=pars 
@@ -176,7 +197,7 @@ def dosim(pars,kee):
 sample_mode = sys.argv[1] #normal, tunedinh, kin 
 savefolder = sys.argv[2]
 fixed_kee = int(sys.argv[3]) 
-
+is_sbi = True
 datafolder = "data"
 
 units, connections, rates = loader.load_data(prepath=datafolder, orientation_only=True)
@@ -214,9 +235,11 @@ summary_data['pL4']  = means_data['L4']
 
 
 if sample_mode == 'normal':
-    params = get_best_params("data/model/simulations/sbi_randlowkMINI", summary_data, ntop) 
+    #params = get_best_params("data/model/simulations/sbi_randowkMINI", summary_data, ntop) 
+    params = get_best_params("data/model/simulations/sbi_randk150", summary_data, ntop, is_sbi=is_sbi) 
 else:
-    params = get_best_params("data/model/simulations/sbi_tunedlowkMINI", summary_data, ntop) 
+    #params = get_best_params("data/model/simulations/sbi_tunedlowkMINI", summary_data, ntop) 
+    params = get_best_params("data/model/simulations/sbi_tunedk150", summary_data, ntop, is_sbi = is_sbi) 
 
 J,g,sigmaE,sigmaI,hEI,hII,b23,b4 = np.transpose(params) 
 
