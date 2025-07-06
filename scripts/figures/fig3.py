@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 import argparse
 from PIL import Image
 
@@ -25,12 +26,12 @@ def show_image(ax, path2im):
     ax.set_axis_off()
     ax.imshow(im)
 
-def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, kee_samples = 200, nexperiments=100):
+def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, indegree, nexperiments=1000):
     angles = plotutils.get_angles(kind="centered", half=True)
 
     #Compute the currents in the system
     #mean_cur = curr.bootstrap_system_currents_shuffle(v1_neurons, v1_connections, rates, nexperiments, frac=frac)
-    mean_cur, std_cur = curr.bootstrap_mean_current(200, v1_neurons, v1_connections, rates, nexperiments)
+    mean_cur, std_cur = curr.bootstrap_mean_current(indegree, v1_neurons, v1_connections, rates, nexperiments)
 
     #Total current is shown just in the "unnormalized" version. Also we need to obtain
     #the global total current to normalize according to it
@@ -38,7 +39,7 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
     #norma = np.max(total_cur)
     total_cur = plotutils.shift(mean_cur["Total"])
     ax.plot(angles, total_cur, label='Total', color=cr.lcolor['Total'])
-    ax.scatter(angles, total_cur, color=cr.mc, s=cr.ms, zorder=3)
+    ax.scatter(angles, total_cur, color=cr.dotcolor['Total'], s=cr.ms, zorder=3)
 
     #Then show L23 and L4 currents for unnormalized and normalized versions
     for layer in ['L23', 'L4']:
@@ -47,13 +48,13 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
         
         ax.fill_between(angles, (meancur-stdcur), (meancur+stdcur), color=cr.lcolor[layer], alpha=0.2)
         ax.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
-        ax.scatter(angles, meancur, color=cr.mc, s=cr.ms, zorder=3)
+        ax.scatter(angles, meancur, color=cr.dotcolor[layer], s=cr.ms, zorder=3)
 
         stdcur  /= np.max(meancur)
         meancur /= np.max(meancur)
         ax_normalized.fill_between(angles, meancur-stdcur, meancur+stdcur, color=cr.lcolor[layer], alpha=0.2)
         ax_normalized.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
-        ax_normalized.scatter(angles, meancur, color=cr.mc, s=cr.ms, zorder=3)
+        ax_normalized.scatter(angles, meancur, color=cr.dotcolor[layer], s=cr.ms, zorder=3)
 
     plotutils.get_xticks(ax, max=np.pi, half=True)
     plotutils.get_xticks(ax_normalized, max=np.pi, half=True)
@@ -66,10 +67,11 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
     ax_normalized.set_ylabel('μ(Δθ)/μ(0)')
 
     
-def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates):
-    frac = 550 / len(v1_connections)
+def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates, indegree):
 
-    current = curr.bootstrap_system_currents_peaks(v1_neurons, v1_connections, rates, frac=frac)
+    frac = indegree / len(v1_connections)
+
+    current = curr.bootstrap_system_currents_peaks(v1_neurons, v1_connections, rates, frac=frac, nexperiments=1000)
     bins = np.arange(-7.5, 8.5, 1)
 
     for layer in ['L23', 'L4']:
@@ -80,22 +82,22 @@ def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates):
         ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
 
 
-def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, nexperiments=1000): 
+def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, indegree, nexperiments=1000): 
 
     angles = np.arange(9)
-    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="pre") 
+    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="post") 
 
-    prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=700)
+    prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
     
 
     #Plot
     for layer in ['Total', 'L23', 'L4']:
         ax.plot(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.lcolor[layer], label=layer)
-        ax.scatter(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.mc, zorder=3, s=cr.ms) 
+        ax.scatter(angles, plotutils.shift(prob_pref_ori[layer]), color=cr.dotcolor[layer], zorder=3, s=cr.ms) 
 
 
     ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
-    ax.set_ylabel("Probability")
+    ax.set_ylabel("Fract. correct")
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.25, 0.5])
@@ -130,10 +132,16 @@ def plot_figure(figname):
         """
     )
 
+    #Given an exc -> exc in-degree kee, how many inputs does a neuron receive in total?
+    #Compute it using the probabilities obtained from the data 
+    kee = 150
+    conn_prob = pd.read_csv("data/model/prob_connectomics_cleanaxons.csv", index_col=0)
+    indegree = int(kee * (1.0 + conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E']))
+
     show_image(axes["X"], "sketchsampling.png")
 
-    plot_sampling_current(axes["A"], axes["B"], matched_neurons, matched_connections, rates)
-
+    plot_sampling_current(axes["A"], axes["B"], matched_neurons, matched_connections, rates, indegree)
+    tuning_prediction_performance(axes['C'], matched_neurons, matched_connections, rates, indegree)
 
 
     #axes2label = [axes[k] for k in ['A1', 'B1', 'C']]

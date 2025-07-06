@@ -4,6 +4,7 @@ import numpy as np
 import os
 import sys
 import argparse
+from scipy.stats import sem
 from tqdm import tqdm
 
 sys.path.append(os.getcwd())
@@ -46,7 +47,9 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
 
     #Initialize the average firing rates
     avgrate_dir     = np.empty((n_neurons, 16))
+    semrate_dir     = np.empty((n_neurons, 16))
     avgrate_ori     = np.empty((n_neurons, 8))
+    semrate_ori     = np.empty((n_neurons, 8))
 
     #Reshape the vectors so we have all trials one after another per each neuron
     response_stacked_trials = responses.reshape(n_neurons, n_trials*n_frames)
@@ -57,9 +60,11 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
     for dir in range(16):
         mask_dir = dirs_stacked_trials == dir
         avgrate_dir[:, dir] = response_stacked_trials[:, mask_dir].mean(axis=1)
+        semrate_dir[:, dir] = sem(response_stacked_trials[:, mask_dir], axis=1)
     for ori in range(8):
         mask_ori = oris_stacked_trials == ori
         avgrate_ori[:, ori] = response_stacked_trials[:, mask_ori].mean(axis=1)
+        semrate_ori[:, ori] = sem(response_stacked_trials[:, mask_ori], axis=1)
 
     #Number of parameters for the fitting of von Mises function for each cases
     npars_ori = 4
@@ -80,7 +85,9 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
 
     #Allows to to store the rate as an array for each row
     results['rate_ori'] = list(avgrate_ori)
+    results['semrate_ori'] = list(semrate_ori)
     results['rate_dir'] = list(avgrate_dir)
+    results['semrate_dir'] = list(semrate_dir)
 
     #fit's x-axis are the angles
     thetas_ori = np.linspace(0, np.pi, 8, endpoint=False)
@@ -120,7 +127,7 @@ args = parser.parse_args()
 
 
 #Create the master table
-functional_table = pd.DataFrame(columns=['unit_id', 'session', 'scan_idx', 'rate_ori', 'pref_ori', 'r2_ori', 'pvals_ori', 'rate_dir', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti']) 
+functional_table = pd.DataFrame(columns=['unit_id', 'session', 'scan_idx', 'rate_ori', 'semrate_ori', 'pref_ori', 'r2_ori', 'pvals_ori', 'rate_dir', 'semrate_dir', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti']) 
 
 folders_to_analyse = os.listdir(args.funcdatapath) 
 

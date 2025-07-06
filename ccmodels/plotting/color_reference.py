@@ -12,6 +12,7 @@ lcolor = {
     "Total" : "gray"
 }
 
+
 print(pal)
 
 #For the things in the model that do not need to be different
@@ -71,3 +72,11 @@ def get_shades(color, n=2, factor=0.8):
     dark = darken(color, n//2, factor)
     ligth = ligthen(color, n//2, factor)
     return dark + [color] + ligth
+
+dotcolor = {
+    "L23" : darken(pal[0], 1, 0.3)[0],
+    "L4" :  darken(pal[3], 1, 0.3)[0],
+    "L23_modelE" : darken(pal[2], 1, 0.3)[0], 
+    "L23_modelI" : darken(pal[1], 1, 0.3)[0],
+    "Total" : "dimgray"
+}
