@@ -34,7 +34,7 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300.csv')
 
     #Sort with the selective ones first in order to match the ids in activity table
-    v1_neurons = v1_neurons.sort_values(by='tuning_type', ascending=False).reset_index()
+    v1_neurons = v1_neurons.sort_values(by='tuning_type', ascending=False).reset_index(drop=False)
 
     #Ensure all ids are from 0 to N-1, being N number of neurons. 
     #Rename id names.

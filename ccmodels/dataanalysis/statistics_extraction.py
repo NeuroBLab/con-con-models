@@ -170,7 +170,7 @@ def strength_tuned_untuned(v1_neurons, v1_connections):
     return sampled_strenghts
 
 
-def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=["ax_clean", None], half=True, nangles=16, n_samps=1000, frac=1.0):
+def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=["minimum", None], half=True, nangles=16, n_samps=1000, frac=1.0):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
     for a specific layer as a function of the difference in preferred orientation
     
@@ -667,7 +667,7 @@ def get_fraction_populations(units):
 
     return pd.Series(fractions)
 
-def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['ax_clean', None], frac=1.0, n_samps=1000):
+def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['minimum', None], frac=1.0, n_samps=1000):
     """
     Computes the connection probability between neurons depending on the difference of orientation between them.
 

@@ -26,7 +26,7 @@ def example_tuning_curve(ax, rates, id):
     rangle = plotutils.shift(rates[id, :])
 
     ax.plot(np.arange(9), rangle,  lw=1, color=cr.lcolor['L23'])
-    ax.plot(np.arange(9), rangle,  lw=1, color='k', ls='none', marker='o', ms=cr.ms)
+    ax.plot(np.arange(9), rangle,  lw=1, color=cr.dotcolor['Total'], ls='none', marker='o', ms=cr.ms)
 
     ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
     ax.set_xlabel("θ")
@@ -109,7 +109,7 @@ def plot_currents(axes, units, rates, vij):
         #Plot 
         axes[0].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer], color=cr.lcolor[layer], alpha=0.5)
         axes[0].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
-        axes[0].plot(x, avgcurrent[layer], color='k', ms=cr.ms, ls='none', marker='o')
+        axes[0].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
 
         #Get the normalization for each curve
         maxcurlayer = np.max(avgcurrent[layer])
@@ -119,7 +119,7 @@ def plot_currents(axes, units, rates, vij):
         #Replot the normalized thing
         axes[1].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer],color=cr.lcolor[layer], alpha=0.5) 
         axes[1].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
-        axes[1].plot(x, avgcurrent[layer], color='k', ms=cr.ms, ls='none', marker='o')
+        axes[1].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
 
 def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 1000):
 

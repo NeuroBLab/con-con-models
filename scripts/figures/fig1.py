@@ -34,7 +34,7 @@ def example_tuning_curve(ax, v1_neurons, rates, layer='L23'):
     #TODO do not shift here...
     rangle = rates[neurons_ids[id], :]
     ax.plot(np.arange(8), rangle,  lw=1, color=cr.lcolor[layer])
-    ax.plot(np.arange(8), rangle,  lw=1, color='k', ls='none', marker='o', ms=cr.ms)
+    ax.plot(np.arange(8), rangle,  lw=1, color=cr.dotcolor[layer], ls='none', marker='o', ms=cr.ms)
     ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
     ax.set_xlabel("θ")
     ax.set_ylabel("Rate")

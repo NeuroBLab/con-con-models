@@ -61,7 +61,6 @@ def compute_scaling_factor_kEE(neurons, connections, target_k_EE,new_N):
     post_id_list = fl.filter_neurons(e_neurons, tuning='matched') 
     #post_id_list = e_neurons
     pre_id_list = fl.filter_neurons(post_id_list, proofread='minimum')
-    #pre_id_list = fl.filter_neurons(post_id_list, proofread='ax_clean')
     conn_filtered = fl.synapses_by_id(connections, pre_ids=pre_id_list['id'], post_ids=post_id_list['id'], who='both')
 
     #Possible amount of links

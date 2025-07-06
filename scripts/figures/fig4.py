@@ -68,7 +68,7 @@ def plot_tuning_curves(ax, units, rates, tuning_curves, tuning_error):
 
     #ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_ylim(0, 4.1)
+    ax.set_ylim(0, 11)
     ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
     ax.set_ylabel('rate')
 
@@ -121,7 +121,7 @@ def conn_prob_osi(ax, probmean, proberr, layer, half=True):
 
     ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
     ax.plot(angles, probmean[layer], color = c, label = layer)
-    ax.scatter(angles, probmean[layer], color = cr.mc, s=cr.ms, zorder = 3)
+    ax.scatter(angles, probmean[layer], color = cr.dotcolor[layer], s=cr.ms, zorder = 3)
         
 
 
@@ -179,7 +179,7 @@ def conn_prob_osi_data(ax, v1_neurons, v1_connections, layer, half=True, n_samps
 
 def compute_currents(units_sample, QJ, rates_sample, k23, k4):
 
-    currents = mcur.bootstrap_mean_current(units_sample, QJ, rates_sample, k23, k4, tuning=['matched', 'matched'], cell_type=['exc', 'exc'], proof=[None, None])
+    currents = mcur.bootstrap_mean_current(units_sample, QJ, rates_sample, tuning=['matched', 'matched'], cell_type=['exc', 'exc'])
 
     totalmean = currents['Total'].mean(axis=0).max()
     currmean = {}
@@ -198,7 +198,7 @@ def plot_currents(ax, units, vij, rates, currmean, currerr, k23, k4):
         ax.plot(currmean[layer], label=layer, color=cr.lcolor[layer])
 
 
-    currents = mcur.bootstrap_mean_current(units, vij, rates, k23, k4, ['tuned', 'tuned'])
+    currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
     totalmean = currents['Total'].mean(axis=0).max()
     for layer in ['L23', 'L4', 'Total']:
         mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
@@ -248,10 +248,12 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
 
     if is_tuned:
         figname += 'tuned'
-        filename = 'definitive_random_tuned'
+        #filename = 'definitive_random_tuned'
+        filename = 'v1300_tuned'
     else:
         figname += 'normal'
-        filename = 'definitive_random'
+        #filename = 'definitive_random'
+        filename = 'v1300_normal'
 
     # load files
     units, connections, rates = loader.load_data()
@@ -402,10 +404,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
 
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
-numbers = {'J' : 1.5 + np.random.randn(1000), 'g' : 2 + np.random.randn(1000)}
-df = pd.DataFrame(data=numbers)
-df.to_csv("data/model/placeholder.csv", index=False)
 
 
-plot_figure("fig4", is_tuned=False, generate_data=False)
-plot_figure("fig4", is_tuned=True, generate_data=False)
+plot_figure("fig4_v1300_2", is_tuned=False, generate_data=True)
+#plot_figure("fig4", is_tuned=True, generate_data=False)
