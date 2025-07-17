@@ -185,16 +185,25 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
     #Avoid self-cnnnections
     conn_from_tunedpre = conn_from_tunedpre[conn_from_tunedpre["pre_id"] != conn_from_tunedpre["post_id"]]
 
+    pre_ids  = conn_from_tunedpre['pre_id'].unique()
+    post_ids = conn_from_tunedpre['post_id'].unique()
+    
+    units_pre  = v1_neurons.loc[v1_neurons['id'].isin(pre_ids),  ['id', 'pref_ori']].rename(columns=lambda x: f"pre_{x}")
+    units_post = v1_neurons.loc[v1_neurons['id'].isin(post_ids), ['id', 'pref_ori']].rename(columns=lambda x: f"post_{x}")
+
+
     #For the normalization of the probability, we need the potential links between neurons 
     #given a delta theta. 
     #We need the number of neurons with that delta to compute those 
-    tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer=pre_layer, proofread=proofread[0])
-    pre_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
-    tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23", proofread=proofread[1])
-    post_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
+
+    #tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer=pre_layer, proofread=proofread[0])
+    #pre_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
+    #tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23", proofread=proofread[1])
+    #post_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
 
 
     #Prepare variables for computing statistics 
+    """
     if half:
         p_mean = np.zeros(nangles//2)
         p_std  = np.zeros(nangles//2)
@@ -220,14 +229,32 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
         limit_angle = nangles
 
         bins = np.arange(-offset-0.5, 0.5 + 1 + nangles//2)
-
+    """
     #The number of potential links is just multiplying the number of elements in each group
-    for i in range(limit_angle):
-        for j in range(limit_angle):
-            dtheta = au.signed_angle_dist(i, j, half=half)
-            normalization[dtheta+offset] += pre_units_by_angle[i] * post_units_by_angle[j]
+    #for i in range(limit_angle):
+    #    for j in range(limit_angle):
+    #        dtheta = au.signed_angle_dist(i, j, half=half)
+    #        normalization[dtheta+offset] += pre_units_by_angle[i] * post_units_by_angle[j]
+
+    pairs = units_pre.assign(key=1).merge(units_post.assign(key=1), on='key').drop(columns='key')[['pre_id', 'pre_pref_ori', 'post_id', 'post_pref_ori']]
+    pairs['delta_ori'] = au.signed_angle_dist_vectorized(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)
+    n_potential_conns = pairs['delta_ori'].value_counts().sort_index()
+
+    n_observed_conns = conn_from_tunedpre['delta_ori'].value_counts().sort_index()
+
+
+    print("pot and values")
+    print(n_potential_conns)
+    print(n_potential_conns.values)
+
+    p_mean = n_observed_conns.values / n_potential_conns.values 
+    p_std  = np.sqrt((p_mean * (1 - p_mean) / n_potential_conns.values))
+
+    print("pmean")
+    print(p_mean)
 
     #Bootstrap sampling
+    """
     for i in range(n_samps):
         boot_samp = conn_from_tunedpre.sample(frac = frac, replace = True)
 
@@ -243,9 +270,10 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
     #Finish averages
     p_mean /= n_samps
     p_std  /= n_samps
-
+    """
     #Return the results as a dataframe normalized by p(dtheta=0)
-    return pd.DataFrame({'mean':p_mean , 'std':np.sqrt(p_std - p_mean**2)})
+    #return pd.DataFrame({'mean':p_mean , 'std':np.sqrt(p_std - p_mean**2)})
+    return pd.DataFrame({'mean':p_mean , 'std':p_std})
 
 def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[None,None], cell_type=[None, None], proofread=[None, None], half=True, nangles=16, n_samps=1000):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons

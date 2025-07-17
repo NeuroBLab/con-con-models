@@ -256,7 +256,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
         filename = 'v1300_normal'
 
     # load files
-    units, connections, rates = loader.load_data()
+    units, connections, rates = loader.load_data(suffix="")
     connections = fl.remove_autapses(connections)
     connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 

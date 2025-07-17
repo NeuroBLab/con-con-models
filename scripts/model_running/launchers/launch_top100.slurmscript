@@ -5,6 +5,6 @@
 #SBATCH -c 1
 #SBATCH --mem 1400 
 
-#srun python scripts/model_running/launchers/top100.py normal top100normal 
-srun python scripts/model_running/launchers/top100.py tunedinh top100tuned 
+#srun python scripts/model_running/launchers/top100.py normal top100normalk150 
+srun python scripts/model_running/launchers/top100.py tunedinh top100tunedk150
 
