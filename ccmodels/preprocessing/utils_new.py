@@ -23,11 +23,12 @@ def fit_ori(thetas_ori, ydata, tol=1e-4):
     b = ydata[np.argmin(ydata)] 
 
     p0 = [k, m, a, b]
+    bounds = ([0, -np.inf, 0, 0], np.inf) 
 
     #Try helps us in case curve_fit fails without cutting the program
     try:
         #Fit the orientation function with the correct bounds
-        popt, _ = curve_fit(von_mises_ori, thetas_ori, ydata, p0=p0, bounds=(0, np.inf), maxfev=2000, xtol=tol, ftol=tol)
+        popt, _ = curve_fit(von_mises_ori, thetas_ori, ydata, p0=p0, bounds=bounds, maxfev=2000, xtol=tol, ftol=tol)
 
         #Compute the R^2 of the model from its definition and return it
         residuals = np.sum((ydata - von_mises_ori(thetas_ori, *popt))**2)

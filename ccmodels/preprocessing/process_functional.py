@@ -18,7 +18,7 @@ import ccmodels.preprocessing.utils_new as ut
 def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="data/functional"):
 
     #Get the path to the main folder where this session and scan are stored
-    folder_data =f"{funcdatapath}/{session}_{scan}" 
+    folder_data =f"{funcdatapath}/{session}_{scan_idx}" 
 
     #Load sessions's information about trials and units recorded
     trial_type  = np.load(f"{folder_data}/meta/trials/type.npy")
@@ -40,7 +40,7 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
     for k,monet_idx in enumerate(monet_trials): 
         responses[:, k, :] = np.load(f"{folder_data}/data/responses/{monet_idx}.npy")
         loaded_dirs        = np.load(f"{folder_data}/meta/trials/directions/{monet_idx}.npy")
-        directions[k, :] = np.round(loaded_dirs* 16 / 360).astype(int) #Angles are integers 0-15
+        directions[k, :]   = np.round(loaded_dirs * 16 / 360).astype(int) #Angles are integers 0-15
 
     #Set firing rate to 5 spk / second (Sanzeni et al 2020)
     responses *= 5. / responses.mean()
@@ -107,14 +107,15 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
     results['pref_ori'] = pref_ori 
     results['r2_ori'] = r2_ori
     results['pvals_ori'] = pvals_ori 
+    results['pars_ori'] = list(pars_ori)
 
     results['pref_dir'] = pref_dir
     results['r2_dir'] = r2_dir
     results['pvals_dir_mid']  = pvals_dir_mid 
     results['pvals_dir_anti'] = pvals_dir_anti
+    results['pars_dir'] = list(pars_dir)
 
     return results
-    #return activity_ori, activity_dir
 
 
 # ------------------------- User input ---------------------------------
@@ -127,7 +128,7 @@ args = parser.parse_args()
 
 
 #Create the master table
-functional_table = pd.DataFrame(columns=['unit_id', 'session', 'scan_idx', 'rate_ori', 'semrate_ori', 'pref_ori', 'r2_ori', 'pvals_ori', 'rate_dir', 'semrate_dir', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti']) 
+functional_table = pd.DataFrame(columns=['unit_id', 'session', 'scan_idx', 'rate_ori', 'semrate_ori', 'pref_ori', 'r2_ori', 'pvals_ori', 'pars_ori', 'rate_dir', 'semrate_dir', 'pref_dir', 'r2_dir', 'pvals_dir_mid', 'pvals_dir_anti', 'pars_dir']) 
 
 folders_to_analyse = os.listdir(args.funcdatapath) 
 
