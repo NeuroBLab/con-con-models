@@ -33,23 +33,18 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table_v1300{suffix}.csv')
     rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300{suffix}.csv')
 
-    print(len(rates_table)//8, len(v1_neurons[v1_neurons['tuning_type']=='selective']))
 
     #Sort with the selective ones first in order to match the ids in activity table
     v1_neurons = v1_neurons.sort_values(by='tuning_type', ascending=False).reset_index(drop=False)
 
-    print(v1_neurons)
-    print(len(v1_neurons['pt_root_id']), len(v1_neurons['pt_root_id'].unique()))
     #Ensure all ids are from 0 to N-1, being N number of neurons. 
     #Rename id names.
     remap_all_tables(v1_neurons, v1_connections, rates_table)
 
-    print(v1_neurons)
 
 
     #Get the matrix only for functionally matched neurons
     func_matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-    print(len(rates_table)//8, len(func_matched_neurons[func_matched_neurons['tuning_type']=='selective']))
     rates = get_rates_matrix(func_matched_neurons, rates_table)
 
     #v1_neurons.loc[func_matched_neurons['id'], 'pref_ori'] = np.argmax(rates, axis=1)

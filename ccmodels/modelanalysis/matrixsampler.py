@@ -93,7 +93,7 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
     if mode=='normal' in mode:
         ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
         av_prob = ptable.loc['E', 'E']
-        ptable = pd.read_csv(f"{prepath}/model/prob_cleanaxons.csv", index_col="Population") 
+        ptable = pd.read_csv(f"{prepath}/model/prob_funcmatch_cleanaxons.csv", index_col="Population") 
         #Scale to get our desired k_ee. In this case the avg E-E probability is taken from connectomics
         scaling_prob = k_ee / (N * fractions['E'] * av_prob) 
         ptable *= scaling_prob

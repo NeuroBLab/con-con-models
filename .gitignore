@@ -23,6 +23,8 @@ data/model/auxtemp/
 data/661/
 data/1300/
 
+data/model/old_probs/
+
 sbi-logs/
 ccmodels/victor/
 
