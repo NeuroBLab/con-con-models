@@ -20,21 +20,21 @@ import ccmodels.dataanalysis.utils as dutl
 import ccmodels.dataanalysis.statistics_extraction as ste
 
 
-N = 3000
+N = 3001
 kee = 150 
 nreps = 10 
-filename = "v1300_normal"
+filename = "v1300_normal_2"
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=10):
+def compute_conn_prob(v1_neurons, v1_connections):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=n_samps)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
         #meandata[layer]  = plotutils.add_symmetric_angle(p['mean'].values)
         meandata[layer]  = p['mean'].values
 
@@ -86,6 +86,7 @@ if  intmode=='normal':
     #best normal 1300:
     best_pars = np.array([[  0.77824712,   0.20103477,   9.41470337,   8.19454098, 133.15536499, 158.89637756,   0.34302023,   0.17397591]])
     best_pars = np.array([[6.37000322e-01, 2.47943997e-01, 7.87858629e+00, 8.67751122e+00, 7.92813644e+01, 3.59472504e+02, 2.23580420e-01, 1.83380917e-01]])
+    best_pars = np.array([[7.09300876e-01, 2.07642972e-01, 8.27045918e+00, 9.27739143e+00, 8.59014969e+01, 3.18677704e+02, 1.88421413e-01, 1.62591472e-01]])
 
     betas = [best_pars[id, 6], best_pars[id, 7], 0., 0., 0., 0.]
 elif intmode=='tunedinh':

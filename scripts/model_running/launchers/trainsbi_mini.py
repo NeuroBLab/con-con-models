@@ -31,7 +31,7 @@ def load_rates(simid):
 
 nfiles = 100
 params = np.empty((0, nparameters))
-summary_stats = np.empty((0,5)) 
+summary_stats = np.empty((0,7)) 
 
 for i in range(nfiles):
     inputfile = np.loadtxt(f"{datafolder}/model/simulations/{inputfolder}/{i}.txt")
@@ -44,10 +44,15 @@ for i in range(nfiles):
         rf = inputfile[:, 16]
 
         #Connection probability reduction at beginning and end for L23 adn L4
-        pL23 = 0.5 * (inputfile[:,17] + inputfile[:,24]) 
-        pL4  = 0.5 * (inputfile[:,25] + inputfile[:,32]) 
+        #p23 starts at 17, p4 at 22. Each has 5 values
+        pL23 = inputfile[:,21] 
+        pL4  = inputfile[:,26] 
 
-        stats = np.vstack((r0, rf, cvd, pL23, pL4)).transpose()
+        midpL23 = inputfile[:,19] 
+        midpL4  = inputfile[:,24] 
+
+
+        stats = np.vstack((r0, rf, cvd, pL23, pL4, midpL23, midpL4)).transpose()
 
         summary_stats = np.vstack((summary_stats, stats))
 
@@ -63,13 +68,13 @@ for sim in range(sims_per_file * nfiles):
     rates = load_rates(sim)
 
     cvo, cvd = mut.compute_circular_variance(rates, orionly=True)
-    summary_stats[sim, 5] = np.mean(cvd)
-    summary_stats[sim, 6] = np.std(cvd)
-    summary_stats[sim, 7] = skew(cvd) 
+    summary_stats[sim, 7] = np.mean(cvd)
+    summary_stats[sim, 8] = np.std(cvd)
+    summary_stats[sim, 9] = skew(cvd) 
 
     logrates = np.log(rates.flatten()) 
-    summary_stats[sim, 8] = np.mean(logrates) 
-    summary_stats[sim, 9] = np.std(logrates) 
+    summary_stats[sim, 10] = np.mean(logrates) 
+    summary_stats[sim, 11] = np.std(logrates) 
 
 print(summary_stats.shape)
 

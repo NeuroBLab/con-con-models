@@ -100,20 +100,20 @@ def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=n_samps)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
-        meandata[layer]  = plotutils.add_symmetric_angle(p['mean'].values)
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
+        meandata[layer]  = p['mean'].values 
 
     return meandata
 
 def conn_prob_osi(ax, probmean, proberr, layer, half=True):
 
     #Plot it!
-    angles = plotutils.get_angles(kind="centered", half=half)
+    angles = np.linspace(0, np.pi/2, 5)
 
     low_band  = probmean[layer] - proberr[layer]
     high_band = probmean[layer] + proberr[layer]
@@ -122,10 +122,6 @@ def conn_prob_osi(ax, probmean, proberr, layer, half=True):
     ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
     ax.plot(angles, probmean[layer], color = c, label = layer)
     ax.scatter(angles, probmean[layer], color = cr.dotcolor[layer], s=cr.ms, zorder = 3)
-        
-
-
-    ax.axvline(0, color="gray", ls=":")
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
@@ -135,15 +131,15 @@ def conn_prob_osi(ax, probmean, proberr, layer, half=True):
     ax.set_ylabel("p(∆θ)/p(0")
     #ax.set_ylabel("Conn. Prob. (Normalized)")
 
+    ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
 
-    plotutils.get_xticks(ax, max=np.pi, half=True)
 
 #"""
 def conn_prob_osi_data(ax, v1_neurons, v1_connections, layer, half=True, n_samps = 100):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=100)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
 
     #Plot it!
     #angles = plotutils.get_angles(kind="centered", half=half)
@@ -158,24 +154,17 @@ def conn_prob_osi_data(ax, v1_neurons, v1_connections, layer, half=True, n_samps
     meandata = p['mean']
     errdata =  p['std']
 
-    #meandata  = plotutils.add_symmetric_angle(meandata.values)
-    #errdata   = plotutils.add_symmetric_angle(errdata.values)
-
     ax.errorbar(angles, meandata, yerr = errdata,  color = c, ls = "--", label = layer, markersize=cr.ms, marker='o')
-
-
-    ax.axvline(0, color="gray", ls=":")
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
     ax.set_ylim(0.5, 1.1)
 
     ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
-    #ax.set_ylabel("p(∆θ)/p(0)")
     ax.set_ylabel("Conn. Prob. \n(Normalized)")
 
+    ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
 
-    plotutils.get_xticks(ax, max=np.pi, half=True)
 #"""
 
 def compute_currents(units_sample, QJ, rates_sample, k23, k4):
@@ -254,7 +243,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     else:
         figname += 'normal'
         #filename = 'definitive_random'
-        filename = 'v1300_normal'
+        filename = 'v1300_normal_2'
 
     # load files
     units, connections, rates = loader.load_data(suffix="")
@@ -282,8 +271,8 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
         allcircvI = np.empty(0)
         tuning_curve = np.zeros(8)
         tuning_curve_err = np.zeros(8)
-        probmean = {'L23' : np.zeros(9), 'L4' : np.zeros(9)} 
-        proberr  = {'L23' : np.zeros(9), 'L4' : np.zeros(9)} 
+        probmean = {'L23' : np.zeros(5), 'L4' : np.zeros(5)} 
+        proberr  = {'L23' : np.zeros(5), 'L4' : np.zeros(5)} 
         currmean = {'L23' : np.zeros(9), 'L4' : np.zeros(9), 'Total' : np.zeros(9)} 
         currerr  = {'L23' : np.zeros(9), 'L4' : np.zeros(9), 'Total' : np.zeros(9)} 
 
@@ -394,18 +383,19 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     plot_tuning_curves(axes[0,1], units, rates, tuning_curve, tuning_curve_err) 
     circular_variance(axes[0,2], units, rates, allcircvE, allcircvI) 
     plot_currents(axes[1,0], units, vij, rates, currmean, currerr, k23, k4) 
-    #conn_prob_osi(axes[1,1], probmean, proberr, "L23") 
+    conn_prob_osi(axes[1,1], probmean, proberr, "L23") 
     conn_prob_osi_data(axes[1,1], units, connections, "L23")
-    #conn_prob_osi(axes[1,2], probmean, proberr, "L4") 
+    conn_prob_osi(axes[1,2], probmean, proberr, "L4") 
     conn_prob_osi_data(axes[1,2], units, connections, "L4")
 
     axes2label = [axes[0,k] for k in range(3)] + [axes[1,k] for k in range(3)]
     label_pos  = [-0.25, 1.05] * 6 
     sty.label_axes(axes2label, label_pos)
 
+    print(f"{args.save_destination}/{figname}.pdf")
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
 
 
-plot_figure("fig4_v1300_2", is_tuned=False, generate_data=False)
+plot_figure("fig4_v1300_2", is_tuned=False, generate_data=True)
 #plot_figure("fig4", is_tuned=True, generate_data=False)

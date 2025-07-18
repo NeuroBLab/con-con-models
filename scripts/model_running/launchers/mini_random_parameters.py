@@ -26,16 +26,16 @@ fixed_kee = int(sys.argv[5])
 
 datafolder = "data"
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=1000):
+def compute_conn_prob(v1_neurons, v1_connections):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=n_samps)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
         meandata[layer]  = p['mean'].values
 
     return meandata 
