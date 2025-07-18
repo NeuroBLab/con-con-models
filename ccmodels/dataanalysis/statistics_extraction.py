@@ -515,7 +515,7 @@ def get_fraction_populations(units):
 
     return pd.Series(fractions)
 
-def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['minimum', None], frac=1.0, n_samps=1000):
+def prob_conn_diffori(v1_neurons, v1_connections, proofread=['minimum', None]): 
     """
     Computes the connection probability between neurons depending on the difference of orientation between them.
 
@@ -523,8 +523,8 @@ def prob_conn_diffori(v1_neurons, v1_connections, half=True, proofread=['minimum
     """
 
     #Extract bootstrapped stats
-    l23_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L23', half=half, proofread=proofread, frac=frac, n_samps=n_samps)
-    l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', half=half, proofread=proofread, frac=frac, n_samps=n_samps)
+    l23_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L23', proofread=proofread)
+    l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', proofread=proofread)
 
     return l23_boots, l4_boots
 
