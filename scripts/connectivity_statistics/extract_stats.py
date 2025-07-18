@@ -60,9 +60,9 @@ else:
 table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections)
 table.index.name = "Population"
 if is_real_data:
-    table.to_csv("data/model/prob_funcmatch_clearaxons.csv")
+    table.to_csv("data/model/prob_funcmatch_cleanaxons.csv")
 else:
-    table.to_csv("data/model/prob_funcmatch_clearaxons_sampled.csv")
+    table.to_csv("data/model/prob_funcmatch_cleanaxons_sampled.csv")
 
 table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections, proof=[None,None])
 table.index.name = "Population"

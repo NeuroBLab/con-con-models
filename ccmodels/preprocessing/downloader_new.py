@@ -8,7 +8,7 @@ import argparse
 from scipy.stats import false_discovery_control
 
 sys.path.append(os.getcwd())
-import ccmodels.utils.angleutils as au
+#import ccmodels.utils.angleutils as au
 
 import microns_datacleaner as mic
 
@@ -41,86 +41,63 @@ if args.download_nucleus:
 
 print("Format functional data...")
 
-#Read the result of the functional fits and chekc the coregistrated neurons
-#funcprops = pd.read_csv("data/in_processing/functional_fits_validonly.csv")
+"""
+#DIGITAL TWIN - NO ACTIVITY
 funcprops = pd.read_csv("data/in_processing/functional_fits_nobound.csv")
-coreg = pd.read_csv("data/1300/raw/coregistration_manual_v4.csv") 
-
 dt = pd.read_csv("data/1300/raw/functional_properties_v3_bcm.csv")
+dt['pref_ori'] = np.round(dt['pref_ori'] * 8 / np.pi).astype(int)
+dt.loc[:, 'pref_ori'] = dt.loc[:, 'pref_ori'] % 8 
 
-#"""
-#Inner merge to make sure we are selecting only the coregistrated neurons. Consider only the properties of the funcprops table
-funcp_coreg = coreg.merge(funcprops, on=['session', 'scan_idx', 'unit_id'], how='inner')[['target_id'] + list(funcprops.columns)] 
-#funcp_coreg = funcp_coreg[~((funcp_coreg['session'] == 7)&(funcp_coreg['scan_idx'] == 4))]
-#funcp_coreg = funcp_coreg[funcp_coreg['scan_idx'] != 4]
 
-#funcp_coreg = funcp_coreg[(funcp_coreg['session'] == 9)]
+dt = dt.sort_values(by='cc_abs', ascending=False)
+dt = dt.drop_duplicates(subset='target_id', keep='first')
 
-#This table still can have several scans/sessions referring to the same units. We need disambiguate those. 
-#To do that, we will take only those neurons which have consistent results across multiple scans. 
-#Just compute the spread across ocurrences of the pref ori. If the neuron appears only once, spread is 0.
-grouped = funcp_coreg.groupby('target_id')['pref_ori'].agg(lambda x: au.angle_dist(x.max(), x.min()))
+dt = dt[dt['pt_root_id'] != 0]
 
-#Select neurons with low spread (high consistency across scans or there was a single scan)
-idx_selected = grouped[grouped.abs() <= 1].index.values
-mask_selected = funcp_coreg['target_id'].isin(idx_selected)
+dt['tuning_type'] = 'selective'
 
-#Sort these values by decreasing r2. Then drop duplications on target id, keeping only the first element: the one with highest r2
-filtered_func = funcp_coreg[mask_selected].sort_values(by=['target_id', 'r2_ori'], ascending=False)
-filtered_func = filtered_func.drop_duplicates(subset='target_id', keep='first')
-
-#Use the table to set up a criteria for selectivity. 
-#Since we used indepedent multiple comparisons, we can employ the Benjamini-Hochberg method (from scipy) to set FDR to 0.05
-filtered_func['tuning_type'] = 'not_selective'
-pvals_rescaled = false_discovery_control(filtered_func['pvals_ori'], method='bh')
-filtered_func.loc[(filtered_func['r2_ori'] > 0.5) & (pvals_rescaled < 0.01), 'tuning_type'] = 'selective'
-print(f'selective {len(filtered_func[filtered_func["tuning_type"]=="selective"])}')
-#filtered_func['tuning_type'] = 'selective'
-
-#Filter the columns we will actually use 
-filtered_func['target_id'] = filtered_func['target_id'].astype(int)
-#"""
-
+func_4_units    = dt[['target_id', 'pref_ori', 'tuning_type']]
 """
-funcp_coreg = dt.merge(funcprops, on=['session', 'scan_idx', 'unit_id'], how='inner') 
-funcp_coreg = funcp_coreg[['target_id', 'session', 'scan_idx', 'unit_id', 'pref_ori_x', 'pref_ori_y', 'rate_ori', 'r2_ori', 'cc_abs']]
-funcp_coreg['pref_ori'] = np.round(funcp_coreg['pref_ori_x'] * 8 / np.pi).astype(int)
-funcp_coreg.loc[:, 'pref_ori'] = funcp_coreg.loc[:, 'pref_ori'] % 8 
 
-funcp_coreg = funcp_coreg.sort_values(by='cc_abs', ascending=False)
-filtered_func = funcp_coreg.drop_duplicates(subset='target_id', keep='first')
+#Read the result of the functional fits and chekc the coregistrated neurons
+coreg = pd.read_csv("data/1300/raw/coregistration_manual_v4.csv") 
+funcprops = pd.read_csv("data/in_processing/functional_fits_nobound.csv")
 
-#grouped = funcp_coreg.groupby('target_id')['pref_ori'].agg(lambda x: au.angle_dist(x.max(), x.min()))
-#idx_selected = grouped[grouped.abs() <= 1].index.values
-#mask_selected = funcp_coreg['target_id'].isin(idx_selected)
+coreg = coreg[['session', 'scan_idx', 'unit_id', 'target_id']]
 
-#filtered_func = funcp_coreg[mask_selected].sort_values(by=['target_id', 'r2_ori'], ascending=False)
-#filtered_func = filtered_func.drop_duplicates(subset='target_id', keep='first')
+#funcprops = coreg.merge(funcprops, on=['session', 'scan_idx', 'unit_id'], how='left')
+#funcprops = funcprops[funcprops['pref_ori'].notna()].reset_index(drop=True)
+funcprops = coreg.merge(funcprops, on=['session', 'scan_idx', 'unit_id'], how='inner')
 
-filtered_func['tuning_type'] = 'selective'
-print(len(filtered_func))
-"""
-func_4_units = filtered_func[['target_id', 'pref_ori', 'tuning_type']]
+funcprops = funcprops.sort_values(by='r2_ori', ascending=False)
+funcprops = funcprops.drop_duplicates(subset='target_id', keep='first')
+
+funcprops['tuning_type'] = 'not_selective'
+pvals_rescaled = false_discovery_control(funcprops['pvals_ori'], method='bh')
+funcprops.loc[(funcprops['r2_ori'] > 0.5) & (pvals_rescaled < 0.01), 'tuning_type'] = 'selective'
+funcprops['target_id'] = funcprops['target_id'].astype(int)
+
+func_4_units = funcprops[['target_id', 'pref_ori', 'tuning_type']]
+activity     = funcprops[['target_id', 'rate_ori']]
+
 
 # ------------ Format nucleus table with functional stuff ----------------
 
 print("Generate unit table...")
 
 #Process the data and obtain units and segment tables
-units, segments = cleaner.process_nucleus_data(with_functional=False)
+units, segments = cleaner.process_nucleus_data(with_functional='no')
 units.loc[units['layer']=='L2/3', 'layer'] = 'L23'
 
 #These 3 neurons are found in the coregistration table so they should be excitatory, but the AIBS classification say they are nonneuronal.
 #Since the coregistration is manual, we favor that one and set the neurons manually to be excitatory so when we filter they do not disappear
 units.loc[(units['pt_root_id'].isin([864691135726289983,864691135569616364,864691136085014636])), 'classification_system'] = 'excitatory_neuron'
 
-print(len(units['pt_root_id']), len(units['pt_root_id'].unique()))
 
 #Merge the unit table with our matched functional properties
-units_with_func = units.merge(func_4_units, left_on='id', right_on='target_id', how='left')
+units_with_func = units.merge(func_4_units, left_on='nucleus_id', right_on='target_id', how='left')
 units_with_func = units_with_func.drop(columns='target_id') 
 
-print(len(units_with_func['pt_root_id']), len(units_with_func['pt_root_id'].unique()))
 
 #Filter for our brain area and layer of interest
 #TODO use the filters!
@@ -186,14 +163,14 @@ synapses.to_csv(f"data/preprocessed/connections_table_v1300{table_suffix}.csv", 
 print("Generate activity table...")
 #Get the activity table by expanding (exploding) the rates of the selected units
 #The rate_ori column is str so we transform it to arrays first 
-activity = filtered_func[['target_id', 'rate_ori']]
+activity = funcprops[['target_id', 'rate_ori']]
 activity.loc[:, 'rate_ori'] = activity['rate_ori'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
 activity = activity.explode('rate_ori')
 #Write the angle that corresponds to each one 
 activity['angle_shown'] = np.tile(np.arange(8),  len(activity)//8)
 
 #Merge and get only the areas we are interested in
-activity_merged = units.merge(activity, left_on='id', right_on='target_id', how='inner')
+activity_merged = units.merge(activity, left_on='nucleus_id', right_on='target_id', how='inner')
 activity_merged = activity_merged[['pt_root_id', 'brain_area', 'layer', 'angle_shown', 'rate_ori']]
 
 #Filter for V1 L23 and L4 TODO use the filters

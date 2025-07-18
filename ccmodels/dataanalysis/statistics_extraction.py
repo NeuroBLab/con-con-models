@@ -7,76 +7,7 @@ import ccmodels.dataanalysis.processedloader as loader
 import ccmodels.utils.angleutils as au
 
 
-#TODO needs to be merged with new version of the preprocssing results
-def get_number_connections(data_location = '../con-con-models/data', layer234_only=True):
-    '''Reads in appropriate data and prepares it for plotting by calculating counts'''
 
-    #TODO fill function with new table data format
-    pass 
-    """
-    nonproof_inputs_sample = pd.read_csv(f'{data_location}/nonproof_inputs_sample.csv')
-    proof_inputs_sample = pd.read_csv(f'{data_location}/proofread_inputs_sample.csv')
-
-    nonproof_outputs_sample = pd.read_csv(f'{data_location}/nonproof_outputs_sample.csv')
-    proof_outputs_sample = pd.read_csv(f'{data_location}/proofread_outputs_sample.csv')
-
-    #These tables contain more layers. If we want to check only connectivity from layer 2,3,4, we do it in this way
-    if layer234_only:
-        mask = (nonproof_inputs_sample["cortex_layer"] == "L2/3") | (nonproof_inputs_sample["cortex_layer"] == "L4")
-        nonproof_inputs_sample = nonproof_inputs_sample[mask]
-        mask = (proof_inputs_sample["cortex_layer"] == "L2/3") | (proof_inputs_sample["cortex_layer"] == "L4")
-        proof_inputs_sample = proof_inputs_sample[mask]
-        mask = (nonproof_outputs_sample["cortex_layer"] == "L2/3") | (nonproof_inputs_sample["cortex_layer"] == "L4")
-        nonproof_outputs_sample = nonproof_outputs_sample[mask]
-        mask = (proof_outputs_sample["cortex_layer"] == "L2/3") | (proof_inputs_sample["cortex_layer"] == "L4")
-        proof_outputs_sample = proof_outputs_sample[mask]
-
-    #Count number of input neurons for each post synaptic neuron
-    nonproof_inputs_counts = nonproof_inputs_sample.groupby('post_pt_root_id').count().reset_index()
-    proof_inputs_counts = proof_inputs_sample.groupby('post_pt_root_id').count().reset_index()
-
-    #Count number of output neurons for each pre synaptic neuron
-    nonproof_outputs_counts = nonproof_outputs_sample.groupby('pre_pt_root_id').count().reset_index()
-    proof_outputs_counts = proof_outputs_sample.groupby('pre_pt_root_id').count().reset_index()
-
-    return nonproof_inputs_counts["id"], proof_inputs_counts["id"], nonproof_outputs_counts["id"], proof_outputs_counts["id"]
-    """
-
-def get_propotion_connections(data_location = '../con-con-models/data'):
-    '''
-    Performs a bootstrap analysis on the proportion of inputs from L2/3 and L4 neurons that are received by
-    L2/3 neurons that are proofread VS that are not proofread
-    '''
-
-    #TODO fill function with new table data format
-    pass
-
-    """
-    #Read data from layer L2/3
-    proof_inputs_l23sample = pd.read_csv(f'{data_location}/proof_inputs_l23sample.csv')
-    nonproof_inputs_l23sample = pd.read_csv(f'{data_location}/nonproof_inputs_l23sample.csv')
-
-
-    #Group inputs by postsynaptic neurons and by layer
-    layer_groups_nop = proof_inputs_l23sample.groupby(['post_pt_root_id','cortex_layer']).count()
-    layer_groups_p = nonproof_inputs_l23sample.groupby(['post_pt_root_id','cortex_layer']).count()
-
-    #Clean the dataframes
-    #Rename the id column to be called n_connections and contain the number of postsynaptic units
-    #Proofread
-    layer_groups_p = layer_groups_p.reset_index().loc[:, ['post_pt_root_id', 'cortex_layer', 'id']].rename(columns = {'id':'n_connections'})
-    #NON-proofread
-    layer_groups_nop = layer_groups_nop.reset_index().loc[:, ['post_pt_root_id', 'cortex_layer', 'id']].rename(columns = {'id':'n_connections'})
-
-    boots_propl_proof = bootstrap_layerinput_proportions(layer_groups_p, 'cortex_layer', 'n_connections', 
-                                                         layer_labels = ['L2/3', 'L4'], n_iters = 100)
-    
-    boots_propl_noproof = bootstrap_layerinput_proportions(layer_groups_nop, 'cortex_layer', 'n_connections', 
-                                                           layer_labels = ['L2/3', 'L4'], n_iters = 100)
-    
-    
-    return boots_propl_proof, boots_propl_noproof
-    """
 
 
 def prob_conectivity_tuned_untuned(v1_neurons, v1_connections, nsamples=100):
@@ -170,7 +101,7 @@ def strength_tuned_untuned(v1_neurons, v1_connections):
     return sampled_strenghts
 
 
-def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=["minimum", None], half=True, nangles=16, n_samps=1000, frac=1.0):
+def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=["minimum", None]):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
     for a specific layer as a function of the difference in preferred orientation
     
@@ -178,101 +109,30 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
     '''
 
     #Filter to the connections we want
-    conn_from_tunedpre = fl.filter_connections_prepost(v1_neurons, v1_connections, layer=[pre_layer, "L23"], tuning=["tuned", "tuned"], 
-                                                       proofread=proofread, who="both")
+    pre_ids  = fl.filter_neurons(v1_neurons, tuning='tuned', layer=pre_layer, proofread=proofread[0])['id'].unique()
+    post_ids = fl.filter_neurons(v1_neurons, tuning='tuned', layer="L23")['id'].unique()
 
-
-    #Avoid self-cnnnections
-    conn_from_tunedpre = conn_from_tunedpre[conn_from_tunedpre["pre_id"] != conn_from_tunedpre["post_id"]]
-
-    pre_ids  = conn_from_tunedpre['pre_id'].unique()
-    post_ids = conn_from_tunedpre['post_id'].unique()
+    conn_from_tunedpre = fl.synapses_by_id(v1_connections, pre_ids=pre_ids, post_ids=post_ids, who='both')
     
+    #Get those neurons with unique names in their colums for the next merge
     units_pre  = v1_neurons.loc[v1_neurons['id'].isin(pre_ids),  ['id', 'pref_ori']].rename(columns=lambda x: f"pre_{x}")
     units_post = v1_neurons.loc[v1_neurons['id'].isin(post_ids), ['id', 'pref_ori']].rename(columns=lambda x: f"post_{x}")
 
+    #Create a table where each presynaptic neuron is connected to all potential postsynaptic ones
+    units_pre['key']  = 1
+    units_post['key'] = 1
+    pairs = units_pre.merge(units_post, on='key')[['pre_id', 'pre_pref_ori', 'post_id', 'post_pref_ori']]
+    pairs['delta_ori'] = au.angle_dist(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)
 
-    #For the normalization of the probability, we need the potential links between neurons 
-    #given a delta theta. 
-    #We need the number of neurons with that delta to compute those 
+    conn_from_tunedpre['abs_delta_ori'] = np.abs(conn_from_tunedpre['delta_ori']) 
+    conn_from_tunedpre['abs_delta_ori'] = conn_from_tunedpre['abs_delta_ori'].astype(int) 
 
-    #tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer=pre_layer, proofread=proofread[0])
-    #pre_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
-    #tunedlayer = fl.filter_neurons(v1_neurons, tuning="tuned", layer="L23", proofread=proofread[1])
-    #post_units_by_angle = tunedlayer["pref_ori"].value_counts().sort_index().values 
-
-
-    #Prepare variables for computing statistics 
-    """
-    if half:
-        p_mean = np.zeros(nangles//2)
-        p_std  = np.zeros(nangles//2)
-
-        #To compute the number of neurons with a certain dtheta in the whole system
-        #Offset is so that normalization[0] points at the -angle+1 value, so that everything is ordered
-        #For 6 angles, the values are -2, -1, 0, 1, 2, 3, so we have to displace +2 = 6/2-1
-        normalization = np.zeros(nangles//2)
-        offset = nangles//4-1
-        limit_angle = nangles//2
-
-        #Bins are done so that Pandas's value_counts gets the integer values. 
-        #Ex. counting in the interval [-4.5, -3.5] will give me the amount of times that -3 is present.
-        #This method has the advantage of yielding 0 if no -3 is there. Just calling value_counts would omit it, giving problems
-        bins = np.arange(-offset-0.5, 0.5 + 1 + nangles//4)
-    else:
-        #Same, but for directions...
-        p_mean = np.zeros(nangles)
-        p_std  = np.zeros(nangles)
-
-        normalization = np.zeros(nangles)
-        offset = nangles//2-1
-        limit_angle = nangles
-
-        bins = np.arange(-offset-0.5, 0.5 + 1 + nangles//2)
-    """
-    #The number of potential links is just multiplying the number of elements in each group
-    #for i in range(limit_angle):
-    #    for j in range(limit_angle):
-    #        dtheta = au.signed_angle_dist(i, j, half=half)
-    #        normalization[dtheta+offset] += pre_units_by_angle[i] * post_units_by_angle[j]
-
-    pairs = units_pre.assign(key=1).merge(units_post.assign(key=1), on='key').drop(columns='key')[['pre_id', 'pre_pref_ori', 'post_id', 'post_pref_ori']]
-    pairs['delta_ori'] = au.signed_angle_dist_vectorized(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)
     n_potential_conns = pairs['delta_ori'].value_counts().sort_index()
-
-    n_observed_conns = conn_from_tunedpre['delta_ori'].value_counts().sort_index()
-
-
-    print("pot and values")
-    print(n_potential_conns)
-    print(n_potential_conns.values)
+    n_observed_conns  = conn_from_tunedpre['abs_delta_ori'].value_counts().sort_index()
 
     p_mean = n_observed_conns.values / n_potential_conns.values 
     p_std  = np.sqrt((p_mean * (1 - p_mean) / n_potential_conns.values))
 
-    print("pmean")
-    print(p_mean)
-
-    #Bootstrap sampling
-    """
-    for i in range(n_samps):
-        boot_samp = conn_from_tunedpre.sample(frac = frac, replace = True)
-
-        #Calculate how many connections we have per each delta_theta, using the bins as explained before.
-        #sort is False so we get them ordered by the index 
-        boot_diffs = boot_samp["delta_ori"].value_counts(bins=bins).sort_index().values
-        prob = boot_diffs / normalization 
-
-        #Add to the statistics
-        p_mean += prob
-        p_std  += prob**2
-
-    #Finish averages
-    p_mean /= n_samps
-    p_std  /= n_samps
-    """
-    #Return the results as a dataframe normalized by p(dtheta=0)
-    #return pd.DataFrame({'mean':p_mean , 'std':np.sqrt(p_std - p_mean**2)})
     return pd.DataFrame({'mean':p_mean , 'std':p_std})
 
 def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[None,None], cell_type=[None, None], proofread=[None, None], half=True, nangles=16, n_samps=1000):
@@ -283,78 +143,28 @@ def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[N
     '''
 
     #Filter the pre and postsynaptic neurons that we want, and get the connections that corresponds to those
-    neurons_pre = fl.filter_neurons(v1_neurons, layer=layer[0], tuning=tuning[0], cell_type=cell_type[0], proofread=proofread[0])
-    neurons_post = fl.filter_neurons(v1_neurons, layer=layer[1], tuning=tuning[1], cell_type=cell_type[1], proofread=proofread[1])
-    filtered_connections = fl.synapses_by_id(v1_connections, pre_ids=neurons_pre["id"], post_ids=neurons_post["id"], who="both")
+    pre_ids  = fl.filter_neurons(v1_neurons, layer=layer[0], tuning=tuning[0], cell_type=cell_type[0], proofread=proofread[0])['id'].unique()
+    post_ids = fl.filter_neurons(v1_neurons, layer=layer[1], tuning=tuning[1], cell_type=cell_type[1], proofread=proofread[1])['id'].unique()
 
-    #Take out self-connections
-    mask_selfcon = filtered_connections["pre_id"] == filtered_connections["post_id"]
-    filtered_connections = filtered_connections[~mask_selfcon]
-
-    if mask_selfcon.any():
-        n_potential_links = len(neurons_pre) * (len(neurons_post)-1)
-    else:    
-        n_potential_links = len(neurons_pre) * len(neurons_post) 
-
-
-    if n_potential_links == 0:
-        print("Warning: 0 links when bootstrapping probability between populations. Probability was set to -1")
-        return -1
-    else:
-        return len(filtered_connections) / n_potential_links
-
-def bootstrap_prob_A2B_2(v1_neurons, v1_connections, layer=[None, None], tuning=[None,None], cell_type=[None, None], proofread=[None, None], half=True, nangles=16, n_samps=1000):
-    '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
-    for a specific layer as a function of the difference in preferred orientation
+    selected_synapses = fl.synapses_by_id(v1_connections, pre_ids=pre_ids, post_ids=post_ids, who='both')
     
-    half_dirs: if true directions between 0 and pi else between 0 and pi
-    '''
+    #Get those neurons with unique names in their colums for the next merge
+    units_pre  = v1_neurons.loc[v1_neurons['id'].isin(pre_ids),  ['id']].rename(columns=lambda x: f"pre_{x}")
+    units_post = v1_neurons.loc[v1_neurons['id'].isin(post_ids), ['id']].rename(columns=lambda x: f"post_{x}")
 
-    #---
-    p_mean = 0.0
-    p_std = 0.0
-    #---
+    units_pre['key']  = 1
+    units_post['key'] = 1
 
-    #Filter the pre and postsynaptic neurons that we want, and get the connections that corresponds to those
-    neurons_pre = fl.filter_neurons(v1_neurons, layer=layer[0], tuning=tuning[0], cell_type=cell_type[0], proofread=proofread[0])
-    neurons_post = fl.filter_neurons(v1_neurons, layer=layer[1], tuning=tuning[1], cell_type=cell_type[1], proofread=proofread[1])
-    filtered_connections = fl.synapses_by_id(v1_connections, pre_ids=neurons_pre["id"], post_ids=neurons_post["id"], who="both")
+    #Create a table where each presynaptic neuron is connected to all potential postsynaptic ones
+    pairs = units_pre.merge(units_post, on='key')[['pre_id', 'post_id']]
 
+    n_potential_conns = len(pairs) 
+    n_observed_conns  = len(selected_synapses) 
 
-    #---
-    for i in range(n_samps):
-    #---
-        sampled_conns = filtered_connections.sample(frac=1, replace=True) 
+    p_mean = n_observed_conns/ n_potential_conns
+    p_std  = np.sqrt((p_mean * (1 - p_mean) / n_potential_conns))
 
-        #Take out self-connections
-        #mask_selfcon = filtered_connections["pre_id"] == filtered_connections["post_id"]
-        #filtered_connections = filtered_connections[~mask_selfcon]
-        mask_selfcon = sampled_conns["pre_id"] == sampled_conns["post_id"]
-        sampled_conns = sampled_conns[~mask_selfcon]
-
-        if mask_selfcon.any():
-            n_potential_links = len(neurons_pre) * (len(neurons_post)-1)
-        else:    
-            n_potential_links = len(neurons_pre) * len(neurons_post) 
-
-
-        if n_potential_links == 0:
-            #print("Warning: 0 links when bootstrapping probability between populations. Probability was set to -1")
-            #return -1
-            p_mean -= 1.0
-            p_std   -= 1.0
-        else:
-            #return len(filtered_connections) / n_potential_links
-            prob = len(filtered_connections) / n_potential_links
-            p_mean += prob 
-            p_std  += prob**2 
-
-    #Finish averages
-    p_mean /= n_samps
-    p_std  /= n_samps
-
-    #Return the results as a dataframe normalized by p(dtheta=0)
-    return pd.DataFrame({'mean':p_mean , 'std':np.sqrt(p_std - p_mean**2)})
+    return p_mean
 
                                             
 def estimate_conn_prob_functmatch(fm_neurons, fm_connections, proof=["minimum", None], nangles=16, half=True):
@@ -439,8 +249,18 @@ def estimate_conn_prob_functmatch(fm_neurons, fm_connections, proof=["minimum", 
 
     #For the connections between tuned neurons we will need the angle of both. 
     #First, compute the submatrix of probabilities as a function of the angle for each layer.
-    prob_T2T_L23 = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L23', half=half, proofread=proof)
-    prob_T2T_L4  = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L4', half=half, proofread=proof)
+    prob_T2T_L23 = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L23', proofread=proof)
+    prob_T2T_L4  = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L4',  proofread=proof)
+
+    #We are working now with half of the angles, but we need the symmetrized distribution
+    #So use a small trick to get first all the negative distances
+    for i in range(1, limit_angle//2):
+        prob_T2T_L23.loc[-i] = prob_T2T_L23.loc[i]
+        prob_T2T_L4.loc[-i] = prob_T2T_L4.loc[i]
+
+    #Then sort them in the way that the code below expects 
+    prob_T2T_L23 = prob_T2T_L23.sort_index().reset_index(drop=True)
+    prob_T2T_L4  = prob_T2T_L4.sort_index().reset_index(drop=True)
 
     #Now, loop over the angles and get the probability that corresponds to a certain dtheta, which is assigned to the table
     for i in range(limit_angle):
