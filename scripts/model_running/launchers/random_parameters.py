@@ -48,7 +48,7 @@ local_connectivity = False
 mode = 'cosine'
 
 N_2save = 200
-N = 20 * fixed_kee 
+N = 20 * fixed_kee + 1 
 
 
 def dosim(pars):
@@ -72,9 +72,9 @@ def dosim(pars):
         utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
         #units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
         rates_sample = utl.format_synthetic_data_4conprob(units_sample, connections_sample, re, ri, rx)
-        conprob = compute_conn_prob(units_sample, connections_sample, n_samps=1)
+        conprob = compute_conn_prob(units_sample, connections_sample)
     else:
-        trivial_conprob= np.array([0.,0.,0.,1.,0.,0.,0.,0.])
+        trivial_conprob= np.array([1.,0.,0.,0.,0.])
         conprob = {'L23':trivial_conprob, 'L4':trivial_conprob}
 
     return tuning_curve, conprob, re

@@ -3,7 +3,7 @@
 #SBATCH -o rand.%j.out	# Name of stdout output file(%j expands to jobId)
 #SBATCH -e rand.%j.err	# Name of stderr output file(%j expands to jobId)
 #SBATCH -c 1
-#SBATCH --mem 900 
+#SBATCH --mem 1500 
 #SBATCH --array=0-99
 
 # ---- k = 150 
@@ -11,9 +11,9 @@
 # - Sample
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randk150 no 150
 # - SBI 
-#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randk150 randk150_mini.sbi 150 
+srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randk150 randk150_mini.sbi 150 
 
 # - Sample tuned
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedk150 no 150
 # - SBI tuned 
-srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedk150 tunedk150_mini.sbi 150 
+#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedk150 tunedk150_mini.sbi 150 

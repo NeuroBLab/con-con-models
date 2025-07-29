@@ -49,7 +49,7 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 20 * fixed_kee
+N = 20 * fixed_kee + 1
 N_2save = 200
 
 def dosim(pars):
@@ -73,9 +73,9 @@ def dosim(pars):
         #utl.write_synthetic_data(f"testrandom{simid}", units_sample, connections_sample, re, ri, rx, original_prefori, prepath=datafolder)
         #units_sample, connections_sample, rates_sample, n_neurons, target_prefori = utl.load_synthetic_data(f"testrandom{simid}", prepath=datafolder)
         rates_sample = utl.format_synthetic_data_4conprob(units_sample, connections_sample, re, ri, rx)
-        conprob = compute_conn_prob(units_sample, connections_sample, n_samps=1)
+        conprob = compute_conn_prob(units_sample, connections_sample)
     else:
-        trivial_conprob= np.array([0.,0.,0.,1.,0.,0.,0.,0.])
+        trivial_conprob= np.array([1.,0.,0.,0.,0.])
         conprob = {'L23':trivial_conprob, 'L4':trivial_conprob}
 
     return tuning_curve, conprob, re
@@ -118,25 +118,34 @@ else:
     rf = tcurvedata[-1] 
 
     #Connection probability reduction at beginning and end for L23 adn L4
-    pL23 = 0.5 * (means_data['L23'][0] + means_data['L23'][-1]) 
-    pL4  = 0.5 * (means_data['L4'][0] + means_data['L4'][-1]) 
+    #pL23 = 0.5 * (means_data['L23'][0] + means_data['L23'][-1]) 
+    #pL4  = 0.5 * (means_data['L4'][0] + means_data['L4'][-1]) 
 
-    summary_data = np.zeros(10)
+    pL23 = means_data['L23'][2] 
+    pL4  = means_data['L4'][-1] 
+
+    pL23mid = means_data['L23'][2] 
+    pL4mid  = means_data['L4'][-1] 
+
+    summary_data = np.zeros(12)
     summary_data[0] = r0
     summary_data[1] = rf
     summary_data[2] = cvd 
     summary_data[3] = pL23 
     summary_data[4] = pL4 
+    summary_data[5] = pL23mid 
+    summary_data[6] = pL4mid 
 
     cvoexp, cvdexp = utl.compute_circular_variance(rates23, orionly=True)
 
-    summary_data[5] = np.mean(cvdexp)
-    summary_data[6] = np.std(cvdexp)
-    summary_data[7] = skew(cvdexp) 
+    #Before it was from 5
+    summary_data[7] = np.mean(cvdexp)
+    summary_data[8] = np.std(cvdexp)
+    summary_data[9] = skew(cvdexp) 
 
     logrates = np.log(rates23.flatten()) 
-    summary_data[8] = np.mean(logrates) 
-    summary_data[9] = np.std(logrates) 
+    summary_data[10] = np.mean(logrates) 
+    summary_data[11] = np.std(logrates) 
     
     summary_data = torch.tensor(summary_data)
 

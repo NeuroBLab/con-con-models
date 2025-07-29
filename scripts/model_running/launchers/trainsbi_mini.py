@@ -34,7 +34,7 @@ params = np.empty((0, nparameters))
 summary_stats = np.empty((0,7)) 
 
 for i in range(nfiles):
-    inputfile = np.loadtxt(f"{datafolder}/model/simulations/{inputfolder}/{i}.txt")
+    inputfile = np.loadtxt(f"{datafolder}/model/simulations/{inputfolder}/{i}.txt", skiprows=5)
     if inputfile.size > 0:
         params = np.vstack((params, inputfile[:, :nparameters]))
         #Observe that even if mode is NOT kin, the indegree is always stored as a parameter (it's just 400) so the summary stats start always from 9 and does not depend on nparameters
@@ -64,7 +64,8 @@ sims_per_file = 1000
 #Increase the size of the summary stats
 summary_stats = np.hstack((summary_stats, np.zeros((summary_stats.shape[0], 5))))
 
-for sim in range(sims_per_file * nfiles):
+#for sim in range(sims_per_file * nfiles):
+for sim in range(summary_stats.shape[0]):
     rates = load_rates(sim)
 
     cvo, cvd = mut.compute_circular_variance(rates, orionly=True)
