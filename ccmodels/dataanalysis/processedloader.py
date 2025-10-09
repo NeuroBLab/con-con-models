@@ -11,7 +11,7 @@ import ccmodels.dataanalysis.utils as utl
 # Functions here help to load the preprocessed data 
 #============================================================
 
-def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data/", suffix="", version="661"):
+def load_data(orientation_only=True, return_error=False, nangles=16, prepath="../con-con-models/data/", suffix="", version="661"):
     """
     Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
     All returned values are inside a 3-element list.
@@ -33,7 +33,6 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table_v1300{suffix}.csv')
     rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300{suffix}.csv')
 
-
     #Sort with the selective ones first in order to match the ids in activity table
     v1_neurons = v1_neurons.sort_values(by='tuning_type', ascending=False).reset_index(drop=False)
 
@@ -45,7 +44,7 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
 
     #Get the matrix only for functionally matched neurons
     func_matched_neurons = fl.filter_neurons(v1_neurons, tuning="matched")
-    rates = get_rates_matrix(func_matched_neurons, rates_table)
+    rates, error_rates = get_rates_matrix(func_matched_neurons, rates_table)
 
     #v1_neurons.loc[func_matched_neurons['id'], 'pref_ori'] = np.argmax(rates, axis=1)
     #v1_neurons.loc[v1_neurons['id'].isin(func_matched_neurons['id']), 'pref_ori']= np.argmax(rates, axis=1)
@@ -57,7 +56,10 @@ def load_data(orientation_only=True, nangles=16, prepath="../con-con-models/data
     v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=orientation_only)
     v1_connections["delta_ori"] = v1_connections["delta_ori"].astype("Int64")
 
-    return v1_neurons, v1_connections, rates
+    if return_error:
+        return v1_neurons, v1_connections, rates, error_rates
+    else:
+        return v1_neurons, v1_connections, rates
 
 
 #============================================================
@@ -122,6 +124,7 @@ def remap_all_tables(v1_neurons, v1_connections, v1_activity):
     The tables to be remapped.
     """
 
+    v1_neurons['save_ptroot'] = v1_neurons['pt_root_id']
     v1_neurons.rename(columns={"pt_root_id":"id"}, inplace=True)
     v1_activity.rename(columns={"neuron_id":"id"}, inplace=True)
     v1_connections.rename(columns={"pre_pt_root_id":"pre_id", "post_pt_root_id":"post_id"}, inplace=True)
@@ -133,6 +136,10 @@ def remap_all_tables(v1_neurons, v1_connections, v1_activity):
     remap_table(idx_remap, v1_connections, ["pre_id", "post_id"])
     remap_table(idx_remap, v1_activity, ["id"])
     remap_table(idx_remap, v1_neurons, ["id"])
+
+    #Put back the pt root ids to identify units with neuroglancer if needed
+    v1_neurons['pt_root_id'] = v1_neurons['save_ptroot']
+    v1_neurons.drop(columns=['save_ptroot'])
 
 
 #============================================================
@@ -186,7 +193,10 @@ def get_rates_matrix(v1_neurons, v1_activity, nangles=8):
 
     #Fill the rates
     rates = np.empty((N, nangles))
+    error_rates = np.empty((N, nangles))
     for i in range(N):
-        rates[i,:] = v1_activity.loc[v1_activity["id"] == i, "rate"].values 
+        mask = v1_activity["id"] == i
+        rates[i,:]       = v1_activity.loc[mask, "rate"].values 
+        error_rates[i,:] = v1_activity.loc[mask, "rate_error"].values 
 
-    return rates
+    return rates, error_rates

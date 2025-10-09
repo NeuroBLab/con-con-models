@@ -41,7 +41,7 @@ def diff_emergent2target_prefori(ax, diff_ori, color, label):
     return lines
 
 def plot_ratedist(ax, re, color):
-    bins = np.linspace(0.01, 10, 50)
+    bins = np.linspace(0.01, 25, 60)
     w = np.ones(re.size) / re.size
 
     ax.hist(re.ravel(), density=False,  weights=w, histtype='step', bins=bins, color=color)
@@ -56,9 +56,6 @@ def plot_ratedist(ax, re, color):
 def circular_variance(ax, cved, color):
     bins = np.linspace(0,1,50)
 
-    #cveo, cved = utl.compute_circular_variance(re, orionly=True)    
-    print(cved.shape)
-
     w = np.ones(cved.size) / cved.size
     ax.hist(cved, bins=bins, density=False, weights=w, color=color, histtype='step')
 
@@ -66,29 +63,25 @@ def circular_variance(ax, cved, color):
     ax.set_ylabel("Fract. of neurons")
 
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True):
+def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
+
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, frac=0.01)
-
-    #Plot it!
-    data = {'L23':None, 'L4':None}
-
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
+    meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
+        meandata[layer]  = p['mean'].values 
 
-        data[layer]  = plotutils.add_symmetric_angle(p['mean'].values)
-
-
-    return data 
+    return meandata
 
 
 def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
 
     #Plot it!
-    angles = plotutils.get_angles(kind="centered", half=half)
+    angles = np.linspace(0, np.pi/2, 5)
     axes = {'L23': axL23, 'L4': axL4}
     colors = {'L23': colorL23, 'L4': colorL23}
     plots = {'L23':None, 'L4':None}
@@ -100,26 +93,26 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
         axes[layer].fill_between(angles, low_band, high_band, color = colors[layer], alpha = 0.2)
         axes[layer].plot(angles, meandata[layer], color = colors[layer])
 
-        axes[layer].axvline(0, color="gray", ls=":")
-
         #Then just adjust axes and put a legend
         axes[layer].tick_params(axis='both', which='major')
-        axes[layer].set_xlabel(r"$\hat \theta _\text{pos} - \hat \theta _\text{pre}$")
+        axes[layer].set_xlabel(r"$|\hat \theta _\text{pos} - \hat \theta _\text{pre} |$")
         #axes[layer].set_ylabel(r"$p(\Delta \theta) / p(0)$")
         axes[layer].set_ylabel("Conn. Prob. \n(Normalized)")
 
         axes[layer].set_ylim(0.5, 1.1)
 
-        plotutils.get_xticks(axes[layer], max=np.pi, half=True)
+        axes[layer].set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
     
     return 
 def make_bar_plot(ax, cvsims, cvdata, title):
 
+    print(cvsims.shape)
     m = cvsims.mean(axis=0)
     s = cvsims.std(axis=0) / np.sqrt(len(cvsims))
 
     x = np.arange(4)
 
+    print(m.shape)
     ax.bar(x, m, color = cr.reshuf_color) 
     ax.errorbar(x, m, yerr = s, color = 'black', marker = 'none', ls='none') 
 
@@ -138,7 +131,7 @@ def make_bar_plot(ax, cvsims, cvdata, title):
 parser = argparse.ArgumentParser(description='''Generate plot for figure 5''')
 
 # Adding and parsing arguments
-parser.add_argument('datafolder', type=str, help='Place where the circular variances are saved')
+#parser.add_argument('datafolder', type=str, help='Place where the circular variances are saved')
 parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
 args = parser.parse_args()
 
@@ -146,12 +139,12 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
     if is_tuned:
         figname += 'tuned'
-        filename = 'definitive_random_tuned'
-        cvcomp = np.loadtxt(f"data/model/simulations/{args.datafolder}/cvtuned.txt")
+        filename = 'v1300_def_tuned'
+        #cvcomp = np.loadtxt(f"data/model/simulations/{args.datafolder}/cvtuned.txt")
     else:
         figname  += 'normal'
-        filename = 'definitive_random'
-        cvcomp = np.loadtxt(f"data/model/simulations/{args.datafolder}/cvnormal.txt")
+        filename = 'v1300_def'
+        #cvcomp = np.loadtxt(f"data/model/simulations/{args.datafolder}/cvnormal.txt")
 
     nexp = 10 
 
@@ -180,6 +173,8 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
     #labels = ['Original', 'All reshfl.', 'L23 reshfl.', 'L4 reshfl.']
     legend_handles = []
 
+    cvcomp = np.empty((0, 4))
+
     for i, reshuffle_mode in enumerate(['', 'all', 'L23', 'L4']):
     #for i, reshuffle_mode in enumerate(['', 'all']):
 
@@ -191,8 +186,8 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
             diff_ori = np.empty(0)
             allrates = np.empty(0)
             allcircv = np.empty(0)
-            probmean = {'L23' : np.zeros(9), 'L4' : np.zeros(9)} 
-            proberr = {'L23' : np.zeros(9), 'L4' : np.zeros(9)} 
+            probmean = {'L23' : np.zeros(5), 'L4' : np.zeros(5)} 
+            proberr = {'L23' : np.zeros(5), 'L4' : np.zeros(5)} 
 
             for j in range(nexp):
                 if len(reshuffle_mode) > 1:
@@ -215,6 +210,7 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
                 cveo, cved = utl.compute_circular_variance(re, orionly=True)    
                 allcircv = np.concatenate((allcircv, cved))
+
 
                 means = compute_conn_prob(units_sample, connections_sample)
                 for layer in ['L23', 'L4']:
@@ -250,6 +246,11 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
             proberr['L4']   = np.load(f"{args.save_destination}/{figname}_{i}_proberroL4.npy")
 
 
+        #First time we need to resize this to the number of Exc neurons in the simulation, which was not known a priori
+        if reshuffle_mode == '':
+            cvcomp.resize((allcircv.shape[0], 4))
+        
+        cvcomp[:, i] = allcircv
 
         #diff_emergent2target_prefori(axes['A'], exc_pref_ori, target_ori, c23)    
         handle = diff_emergent2target_prefori(axes['A'], diff_ori, c23, label)    
@@ -261,6 +262,9 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
         #circular_variance(axes['C'], re, c23)
         circular_variance(axes['C'], allcircv, c23)
 
+        print("all ", allcircv.shape)
+        print("comp ", cvcomp.shape)
+        #cvcomp = np.vstack((cvcomp, allcircv))
 
         #p1, p2 = conn_prob_osi(axes['D'], axes['E'], units_sample, connections_sample, c23, c4)
         conn_prob_osi(axes['D'], axes['E'], probmean, proberr, c23, c23)
@@ -272,7 +276,7 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
     #axes['L'].set_axis_off()
     make_bar_plot(axes['L'], cvcomp, aver_cv, "")
-    axes['B'].legend(handles=legend_handles)
+    axes['A'].legend(handles=legend_handles, loc=(0.1, 0.55))
 
 
     axes2label = [axes[key] for key in 'ABCDEL']
@@ -282,5 +286,5 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
-plot_figure("fig5", is_tuned=False,  generate_data=False)
-plot_figure("fig5", is_tuned=True,  generate_data=False)
+plot_figure("fig5", is_tuned=False,  generate_data=True)
+plot_figure("fig5", is_tuned=True,  generate_data=True)

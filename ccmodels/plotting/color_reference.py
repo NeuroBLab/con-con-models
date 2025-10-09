@@ -2,6 +2,7 @@ import met_brewer as metb
 
 pal = metb.met_brew('Egypt', brew_type='discrete') 
 pal_extended = metb.met_brew("Juarez", brew_type='discrete')
+pal_qualitative = metb.met_brew("Archambault", brew_type='discrete')
 
 # Color reference to identify each layer through the paper
 lcolor = {
@@ -13,7 +14,6 @@ lcolor = {
 }
 
 
-print(pal)
 
 #For the things in the model that do not need to be different
 lcolor['L4_modelE'] = lcolor['L4']

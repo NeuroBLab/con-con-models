@@ -25,20 +25,20 @@ from sklearn.preprocessing import robust_scale
 
 # ---------------- Aux functions for computations -----------------
 
-def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=1000):
+def compute_conn_prob(v1_neurons, v1_connections):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, half=half, n_samps=n_samps)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[3, "mean"]
-        #meandata[layer]  = plotutils.add_symmetric_angle(p['mean'].values)
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
         meandata[layer]  = p['mean'].values
 
-    return meandata
+    return meandata 
+
 
 
 def normalize_errors(*arrays):
@@ -54,8 +54,8 @@ def compute_total_loss(error_arrays, weights=None):
 
 def load_rates(simid, ratefolder, is_sbi = True):
     if is_sbi:
-        rate_id = simid // 100
-        part_id = simid - rate_id * 100
+        rate_id = simid // 1000
+        part_id = simid - rate_id * 1000
         return np.load(f"{ratefolder}/{rate_id}_rates{part_id}.npy")
     else:
         rate_id = simid // 1000
@@ -73,14 +73,21 @@ def get_best_params(datafolder, summary_data, ntops, is_sbi = True):
 
     nparams = 8
     params = np.empty((0, nparams))
-    summary_stats = np.empty((0,24)) 
+    summary_stats = np.empty((0, 8 + 2*5)) 
 
     nsims = 100
     for i in range(nsims):
         inputfile = np.loadtxt(f"{datafolder}/{i}.txt")
         if inputfile.size > 0:
             params = np.vstack((params, inputfile[:, :nparams]))
-            summary_stats = np.vstack((summary_stats, inputfile[:, 9:]))
+            #summary_stats = np.vstack((summary_stats, inputfile[:, 9:]))
+
+            stats = np.zeros((inputfile.shape[0], summary_stats.shape[1]))
+            stats[:, 0:8] = inputfile[:, 9:17] #tuning curve 
+            stats[:, 8:13] = inputfile[:, 17:22] #pL23
+            stats[:, 13:18] = inputfile[:, 22:27]  #pL4
+            summary_stats = np.vstack((summary_stats, stats))
+        
     ndata = params.shape[0]
 
     rate_bins = np.linspace(0, 10, 20)  
@@ -92,6 +99,8 @@ def get_best_params(datafolder, summary_data, ntops, is_sbi = True):
         n_experiments = 10
     else:
         n_experiments = 1
+
+    print(ndata, summary_stats.shape[0])
 
     # Loop over each simulation to extract the rate data and compute histograms
     for sim_idx in range(ndata//n_experiments):
@@ -138,16 +147,16 @@ def get_best_params(datafolder, summary_data, ntops, is_sbi = True):
     #sampled_cv_histograms = np.array(sampled_cv_histograms)
 
     summary_stats = summary_stats.reshape((summary_stats.shape[0]//n_experiments, n_experiments, summary_stats.shape[1]))
-    tcurve_sim=summary_stats[:, :, :8].mean(axis=1)
-    P_conn23_sim=summary_stats[:, :, 8:16].mean(axis=1)
-    P_conn4_sim=summary_stats[:, :, 16:].mean(axis=1)
+    tcurve_sim = summary_stats[:, :, :8].mean(axis=1)
+    P_conn23_sim = summary_stats[:, :, 8:13].mean(axis=1)
+    P_conn4_sim = summary_stats[:, :, 13:].mean(axis=1)
 
 
     rate_dists_L1 = np.array(rate_dists_L1)
     cv_dists_L1 = np.array(cv_dists_L1)
-    avg_tuning_curves_L1 = np.mean(np.abs(tcurve_sim- summary_data['tcurve']),axis=1)
-    avg_P_conn23_L1 = np.mean(np.abs(P_conn23_sim- summary_data['pL23']),axis=1)
-    avg_P_conn4_L1 = np.mean(np.abs(P_conn4_sim- summary_data['pL4']),axis=1)
+    avg_tuning_curves_L1 = np.mean(np.abs(tcurve_sim - summary_data['tcurve']),axis=1)
+    avg_P_conn23_L1 = np.mean(np.abs(P_conn23_sim - summary_data['pL23']),axis=1)
+    avg_P_conn4_L1 = np.mean(np.abs(P_conn4_sim - summary_data['pL4']),axis=1)
 
     # Normalize
     norm_errors = normalize_errors(avg_tuning_curves_L1, 
@@ -196,7 +205,8 @@ def dosim(pars,kee):
 
 sample_mode = sys.argv[1] #normal, tunedinh, kin 
 savefolder = sys.argv[2]
-fixed_kee = int(sys.argv[3]) 
+savefile = sys.argv[3]
+fixed_kee = 150 
 is_sbi = True
 datafolder = "data"
 
@@ -208,7 +218,7 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 20 * fixed_kee 
+N = 3001 
 N_2save = 200
 
 ntop = 100 
@@ -251,5 +261,6 @@ warnings.simplefilter("ignore")
 for i in range(ntop):
     pars     = params[i,:] #[J[i], g[i], sigmaE[i], sigmaI[i], hEI[i], hII[i], b23[i], b4[i], kee[i]]
     cvresults[i, :] = dosim(pars, fixed_kee)
-np.savetxt(f'{datafolder}/model/simulations/{savefolder}/top100.txt', cvresults) 
+    print("sim made!")
+np.savetxt(f'{datafolder}/model/simulations/{savefolder}/{savefile}.txt', cvresults) 
 

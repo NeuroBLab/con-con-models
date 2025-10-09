@@ -24,20 +24,24 @@ def show_image(ax, path2im):
     ax.imshow(im)
 
 
-def example_tuning_curve(ax, v1_neurons, rates, layer='L23'):
+def example_tuning_curve(ax, v1_neurons, rates, error_rates, layer='L23'):
 
     neurons_ids = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
     neurons_ids = neurons_ids['id']
 
-    id = 3 
+    ids = [8, 10, 11]
 
-    #TODO do not shift here...
-    rangle = rates[neurons_ids[id], :]
-    ax.plot(np.arange(8), rangle,  lw=1, color=cr.lcolor[layer])
-    ax.plot(np.arange(8), rangle,  lw=1, color=cr.dotcolor[layer], ls='none', marker='o', ms=cr.ms)
-    ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
-    ax.set_xlabel("θ")
-    ax.set_ylabel("Rate")
+    for c,id in enumerate(ids):
+        #TODO do not shift here...
+        rangle = rates[neurons_ids[id], :]
+        rangle_err = error_rates[neurons_ids[id], :]
+
+        ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3])
+        ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3], ls='none', marker='o', ms=cr.ms)
+        ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.pal_extended[c+3], fmt='none') 
+        ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
+        ax.set_xlabel("θ")
+        ax.set_ylabel("Rate")
 
 
 def plot_tuning_curve(ax, units, rates):
@@ -45,15 +49,19 @@ def plot_tuning_curve(ax, units, rates):
         neurons_layer = fl.filter_neurons(units, layer=layer, cell_type='exc')
         rates_layer = rates[neurons_layer['id'], :]
     
-        tcurve = np.mean(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) 
+        #Mean and its standard error
+        tcurve     = np.mean(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) 
+        tcurve_err = np.std(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) / np.sqrt(rates_layer.shape[0])
 
-        tcurve = plotutils.shift(tcurve)
+        tcurve     = plotutils.shift(tcurve)
+        tcurve_err = plotutils.shift(tcurve_err)
+        ax.fill_between(np.arange(9), tcurve - tcurve_err, tcurve + tcurve_err, color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
         ax.plot(np.arange(9), tcurve, color=cr.lcolor[layer], label=layer)
-        ax.plot(np.arange(9), tcurve, color='black', ls="none", marker='o', ms=cr.ms)
+        ax.plot(np.arange(9), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
 
     ax.set_xticks([0, 4, 8], ['-π/2', '0', 'π/2'])
-    ax.set_xlabel("θ")
-    ax.set_ylabel("r(θ)")
+    ax.set_xlabel("Δθ")
+    ax.set_ylabel("r(Δθ)")
     ax.legend(loc='best')
 
     return 
@@ -87,7 +95,7 @@ def fraction_tuned(ax, data, fstitle=8):
     ax.tick_params(length=0)
     ax.spines["bottom"].set_visible(False)
     ax.axvline(1, color="black", lw=3)
-    ax.set_xlabel("% of tuned neurons", labelpad=-2., fontsize=fstitle)
+    ax.set_xlabel("% selective neurons", labelpad=-2., fontsize=fstitle)
 
 
 
@@ -145,22 +153,16 @@ def plot_figure(figname):
 
     #Top part: example of the tuning currents with the gratings, then tuning curve, then distribution 
     subfig_graphs = subfigs[0].subfigures(ncols=3)
-    #subfigs_example = subfig_graphs[0].subplots(nrows=2, height_ratios = [1, 0.2])
-    subfigs_example = subfig_graphs[0].subplot_mosaic(
-        """
-        XXX
-        UVW
-        """, height_ratios=[1, 0.5]
-    )
+    subfigs_example = subfig_graphs[0].subplots(nrows=1, ncols=1)
     subfigs_tcurve = subfig_graphs[1].subplots(nrows=1, ncols=1) #single one!
     subfigs_tuned = subfig_graphs[2].subplots(nrows=2, height_ratios = [0.35, 1.])
 
-    axes['A'] = subfigs_example['X']
+    axes['A'] = subfigs_example
     axes['B'] = subfigs_tcurve
     axes['C1'] = subfigs_tuned[0]
     axes['C2'] = subfigs_tuned[1]
 
-    units, connections, rates = loader.load_data()
+    units, connections, rates, error_rates = loader.load_data(return_error=True)
     connections = fl.remove_autapses(connections)
     connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 
@@ -169,7 +171,7 @@ def plot_figure(figname):
 
     vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
-    example_tuning_curve(axes['A'], units, rates)
+    example_tuning_curve(axes['A'], units, rates, error_rates)
 
     plot_tuning_curve(axes['B'], matched_neurons, rates)
 
@@ -182,16 +184,16 @@ def plot_figure(figname):
     label_pos  = 2*[[0.1, 0.9]] + [[-0.3, 0.9]] + 2*[[0.1, 1.]] 
     sty.label_axes(axes2label, label_pos)
 
-    for ax in [axes['D'], axes['E'], subfigs_example['U'], subfigs_example['V'], subfigs_example['W']]:
+    for ax in [axes['D'], axes['E']]:
         ax.set_axis_off()
 
     fig.savefig(f"{args.save_destination}/{figname[:-3]}_clean.pdf",  bbox_inches="tight")
 
     show_image(axes['D'], "sketch1.png")
     show_image(axes['E'], "new_neurons2.png")
-    show_image(subfigs_example['U'], "horizontal.png")
-    show_image(subfigs_example['V'], "vertical.png")
-    show_image(subfigs_example['W'], "horizontal.png")
+    #show_image(subfigs_example['U'], "horizontal.png")
+    #show_image(subfigs_example['V'], "vertical.png")
+    #show_image(subfigs_example['W'], "horizontal.png")
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 

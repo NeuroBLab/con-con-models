@@ -44,7 +44,7 @@ orionly= True
 local_connectivity = False 
 mode = 'cosine'
 
-N = 3000
+N = 3001
 kee = 150 
 
 l23 = fl.filter_neurons(units, layer='L23', tuning='matched') 
