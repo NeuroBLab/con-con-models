@@ -25,7 +25,7 @@ import ccmodels.plotting.utils as plotutils
 
 def plot_ratedist(ax, rates, re, ri):
     #bins = np.logspace(-2, 2, 50)
-    bins = np.linspace(0.01, 10, 50)
+    bins = np.linspace(0.01, 35, 70)
 
     w = np.ones(ri.size) / ri.size
     ax.hist(ri.ravel(),  density=False, weights=w,  histtype='step',  bins=bins, label='Model I', color=cr.lcolor['L23_modelI'])
@@ -94,7 +94,7 @@ def circular_variance(ax, units, rates, cved, cvid):
 
 
     ax.set_xlabel("Circ. Var.")
-    ax.set_ylabel("Frac. of neurons")
+    ax.set_ylabel("Fract. of neurons")
 
 def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
 
@@ -127,10 +127,6 @@ def conn_prob_osi(ax, probmean, proberr, layer, half=True):
     ax.tick_params(axis='both', which='major')
     ax.set_ylim(0.5, 1.1)
 
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
-    ax.set_ylabel("p(∆θ)/p(0")
-    #ax.set_ylabel("Conn. Prob. (Normalized)")
-
     ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
 
 
@@ -160,7 +156,7 @@ def conn_prob_osi_data(ax, v1_neurons, v1_connections, layer, half=True, n_samps
     ax.tick_params(axis='both', which='major')
     ax.set_ylim(0.5, 1.1)
 
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \hat \theta_\text{pre}$')
+    ax.set_xlabel(r'$|\hat \theta_\text{post} - \hat \theta_\text{pre}|$')
     ax.set_ylabel("Conn. Prob. \n(Normalized)")
 
     ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
@@ -182,50 +178,29 @@ def compute_currents(units_sample, QJ, rates_sample, k23, k4):
 
 def plot_currents(ax, units, vij, rates, currmean, currerr, k23, k4):
 
-    for layer in ['L23', 'L4', 'Total']:
-    #for layer in ['L23', 'L4']:
-        ax.fill_between(np.arange(9), currmean[layer]-currerr[layer], currmean[layer]+currerr[layer], alpha=0.2, color=cr.lcolor[layer])
-        ax.plot(currmean[layer], label=layer, color=cr.lcolor[layer])
 
 
     currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
     totalmean = currents['Total'].mean(axis=0).max()
     for layer in ['L23', 'L4', 'Total']:
         mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
+        #mean = plotutils.shift(currents[layer].mean(axis=0)/currents[layer].mean(axis=0).max())
         #ax.scatter(np.arange(9), mean, color=cr.lcolor[layer], marker='o', s=cr.ms, zorder=3)
         ax.plot(np.arange(9), mean, color=cr.lcolor[layer], marker='o', ms=cr.ms, ls = "--")
 
+    for layer in ['L23', 'L4', 'Total']:
+        totalmean = 1.0 #currmean[layer].max() 
+        ax.fill_between(np.arange(9), (currmean[layer]-currerr[layer]) / totalmean, (currmean[layer]+currerr[layer])/totalmean, alpha=0.2, color=cr.lcolor[layer])
+        ax.plot(currmean[layer]/totalmean, label=layer, color=cr.lcolor[layer])
+
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_ylim(0, 1.1)
+    ax.set_ylim(0.5, 1.1)
 
     ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
     #ax.set_ylabel("μ(∆θ)/μ(0)")
     ax.set_ylabel("Syn. Current \n(Normalized)")
-"""
-def plot_currents(ax, units, vij, rates, units_sample, QJ, rates_sample):
 
-    currents = mcur.bootstrap_mean_current(units_sample, QJ, rates_sample, tuning=['matched', 'matched'], cell_type=['exc', 'exc'], proof=[None, None])
-
-    totalmean = currents['Total'].mean(axis=0).max()
-    for layer in ['L23', 'L4', 'Total']:
-        mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
-        std = plotutils.shift(currents[layer].std(axis=0)/totalmean)
-        ax.plot(mean, label=layer, color=cr.lcolor[layer])
-        ax.fill_between(np.arange(9), mean-std, mean+std, alpha=0.2, color=cr.lcolor[layer])
-
-
-    currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
-    totalmean = currents['Total'].mean(axis=0).max()
-    for layer in ['L23', 'L4', 'Total']:
-        mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
-        #std = plotutils.shift(currents[layer].std(axis=0)/totalmean)
-        #ax.plot(mean, color=cr.lcolor[layer], ls='none', marker='o')
-        ax.scatter(np.arange(9), mean, color=cr.lcolor[layer], marker='o', s=cr.ms, zorder=3)
-
-    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax.set_ylabel("μ(∆θ)")
-"""
+    ax.legend(loc='best', ncols=3)
 
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
@@ -239,11 +214,11 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     if is_tuned:
         figname += 'tuned'
         #filename = 'definitive_random_tuned'
-        filename = 'v1300_tuned'
+        filename = 'v1300_def_tuned'
     else:
         figname += 'normal'
         #filename = 'definitive_random'
-        filename = 'v1300_normal_2'
+        filename = 'v1300_def'
 
     # load files
     units, connections, rates = loader.load_data(suffix="")
@@ -397,5 +372,5 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
 
 
 
-plot_figure("fig4_v1300_2", is_tuned=False, generate_data=True)
-#plot_figure("fig4", is_tuned=True, generate_data=False)
+plot_figure("fig4", is_tuned=False, generate_data=True)
+plot_figure("fig4", is_tuned=True, generate_data=True)

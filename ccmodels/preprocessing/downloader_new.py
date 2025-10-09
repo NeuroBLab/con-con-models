@@ -86,7 +86,7 @@ activity     = funcprops[['target_id', 'rate_ori']]
 print("Generate unit table...")
 
 #Process the data and obtain units and segment tables
-units, segments = cleaner.process_nucleus_data(with_functional='no')
+units, segments = cleaner.process_nucleus_data(functional_data='none')
 units.loc[units['layer']=='L2/3', 'layer'] = 'L23'
 
 #These 3 neurons are found in the coregistration table so they should be excitatory, but the AIBS classification say they are nonneuronal.
@@ -98,6 +98,9 @@ units.loc[(units['pt_root_id'].isin([864691135726289983,864691135569616364,86469
 units_with_func = units.merge(func_4_units, left_on='nucleus_id', right_on='target_id', how='left')
 units_with_func = units_with_func.drop(columns='target_id') 
 
+#USe the info about tuning obtained here, not the one from the package
+units_with_func['tuning_type'] = units_with_func['tuning_type_y']
+units_with_func = units_with_func.drop(columns=['tuning_type_x', 'tuning_type_y'])
 
 #Filter for our brain area and layer of interest
 #TODO use the filters!
@@ -163,23 +166,24 @@ synapses.to_csv(f"data/preprocessed/connections_table_v1300{table_suffix}.csv", 
 print("Generate activity table...")
 #Get the activity table by expanding (exploding) the rates of the selected units
 #The rate_ori column is str so we transform it to arrays first 
-activity = funcprops[['target_id', 'rate_ori']]
+activity = funcprops[['target_id', 'rate_ori', 'semrate_ori']]
 activity.loc[:, 'rate_ori'] = activity['rate_ori'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
-activity = activity.explode('rate_ori')
+activity.loc[:, 'semrate_ori'] = activity['semrate_ori'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
+activity = activity.explode(['rate_ori', 'semrate_ori'])
 #Write the angle that corresponds to each one 
 activity['angle_shown'] = np.tile(np.arange(8),  len(activity)//8)
 
 #Merge and get only the areas we are interested in
 activity_merged = units.merge(activity, left_on='nucleus_id', right_on='target_id', how='inner')
-activity_merged = activity_merged[['pt_root_id', 'brain_area', 'layer', 'angle_shown', 'rate_ori']]
+activity_merged = activity_merged[['pt_root_id', 'brain_area', 'layer', 'angle_shown', 'rate_ori', 'semrate_ori']]
 
 #Filter for V1 L23 and L4 TODO use the filters
 activity_merged = activity_merged[(activity_merged['brain_area']=='V1')&(activity_merged['layer'].isin(['L23', 'L4']))]
 
 #Then just get the minimal columns needed
-activity_merged = activity_merged[['pt_root_id', 'angle_shown', 'rate_ori']]
+activity_merged = activity_merged[['pt_root_id', 'angle_shown', 'rate_ori', 'semrate_ori']]
 
 #Rename to match columns to our codebase and save
-activity_merged.rename(columns={'pt_root_id':'neuron_id', 'rate_ori':'rate'}, inplace=True)
+activity_merged.rename(columns={'pt_root_id':'neuron_id', 'rate_ori':'rate', 'semrate_ori':'rate_error'}, inplace=True)
 
 activity_merged.to_csv(f"data/preprocessed/activity_table_v1300{table_suffix}.csv", index=False)

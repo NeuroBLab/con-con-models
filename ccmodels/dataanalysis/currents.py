@@ -228,6 +228,7 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples=
     #Normalize with respect to all experiments 
     for layer in ['Total', 'L23', 'L4']:
         prob_pref_ori[layer] /= nexperiments 
+        prob_pref_ori[layer + "_error"] = np.sqrt((prob_pref_ori[layer] * (1 - prob_pref_ori[layer])) / nexperiments) 
 
     #Return probabilities and the first two moments of the bootstrap distribution  
     return prob_pref_ori

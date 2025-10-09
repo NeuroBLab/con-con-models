@@ -23,7 +23,7 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 N = 3001
 kee = 150 
 nreps = 10 
-filename = "v1300_normal_2"
+filename = "v1300_def_tuned"
 
 def compute_conn_prob(v1_neurons, v1_connections):
 
@@ -43,7 +43,7 @@ def compute_conn_prob(v1_neurons, v1_connections):
 orionly= True
 local_connectivity = False 
 mode = 'cosine'
-intmode = 'normal'
+intmode = 'tunedinh'
 
 units, connections, rates = loader.load_data()
 connections = fl.remove_autapses(connections)
@@ -84,14 +84,14 @@ if  intmode=='normal':
     #best_pars = np.array([[1.32405126e+00, 5.96999824e-01, 8.16734695e+00, 8.55531502e+00,1.45977509e+02, 3.13572388e+02, 4.79209095e-01, 2.37898633e-01]])
 
     #best normal 1300:
-    best_pars = np.array([[  0.77824712,   0.20103477,   9.41470337,   8.19454098, 133.15536499, 158.89637756,   0.34302023,   0.17397591]])
-    best_pars = np.array([[6.37000322e-01, 2.47943997e-01, 7.87858629e+00, 8.67751122e+00, 7.92813644e+01, 3.59472504e+02, 2.23580420e-01, 1.83380917e-01]])
-    best_pars = np.array([[7.09300876e-01, 2.07642972e-01, 8.27045918e+00, 9.27739143e+00, 8.59014969e+01, 3.18677704e+02, 1.88421413e-01, 1.62591472e-01]])
+    best_pars = np.array([[7.92474210e-01, 3.59854251e-01, 7.69989061e+00, 7.60365248e+00, 9.98869781e+01, 4.66699005e+02, 2.98812389e-01, 1.46130979e-01]])
 
     betas = [best_pars[id, 6], best_pars[id, 7], 0., 0., 0., 0.]
 elif intmode=='tunedinh':
     #best tuned 661
-    best_pars = np.array([[2.16435086e+00, 7.02782583e-01, 7.32673001e+00, 7.20601672e+00, 1.39987691e+02, 4.15600751e+02, 5.96647088e-01, 3.83488676e-01]])
+    #best_pars = np.array([[2.16435086e+00, 7.02782583e-01, 7.32673001e+00, 7.20601672e+00, 1.39987691e+02, 4.15600751e+02, 5.96647088e-01, 3.83488676e-01]])
+    best_pars = np.array([[9.94296014e-01, 2.04172418e-01, 7.58484888e+00, 8.25478363e+00, 6.88277740e+01, 4.54100189e+02, 1.44280359e-01, 1.49676427e-01]])
+
     betas = [best_pars[id, 6], best_pars[id, 7], best_pars[id, 6], best_pars[id, 6], best_pars[id, 6], best_pars[id, 7]]
 elif intmode=='kin':
     betas = np.zeros(6) 
