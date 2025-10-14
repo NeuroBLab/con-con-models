@@ -183,7 +183,7 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
 
     return diffs
 
-def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples=450):
+def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples):
     """
     Assume a virtual presynaptic neuron. Sample connections to it and compute the current. Determine the 
     preferred orientation from the current maximum. Repeat for nexperiments, and compute the probability
@@ -198,9 +198,14 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples=
 
     #Prepare to do experiments...
     prob_pref_ori = {} 
+    currents = {}
     prob_pref_ori['Total'] = np.zeros(nangles) 
     prob_pref_ori['L23'] = np.zeros(nangles) 
     prob_pref_ori['L4'] = np.zeros(nangles) 
+
+    currents['Total'] = np.zeros(nangles) 
+    currents['L23'] = np.zeros(nangles) 
+    currents['L4'] = np.zeros(nangles) 
 
     for i in range(nexperiments): 
         #Sample a bunch of neurons
@@ -217,6 +222,8 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples=
         neuron_sample_L23 = fl.filter_connections(v1_neurons, neuron_sample, layer='L23', who='pre')
         current_L23 = get_input_virtual_presynaptic(v1_neurons, neuron_sample_L23, rates_untuned) 
         #The L4 current is the difference between total and L@3
+        neuron_sample_L23 = fl.filter_connections(v1_neurons, neuron_sample, layer='L4', who='pre')
+        #current_L4  = get_input_virtual_presynaptic(v1_neurons, neuron_sample_L23, rates_untuned) 
         current_L4 = current - current_L23
 
         #Preferred location for each component of the currents
@@ -224,14 +231,19 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples=
         prob_pref_ori['L23'][idx_prefrd_ori] += 1
         idx_prefrd_ori = np.argmax(current_L4)
         prob_pref_ori['L4'][idx_prefrd_ori] += 1
+
+        currents["Total"] += current
+        currents["L23"] += current_L23
+        currents["L4"] += current_L4
     
     #Normalize with respect to all experiments 
     for layer in ['Total', 'L23', 'L4']:
         prob_pref_ori[layer] /= nexperiments 
+        currents[layer] /= nexperiments
         prob_pref_ori[layer + "_error"] = np.sqrt((prob_pref_ori[layer] * (1 - prob_pref_ori[layer])) / nexperiments) 
 
     #Return probabilities and the first two moments of the bootstrap distribution  
-    return prob_pref_ori
+    return prob_pref_ori, currents
 
 def fraction_prefori_predicted(v1_neurons, tuned_connections, vij, rates):
     """

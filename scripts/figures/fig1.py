@@ -40,6 +40,7 @@ def example_tuning_curve(ax, v1_neurons, rates, error_rates, layer='L23'):
         ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3], ls='none', marker='o', ms=cr.ms)
         ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.pal_extended[c+3], fmt='none') 
         ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
+        ax.set_ylim(0,7)
         ax.set_xlabel("θ")
         ax.set_ylabel("Rate")
 
@@ -60,11 +61,27 @@ def plot_tuning_curve(ax, units, rates):
         ax.plot(np.arange(9), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
 
     ax.set_xticks([0, 4, 8], ['-π/2', '0', 'π/2'])
-    ax.set_xlabel("Δθ")
-    ax.set_ylabel("r(Δθ)")
+    ax.set_ylim(0, 10)
+    ax.set_xlabel(r"$\theta - \hat \theta$")
+    ax.set_ylabel("Rate")
     ax.legend(loc='best')
 
     return 
+
+def plot_pref_ori(ax, units):
+
+    bins = np.arange(-1.5, 9.5)
+    angles = np.arange(-1, 9)
+    for layer in ['L23', 'L4']:
+        neurons_layer = fl.filter_neurons(units, layer=layer, tuning='tuned')
+        h, _ = np.histogram(neurons_layer['pref_ori'].values, bins=bins)
+        h = h / h.sum()
+
+        ax.step(angles, h, color = cr.lcolor[layer])
+
+    ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
+    ax.set_xlabel(r"$\hat \theta$")
+    ax.set_ylabel("Fraction")
 
 
 
@@ -148,19 +165,21 @@ def plot_figure(figname):
     subfigs = fig.subfigures(nrows=2, height_ratios=[0.65,1])#[1/3, 2/3]) 
     axes = {}
     sketches = subfigs[1].subplots(ncols=2, width_ratios=[0.625, 1.])
-    axes['D'] = sketches[0]
-    axes['E'] = sketches[1]
+    axes['E'] = sketches[0]
+    axes['F'] = sketches[1]
 
     #Top part: example of the tuning currents with the gratings, then tuning curve, then distribution 
-    subfig_graphs = subfigs[0].subfigures(ncols=3)
+    subfig_graphs = subfigs[0].subfigures(ncols=4, width_ratios = [1,1,1,1.25])
     subfigs_example = subfig_graphs[0].subplots(nrows=1, ncols=1)
-    subfigs_tcurve = subfig_graphs[1].subplots(nrows=1, ncols=1) #single one!
-    subfigs_tuned = subfig_graphs[2].subplots(nrows=2, height_ratios = [0.35, 1.])
+    subfigs_prefori = subfig_graphs[1].subplots(nrows=1, ncols=1)
+    subfigs_tcurve = subfig_graphs[2].subplots(nrows=1, ncols=1) #single one!
+    subfigs_tuned = subfig_graphs[3].subplots(nrows=2, height_ratios = [0.35, 1.])
 
     axes['A'] = subfigs_example
-    axes['B'] = subfigs_tcurve
-    axes['C1'] = subfigs_tuned[0]
-    axes['C2'] = subfigs_tuned[1]
+    axes['B'] = subfigs_prefori
+    axes['C'] = subfigs_tcurve
+    axes['D1'] = subfigs_tuned[0]
+    axes['D2'] = subfigs_tuned[1]
 
     units, connections, rates, error_rates = loader.load_data(return_error=True)
     connections = fl.remove_autapses(connections)
@@ -175,22 +194,24 @@ def plot_figure(figname):
 
     plot_tuning_curve(axes['B'], matched_neurons, rates)
 
-    fraction_tuned(axes['C1'], matched_neurons) 
-    plot_resultant_dist(axes['C2'], matched_neurons, rates)
+    plot_pref_ori(axes['C'], units)
+
+    fraction_tuned(axes['D1'], matched_neurons) 
+    plot_resultant_dist(axes['D2'], matched_neurons, rates)
 
     fig.get_layout_engine().set(wspace=1/72, w_pad=0)
 
-    axes2label = [axes[k] for k in ['A', 'B', 'C1', 'D', 'E']]
-    label_pos  = 2*[[0.1, 0.9]] + [[-0.3, 0.9]] + 2*[[0.1, 1.]] 
+    axes2label = [axes[k] for k in ['A', 'B', 'C', 'D1', 'E', 'F']]
+    label_pos  = 2*[[0.1, 0.9]] + [[0.2, 0.9]] + [[-0.3, 0.9]] + 2*[[0.1, 1.]] 
     sty.label_axes(axes2label, label_pos)
 
-    for ax in [axes['D'], axes['E']]:
+    for ax in [axes['E'], axes['F']]:
         ax.set_axis_off()
 
     fig.savefig(f"{args.save_destination}/{figname[:-3]}_clean.pdf",  bbox_inches="tight")
 
-    show_image(axes['D'], "sketch1.png")
-    show_image(axes['E'], "new_neurons2.png")
+    show_image(axes['E'], "sketch1.png")
+    show_image(axes['F'], "new_neurons2.png")
     #show_image(subfigs_example['U'], "horizontal.png")
     #show_image(subfigs_example['V'], "vertical.png")
     #show_image(subfigs_example['W'], "horizontal.png")

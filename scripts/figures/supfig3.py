@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import argparse
-from PIL import Image
+import torch
+from scipy.stats import skew
+from KDEpy import FFTKDE
 
 import sys
 import os 
@@ -14,6 +16,9 @@ import ccmodels.dataanalysis.currents as curr
 import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.utils as dutl
 
+import ccmodels.modelanalysis.utils as utl
+import ccmodels.modelanalysis.sbi_utils as msbi
+
 
 import ccmodels.plotting.styles as sty 
 import ccmodels.plotting.color_reference as cr
@@ -21,146 +26,214 @@ import ccmodels.plotting.utils as plotutils
 
 import ccmodels.utils.angleutils as au
 
-def show_image(ax, path2im):
-    im = Image.open("images/" + path2im)
-    ax.set_axis_off()
-    ax.imshow(im)
+def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
 
-def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
+    #Get the data to be plotted 
+    conprob = {}
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
+    meandata = {}
+    for layer in ["L23", "L4"]:
+        p = conprob[layer]
+        #Normalize by p(delta=0), which is at index 3
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
+        meandata[layer]  = p['mean'].values 
 
-    bins = np.arange(-4.5, 5.5, 1)
-    h, _ = np.histogram(v1_connections['delta_ori'],  bins=bins, density=False)
-    h = h / h.sum()
-    h[0] = h[-1] #Between -4.5 and -3.5 value is always 0. To make it periodic, match with the last one
+    return meandata
 
-    centered_bins = 0.5 * (bins[:-1] + bins[1:])
+def compute_summary_data(units, connections, rates): 
+    neurons_L23 = fl.filter_neurons(units, layer='L23', tuning='matched')
+    neurons_L4 = fl.filter_neurons(units, layer='L4', tuning='matched')
 
-    ax1.plot(centered_bins, h, color='k')
-    ax1.scatter(centered_bins, h, color='k', s=cr.ms, zorder=3)
-    ax1.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
+    rates23 = rates[neurons_L23['id'], :]
+    tcurvedata = np.mean(dutl.shift_multi(rates23, neurons_L23['pref_ori']), axis=0)
+    means_data = compute_conn_prob(units, connections)
 
-    ax1.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax1.set_ylabel("Fract. of neurons")
+    #Take the tuning curve at three points: start, minimum, and end 
+    cvo, cvd = utl.compute_circular_variance(tcurvedata, orionly=True)
+    r0 = tcurvedata[0]
+    rf = tcurvedata[-1]
 
-    preids = v1_connections['pre_id'].values
-    pref_ori = v1_neurons.loc[preids, 'pref_ori']
+    #Connection probability reduction at beginning and end for L23 adn L4
+    #pL23 = 0.5 * (means_data['L23'][0] + means_data['L23'][-1])
+    pL23 = means_data['L23'][-1]
+    pL23mid = means_data['L23'][2]
+    #pL4  = 0.5 * (means_data['L4'][0] + means_data['L4'][-1])
+    pL4  = means_data['L4'][-1]
+    pL4mid  = means_data['L4'][2]
 
-    #Bar widths
-    labels = ["Pref. ori.", "Orthogonal"]
-    pos = [-1, 1] 
-    w = 0.4
+    summary_data = np.zeros(12)
+    summary_data[0] = r0
+    summary_data[1] = rf
+    summary_data[2] = cvd
+    summary_data[3] = pL23
+    summary_data[4] = pL4
+    summary_data[5] = pL23mid
+    summary_data[6] = pL4mid
 
-    for i,ori in enumerate([pref_ori, (pref_ori + 4) % 8]):
-        inputs = v1_connections.loc[:, 'syn_volume'] * rates[preids, ori]
-        delta_ori = v1_connections.loc[:, 'delta_ori']
-        inputs_df = pd.DataFrame(data={'input':inputs, 'delta_ori':delta_ori})
+    cvoexp, cvdexp = utl.compute_circular_variance(rates23, orionly=True)
 
-        counts = inputs_df.groupby('delta_ori').count()
-        delta_ori = np.concatenate(([-4], counts.index.values))
+    #Started in 5 before
+    summary_data[7] = np.mean(cvdexp)
+    summary_data[8] = np.std(cvdexp)
+    summary_data[9] = skew(cvdexp)
 
-        #Periodic
-        counts = counts.values[:,0]
-        counts = [counts[-1]] + list(counts) 
+    logrates = np.log(rates23.flatten())
+    summary_data[10] = np.mean(logrates)
+    summary_data[11] = np.std(logrates)
 
-        ax2.bar(delta_ori + pos[i]*w/2, counts, width=w, color=cr.pal_qualitative[i+2], label=labels[i])
-        #ax2.plot(np.arange(0, 9), counts, color=cr.pal_qualitative[i+2], label=labels[i])
-
-    #ax2.bar(counts.index.values, counts.values[0], color='gray')
-    ax2.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
-    #ax2.set_xticks([0, 4, 8], ["-π/2", "0", "π/2"])    
-    ax2.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    #ax2.set_ylabel(r"$\mu_i(\hat \theta_\text{post} - \theta)$")
-    ax2.set_ylabel("Indiv. Syn. Currents")
-    ax2.set_ylim(0, 6500)
-    ax2.legend(loc='best', ncol=2, fontsize=8)
-
+    return summary_data
 
 
-def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, indegree, nexperiments=1000):
-    angles = plotutils.get_angles(kind="centered", half=True)
+def load_rates(inputfolder, simid, nsims):
+    rate_id = simid // nsims 
+    part_id = simid - rate_id * nsims 
+    return np.load(f"data/model/simulations/{inputfolder}/{rate_id}_rates{part_id}.npy")
 
-    #Compute the currents in the system
-    #mean_cur = curr.bootstrap_system_currents_shuffle(v1_neurons, v1_connections, rates, nexperiments, frac=frac)
-    mean_cur, std_cur = curr.bootstrap_mean_current(indegree, v1_neurons, v1_connections, rates, nexperiments)
+def compute_errors(summary_data, folder_files, is_sbi):
+    if is_sbi:
+        nsims = 100 
+        sims_per_file = 100
+    else:
+        nsims = 1000
+        #Lets add another 16 summary stats, CV + rate dists
+        sims_per_file = 1000
+    
+    nparams = 8
+    nfiles = 100
+    params = np.empty((0, nparams))
+    summary_stats = np.empty((0,7))
 
-    #Total current is shown just in the "unnormalized" version. Also we need to obtain
-    #the global total current to normalize according to it
-    #total_cur = mean_cur['Total'].mean(axis=1)
-    #norma = np.max(total_cur)
-    total_cur = plotutils.shift(mean_cur["Total"])
-    ax.plot(angles, total_cur, label='Total', color=cr.lcolor['Total'])
-    ax.scatter(angles, total_cur, color=cr.dotcolor['Total'], s=cr.ms, zorder=3)
+    for i in range(nfiles):
+        inputfile = np.loadtxt(f"data/model/simulations/{folder_files}/{i}.txt")
+        if inputfile.size > 0:
+            params = np.vstack((params, inputfile[:, :nparams]))
+            #Observe that even if mode is NOT kin, the indegree is always stored as a parameter (it's just 400) so the summary stats start always from 9 and does not depend on nparameters
+            #Take the tuning curve at three points: start, minimum, and end 
+            cvo, cvd = utl.compute_circular_variance(inputfile[:, 9:17], orionly=True)
+            r0 = inputfile[:, 9]
+            rf = inputfile[:, 16]
 
-    #Then show L23 and L4 currents for unnormalized and normalized versions
-    for layer in ['L23', 'L4']:
-        meancur = plotutils.shift(mean_cur[layer])
-        stdcur = plotutils.shift(std_cur[layer])
+            pL23 = inputfile[:,21] 
+            pL4  = inputfile[:, 26] 
+            pL23mid = inputfile[:,19] 
+            pL4mid  = inputfile[:, 24] 
+
+            stats = np.vstack((r0, rf, cvd, pL23, pL4, pL23mid, pL4mid)).transpose()
+
+            summary_stats = np.vstack((summary_stats, stats))
+
+
+    #Increase the size of the summary stats
+    summary_stats = np.hstack((summary_stats, np.zeros((summary_stats.shape[0], 5))))
+
+
+    for sim in range(sims_per_file * nfiles):
+        readrates = load_rates(folder_files, sim, nsims)
+
+        cvo, cvd = utl.compute_circular_variance(readrates, orionly=True)
+        #Started on 5!
+        summary_stats[sim, 7] = np.mean(cvd)
+        summary_stats[sim, 8] = np.std(cvd)
+        summary_stats[sim, 9] = skew(cvd)
+
+        logrates = np.log(readrates.flatten())
+        summary_stats[sim, 10] = np.mean(logrates)
+        summary_stats[sim, 11] = np.std(logrates)
+
+    ndata = params.shape[0]
+    errors = np.empty((ndata, 4))
+
+    for i in range(ndata):
+        errors[i,0] = np.sum((summary_stats[i, 0:3] - summary_data[0:3])**2)
+        errors[i,1] = np.sum((summary_stats[i, 3:7] - summary_data[3:7])**2)
+        errors[i,2] = np.sum((summary_stats[i, 7:10] - summary_data[7:10])**2)
+        errors[i,3] = np.sum((summary_stats[i, 10:12] - summary_data[10:12])**2)
+    
+    if is_sbi:
+        best = np.argwhere((errors[:,0] < 0.29) & (errors[:,1] < 0.0051) & (errors[:,2] < 0.07) & (errors[:,3] < 2.))[:,0]
+        sort_index = errors[best, 3]
+        best_error_sort = np.argsort(sort_index)
+        best_pars = params[best[best_error_sort], :]
+        best_error = errors[best[best_error_sort], :]
+        return errors, best_pars[0,:], best_error[0,:] 
+    else:
+        return errors
+
+def plot_posterior_distrib(axes, posterior_samples, intervals, color, bw='ISJ'):
+
+    #Plot with a different colormap to differentiate from rel error plots
+    labels = [r"$J$", r"$g$", r"$\theta$", r"$\sigma$", r"$I_E$", r"$I_I$", r"$\beta_{23}$", r"$\beta_{4}$"]
+
+    #A plot for each parameter
+    for param in range(len(axes)):
+
+        #Histogram
+        bins = np.linspace(intervals[param][0], intervals[param][1], 100)
+        hist, edges = np.histogram(posterior_samples[:,param], bins=bins, density=True)
+        centered = 0.5*(edges[1:]+edges[:-1])
         
-        ax.fill_between(angles, (meancur-stdcur), (meancur+stdcur), color=cr.lcolor[layer], alpha=0.2)
-        ax.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
-        ax.scatter(angles, meancur, color=cr.dotcolor[layer], s=cr.ms, zorder=3)
+        x, y = FFTKDE(kernel='gaussian', bw=bw).fit(posterior_samples[:,param].numpy()).evaluate()
+        #Fill between for fancyness
+        #axes[param].fill_between(centered, np.zeros(99), hist, color=color, lw=2.0, alpha=0.5)
+        axes[param].fill_between(x, np.zeros(len(x)), y, color=color, lw=2.0, alpha=0.5)
 
-        stdcur  /= np.max(meancur)
-        meancur /= np.max(meancur)
-        ax_normalized.fill_between(angles, meancur-stdcur, meancur+stdcur, color=cr.lcolor[layer], alpha=0.2)
-        ax_normalized.plot(angles, meancur, label=layer, color=cr.lcolor[layer])
-        ax_normalized.scatter(angles, meancur, color=cr.dotcolor[layer], s=cr.ms, zorder=3)
+        #Now highlight correct and most common (estimation)
+        #axes[param].axvline(inferred[param], c=colorline, ls="--", lw=lw)
+        
+        
+        #Despine and clean axes
+        axes[param].spines['right'].set_visible(False)
+        axes[param].spines['top'].set_visible(False)
+        axes[param].set_yticks([])
+        axes[param].set_ylim(0, 1.1*np.max(hist))
 
-    plotutils.get_xticks(ax, max=np.pi, half=True)
-    plotutils.get_xticks(ax_normalized, max=np.pi, half=True)
-
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax_normalized.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-
-    ax.set_ylim(0, 1.05)
-    #ax.set_ylabel('μ(Δθ)')
-    #ax_normalized.set_ylabel('μ(Δθ)/μ(0)')
-    ax.set_ylabel('Syn. Current')
-    ax_normalized.set_ylabel('Syn. Current\n(Normalized)')
-
-    
-def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates, indegree):
-
-    frac = indegree / len(v1_connections)
-
-    current = curr.bootstrap_system_currents_peaks(v1_neurons, v1_connections, rates, frac=frac, nexperiments=1000)
-    bins = np.arange(-7.5, 8.5, 1)
-
-    for layer in ['L23', 'L4']:
-        pref_ori = np.argmax(current[layer], axis=1)
-        pref_ori[pref_ori > 3] = pref_ori[pref_ori > 3] - 8 
-
-        hist, _ = np.histogram(pref_ori, bins=bins)
-        ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
+        #Set labels
+        axes[param].set_xlabel(labels[param], fontsize=14)
 
 
-def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, indegree, nexperiments=1000): 
+    #Finish graph
+    axes[0].set_ylabel("Prob. density", fontsize=14)
+    return
 
-    angles = np.arange(9)
-    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="post") 
+def plot_sbi_result(axes, sbinet, summary_data, best_pars, color):
+    j0, jf = 0., 4.
+    g0, gf = 0., 5.
+    #theta0, thetaf = 19., 19.
+    sigmaE0, sigmaEf = 7., 12.
+    sigmaI0, sigmaIf = 7., 12.
+    hei0, heif = 50., 150.
+    hii0, hiif = 100., 500.
+    b230, b23f = 0.1, 0.6 
+    b40, b4f   = 0.1, 0.6 
 
-    prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
-    
+    intervals = [[j0, jf], [g0, gf], [sigmaE0, sigmaEf], [sigmaI0, sigmaIf], [hei0, heif], [hii0, hiif], [b230, b23f], [b40, b4f]]
 
-    #Plot
-    for layer in ['Total', 'L23', 'L4']:
-        prob    = plotutils.shift(prob_pref_ori[layer])
-        proberr = plotutils.shift(prob_pref_ori[layer + "_error"])
+    posterior = msbi.load_posterior(f"data/model/sbi_networks/{sbinet}.sbi") 
+    pars = posterior.sample((10000,), x=summary_data).numpy()
+    parameters_sample = torch.tensor(pars)
 
-        ax.fill_between(angles, prob - proberr, prob + proberr, alpha = 0.5, color=cr.lcolor[layer])
-        ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
-        ax.scatter(angles, prob, color=cr.dotcolor[layer], zorder=3, s=cr.ms) 
+    ncols = 8
+    bw = 'ISJ'
+    inferred = msbi.get_estimation_parameters(parameters_sample, ncols, joint_posterior=False)
+    plot_posterior_distrib(axes, parameters_sample, intervals, color, bw=bw)
 
+    for j in range(len(axes)):
+        axes[j].axvline(best_pars[j], color='black', ls=":")
 
+def plot_errors(axes, errors_random, errors_sbi, best_error, c1):
 
-    ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
-    ax.set_ylabel("Fract. of neurons")
+    c2 = 'gray' 
 
-    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_yticks([0, 0.25, 0.5])
+    bin_vec = [[0, 100, 300], [0, 0.2, 100], [0, 0.5, 100], [0, 2., 100]]
 
-    ax.legend(loc="best")
+    for i in range(4):
+        binslims = bin_vec[i]
+        bins = np.linspace(binslims[0], binslims[1], binslims[2])
+        axes[i].hist(errors_random[:,i], bins=bins, density=True, color=c2, label='Random')
+        axes[i].hist(errors_sbi[:,i], bins=bins, alpha=0.5, density=True, color=c1, label='sbi')
+        axes[i].axvline(best_error[i], color='black', ls=":")
 
+    axes[0].legend(loc='best')
 
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
@@ -171,46 +244,36 @@ args = parser.parse_args()
 
 def plot_figure(figname):
     # load files
-    units, connections, rates = loader.load_data()
+    units, connections, rates = loader.load_data(orientation_only=True)
     connections = fl.remove_autapses(connections)
+
     connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 
-    matched_neurons = fl.filter_neurons(units, tuning="matched")
-    matched_connections = fl.synapses_by_id(connections, pre_ids=matched_neurons["id"], post_ids=matched_neurons["id"], who="both")
+    summary_data                       = compute_summary_data(units, connections, rates)
+    errors_random                      = compute_errors(summary_data, "randk150", False)
+    errors_sbi, best_pars, best_error  = compute_errors(summary_data, "sbi_randk150", True)
 
-    vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=1.2), layout="constrained")
+    fig = plt.figure(figsize=sty.two_col_size(ratio=1.7), layout="constrained")
 
     axes = fig.subplot_mosaic(
         """
-        ABL
-        XXX
-        CEE
-        DEE
-        """, width_ratios=([1., 1., 0.2]), height_ratios=([1.0, 1.5, 0.5, 0.5])
+        ABCDEFGH
+        XXYYZZWW
+        """
     )
 
-    axes['L'].set_axis_off()
+    color = cr.pal_extended[1]
 
-    #Given an exc -> exc in-degree kee, how many inputs does a neuron receive in total?
-    #Compute it using the probabilities obtained from the data 
-    kee = 150
-    conn_prob = pd.read_csv("data/model/prob_connectomics_cleanaxons.csv", index_col=0)
-    indegree = int(kee * (1.0 + conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E']))
-
-    show_image(axes["X"], "sketchsampling.png")
-
-    plot_dist_inputs(axes['A'], axes['B'], matched_neurons, matched_connections, rates)
-    plot_sampling_current(axes["C"], axes["D"], matched_neurons, matched_connections, rates, indegree)
-    tuning_prediction_performance(axes['E'], matched_neurons, matched_connections, rates, indegree)
+    plot_sbi_result([axes[k] for k in 'ABCDEFGH'], "randk150_mini", summary_data, best_pars, color)
+    plot_errors([axes[k] for k in 'XYZW'], errors_random, errors_sbi, best_error, color)
 
 
-    axes2label = [axes[k] for k in ['A', 'B', 'X', 'C', 'E']]
-    label_pos  = [[0.8, 0.95]] * 5 
-    sty.label_axes(axes2label, label_pos)
+    #axes2label = [axes[k] for k in ['A', 'X', 'Y', 'Z', 'E']]
+    #label_pos  = [[0.8, 0.95]] * 5 
+    #sty.label_axes(axes2label, label_pos)
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure("fig3.pdf")
+plot_figure("supfig3.pdf")
