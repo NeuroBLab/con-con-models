@@ -40,40 +40,76 @@ def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
     ax1.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
 
     ax1.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax1.set_ylabel("Fract. of neurons")
+    ax1.set_ylabel("Fract. neurons")
+
+    ax1.set_ylim(0, 0.17)
 
     preids = v1_connections['pre_id'].values
     pref_ori = v1_neurons.loc[preids, 'pref_ori']
 
     #Bar widths
     labels = ["Pref. ori.", "Orthogonal"]
-    pos = [-1, 1] 
-    w = 0.4
+    deltas = [0, 4]
+    ci =     [0,2]
 
-    for i,ori in enumerate([pref_ori, (pref_ori + 4) % 8]):
-        inputs = v1_connections.loc[:, 'syn_volume'] * rates[preids, ori]
-        delta_ori = v1_connections.loc[:, 'delta_ori']
-        inputs_df = pd.DataFrame(data={'input':inputs, 'delta_ori':delta_ori})
+    bins = np.logspace(-2, 1.5, 60)
 
-        counts = inputs_df.groupby('delta_ori').count()
-        delta_ori = np.concatenate(([-4], counts.index.values))
+    for i in range(2):
+        conns = v1_connections.loc[(v1_connections['delta_ori'] == deltas[i]) | (v1_connections['delta_ori'] == -deltas[i])]
+        h, _ = np.histogram(conns['syn_volume'], bins=bins)
+        h = h / h.sum()
 
-        #Periodic
-        counts = counts.values[:,0]
-        counts = [counts[-1]] + list(counts) 
+        centered_bins = 0.5 * (bins[:-1] + bins[1:]) 
+        ax2.step(centered_bins, h, color = cr.pal_qualitative[ci[i]], label=labels[i])
 
-        ax2.bar(delta_ori + pos[i]*w/2, counts, width=w, color=cr.pal_qualitative[i+2], label=labels[i])
-        #ax2.plot(np.arange(0, 9), counts, color=cr.pal_qualitative[i+2], label=labels[i])
+    ax2.set_xscale("log")
+    ax2.set_yscale("log")
 
-    #ax2.bar(counts.index.values, counts.values[0], color='gray')
-    ax2.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
-    #ax2.set_xticks([0, 4, 8], ["-π/2", "0", "π/2"])    
-    ax2.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    #ax2.set_ylabel(r"$\mu_i(\hat \theta_\text{post} - \theta)$")
-    ax2.set_ylabel("Indiv. Syn. Currents")
-    ax2.set_ylim(0, 6500)
-    ax2.legend(loc='best', ncol=2, fontsize=8)
+    ax2.set_ylim(1e-4, 1e-1)
 
+    ax2.set_xlabel('Volume (mean normalized)')
+    ax2.set_ylabel("Frac. Synapses")
+    ax2.legend(loc=(0.2, 0.9), ncol=2, fontsize=8)
+
+def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
+
+    #Get the data to be plotted 
+    conprob = {}
+    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
+    meandata  = {}
+    errordata = {}
+    for layer in ["L23", "L4"]:
+        p = conprob[layer]
+        #Normalize by p(delta=0), which is at index 3
+        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
+        meandata[layer]  = p['mean'].values 
+        errordata[layer]  = p['std'].values 
+
+    return meandata, errordata
+
+def conn_prob_osi(ax, probmean, proberr):
+
+    #Plot it!
+    angles = np.linspace(0, np.pi/2, 5)
+
+    for layer in ['L23', 'L4']:
+        low_band  = probmean[layer] - proberr[layer]
+        high_band = probmean[layer] + proberr[layer]
+        c = cr.lcolor[layer]
+
+        ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
+        ax.plot(angles, probmean[layer], color = c, label = layer)
+        ax.scatter(angles, probmean[layer], color = cr.dotcolor[layer], s=cr.ms, zorder = 3)
+
+    #Then just adjust axes and put a legend
+    ax.tick_params(axis='both', which='major')
+    ax.set_ylim(0.5, 1.1)
+    ax.set_xlabel(r"$|\theta -  \hat \theta_\text{post}|$")
+    ax.set_ylabel("Conn. Prob\n(Normalized)")
+
+    ax.legend(loc='best')
+
+    ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
 
 
 def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, indegree, nexperiments=1000):
@@ -85,14 +121,9 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
 
     #Total current is shown just in the "unnormalized" version. Also we need to obtain
     #the global total current to normalize according to it
-    #total_cur = mean_cur['Total'].mean(axis=1)
-    #norma = np.max(total_cur)
-    total_cur = plotutils.shift(mean_cur["Total"])
-    ax.plot(angles, total_cur, label='Total', color=cr.lcolor['Total'])
-    ax.scatter(angles, total_cur, color=cr.dotcolor['Total'], s=cr.ms, zorder=3)
 
     #Then show L23 and L4 currents for unnormalized and normalized versions
-    for layer in ['L23', 'L4']:
+    for layer in ['L23', 'L4', 'Total']:
         meancur = plotutils.shift(mean_cur[layer])
         stdcur = plotutils.shift(std_cur[layer])
         
@@ -137,9 +168,9 @@ def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates, indegree)
 def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, indegree, nexperiments=1000): 
 
     angles = np.arange(9)
-    tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="post") 
-
-    prob_pref_ori  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
+    #tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="post") 
+    tuned_outputs = fl.filter_connections_prepost(matched_neurons, matched_connections, layer=['L23', 'L23'], tuning=['matched', "matched"])
+    prob_pref_ori, currents  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
     
 
     #Plot
@@ -151,10 +182,21 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
         ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
         ax.scatter(angles, prob, color=cr.dotcolor[layer], zorder=3, s=cr.ms) 
 
+        #prob = plotutils.shift(currents[layer])
+        #ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
 
+
+    shuffled_neurons = matched_neurons.copy()
+    shuffled_neurons['pref_ori'] = shuffled_neurons['pref_ori'].sample(frac=1).values 
+    null_pref_ori, null_currents = curr.sample_prefori(shuffled_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
+    null_prob    = plotutils.shift(null_pref_ori["Total"])
+    null_proberr = plotutils.shift(null_pref_ori["Total_error"])
+
+    ax.fill_between(angles, null_prob - null_proberr, null_prob + null_proberr, alpha = 0.5, color='purple')
+    ax.plot(angles, null_prob, c='purple', label='Shuffled TOTAL')
 
     ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
-    ax.set_ylabel("Fract. of neurons")
+    ax.set_ylabel("Fract. neurons")
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.25, 0.5])
@@ -185,32 +227,33 @@ def plot_figure(figname):
 
     axes = fig.subplot_mosaic(
         """
-        ABL
+        ABC
         XXX
-        CEE
-        DEE
-        """, width_ratios=([1., 1., 0.2]), height_ratios=([1.0, 1.5, 0.5, 0.5])
+        DEF
+        """, height_ratios=([1.0, 1.5, 1])
     )
-
-    axes['L'].set_axis_off()
 
     #Given an exc -> exc in-degree kee, how many inputs does a neuron receive in total?
     #Compute it using the probabilities obtained from the data 
-    kee = 150
+    kee = 150 
     conn_prob = pd.read_csv("data/model/prob_connectomics_cleanaxons.csv", index_col=0)
     indegree = int(kee * (1.0 + conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E']))
 
     show_image(axes["X"], "sketchsampling.png")
 
-    plot_dist_inputs(axes['A'], axes['B'], matched_neurons, matched_connections, rates)
-    plot_sampling_current(axes["C"], axes["D"], matched_neurons, matched_connections, rates, indegree)
-    tuning_prediction_performance(axes['E'], matched_neurons, matched_connections, rates, indegree)
+    plot_dist_inputs(axes['A'], axes['C'], matched_neurons, matched_connections, rates)
+    probmean, proberr = compute_conn_prob(units, connections)
+    conn_prob_osi(axes['B'], probmean, proberr)
+    plot_sampling_current(axes["D"], axes["E"], matched_neurons, matched_connections, rates, indegree)
+    tuning_prediction_performance(axes['F'], matched_neurons, matched_connections, rates, indegree)
 
 
-    axes2label = [axes[k] for k in ['A', 'B', 'X', 'C', 'E']]
-    label_pos  = [[0.8, 0.95]] * 5 
+    axes2label = [axes[k] for k in ['A', 'B', 'C', 'X', 'D', 'E', 'F']]
+    label_pos  = [[0.05, 0.95]] * 7 
     sty.label_axes(axes2label, label_pos)
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
 plot_figure("fig3.pdf")
+
+#TODO ADD RANDOM CONTROL TO LAST PANEL

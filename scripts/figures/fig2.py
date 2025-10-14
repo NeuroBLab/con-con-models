@@ -31,6 +31,7 @@ def example_tuning_curve(ax, rates, rates_err, id):
     ax.errorbar(np.arange(9), rangle,  yerr = rangle_err , color=cr.dotcolor['L23'], fmt='none')
 
     ax.set_xticks([0, 4, 8], [0, 'π/2', 'π'])
+    ax.set_ylim(0, 11)
     ax.set_xlabel("θ")
     ax.set_ylabel("Rate")
 
@@ -67,8 +68,9 @@ def example_current(ax, v1_neurons, connections, vij, rates, rates_err, id):
 
 
     ax.set_xticks([0, 4, 8], [0, 'π/2', 'π'])
+    ax.set_yticks([0, 0.5, 1])
     ax.set_xlabel("θ")
-    ax.set_ylabel("Synaptic current μ(θ)")
+    ax.set_ylabel("Synap. curr.")
 
 def show_image(ax, path2im):
     im = Image.open("images/" + path2im)
@@ -133,12 +135,12 @@ def plot_currents(axes, units, rates, vij):
 
     for ax in axes:
         ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
-        ax.set_xlabel("Δθ")
+        ax.set_xlabel(r"$\theta - \hat \theta_\text{post}$")
 
-    axes[0].set_ylabel("μ(Δθ)")
-    axes[1].set_ylabel("μ(Δθ)/μ(0)")
+    axes[0].set_ylabel("Synap. curr.")
+    axes[1].set_ylabel("Synap. curr.\n(Normalized)")
 
-def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 1000):
+def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps = 1000):
 
     rates = dutl.get_untuned_rate(units, rates) 
 
@@ -153,6 +155,7 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
     pref_ori_data = {}
     #Difference between them and fraction correct
     delta_target_pred_data = {}
+    signed_delta = {}
     fraction_correct = {}
     abs_error = {}
 
@@ -178,7 +181,8 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
         pre[layer].sort()
         post[layer].sort()
 
-
+    for layer in ["L23", "L4", "Total"]:
+        print('in_degree:', in_degree[layer].mean())
 
     #Compute the difference in target vs predicted for our data
     for layer in ["L23", "L4", "Total"]:
@@ -189,6 +193,7 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
         pref_oris_pred[layer] = np.argmax(currents_data, axis=1)
         pref_ori_data[layer] = units.loc[units['id'].isin(post[layer]), 'pref_ori'].values
         delta_target_pred_data[layer] = au.angle_dist(pref_oris_pred[layer], pref_ori_data[layer])
+        signed_delta[layer] = au.signed_angle_dist_vectorized(pref_oris_pred[layer], pref_ori_data[layer])
 
         #Initialize for bootstrap
         fraction_correct[layer] = np.empty(nreps)
@@ -198,6 +203,7 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
     #pref_oris_pred_total = pref_oris_pred.copy()
     fraction_shuffled = np.empty(nreps) 
     abs_error_shuffled = np.empty(nreps)
+
 
     #Bootstrap for n repetitions 
     for i in range(nreps):
@@ -227,9 +233,22 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
         abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
 
 
+    bins = np.arange(-5.5, 6.5)
+    angles = np.arange(-1, 10)
+    for layer in ['L23', 'L4', 'Total']:
+        dist_diffs, _ = np.histogram(signed_delta[layer], bins=bins)    
+        dist_diffs = dist_diffs / dist_diffs.sum()
+        ax2.step(angles, dist_diffs, color=cr.lcolor[layer])
+    
+    ax2.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
+    ax2.set_xlabel(r"$\hat \theta_\text{pred} - \hat \theta$")
+
+    ax2.set_ylabel("Fraction")
+
     #Position of the random level
     linepos = abs_error_shuffled.mean() 
     ax.axhline(linepos, color="black")
+
 
     xoffset = -0.1
     yoffset = 0.01
@@ -249,8 +268,6 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
         #The fraction of times this happened is the pvalue
         p = np.mean(abs_error_shuffled <= abs_error[layer])
 
-        print(abs_error_shuffled.mean())
-
         if p < 0.001:
             sign = '***'
         elif p < 0.01:
@@ -264,11 +281,13 @@ def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 100
 
         ax.bar(barpos[i], delta, yerr=delta_err, color=cr.lcolor[layer], edgecolor='k')
 
+    print('my pvalue ', np.mean(abs_error['L23'] <= abs_error['L4']))
 
     ax.set_yticks([0, np.pi/8, np.pi/4], ['0', 'π/8', 'π/4'])
-    #ax.set_ylim(np.pi/6, np.pi/3.75)
     ax.set_ylim(0, np.pi/3.25)
     ax.set_xticks(barpos, ['L2/3', 'L4', 'Total'])
+
+    ax.set_ylabel("Pref. ori. error")
 
     return
 
@@ -300,21 +319,18 @@ def plot_figure(figname):
     #ghostax.axis('off')
 
     axes = fig.subplot_mosaic(
-        #[['T', 'T',  'T', 'T',  'T'],
-        # ['X', 'A1', '.', 'B1', 'C'],
-        # ['X', 'A2', '.', 'B2', 'L']],
-        # width_ratios=[1,1,0.3,1,1], height_ratios=[1, 1], empty_sentinel='.'
         [['T', 'T', 'T',  'T'],
          ['X', 'A1','B1', 'C'],
          ['X', 'A2','B2', 'L']],
          height_ratios=[0.5, 1, 1],
-          width_ratios=[1,1,1,1]
+          width_ratios=[0.8, 1,1,1]
     )
 
     #USe the upper space for titles
     axes['T'].set_axis_off()
-    axes['T'].text(0.25, 1., 'Example neuron',    weight='bold', ha='center')
-    axes['T'].text(0.75, 1., 'Post-syn. average', weight='bold', ha='center')
+    axes['T'].text(0.3, 1., 'Example neuron',    weight='bold', ha='center')
+    axes['T'].text(0.66, 1., 'Average Syn. Current', weight='bold', ha='center')
+    axes['T'].text(1., 1., 'Pref. ori. prediction', weight='bold', ha='center')
     axes['T'].set_in_layout(False)
 
     #units = fl.filter_neurons(units, layer='L23', tuning='tuned', proofread='dn_clean')
@@ -331,11 +347,11 @@ def plot_figure(figname):
 
 
     #plot_sampling_current(axes['B1'], axes['B2'], matched_neurons, matched_connections, rates)
-    prediction_shuffling_control(axes['C'], matched_neurons, matched_connections, rates, vij)
+    prediction_shuffling_control(axes['C'], axes['L'], matched_neurons, matched_connections, rates, vij)
 
-    axes['L'].set_axis_off()
-    handles, labels = axes['B1'].get_legend_handles_labels()
-    axes['L'].legend(handles, labels, loc=(0., 0.5), handlelength=1.2)
+    #axes['L'].set_axis_off()
+    #handles, labels = axes['B1'].get_legend_handles_labels()
+    #axes['L'].legend(handles, labels, loc=(0., 0.5), handlelength=1.2)
 
     axes2label = [axes[k] for k in ['A1', 'B1', 'C']]
     label_pos  = [[0.1, 0.95]] * 3 
