@@ -112,12 +112,14 @@ def conn_prob_osi(ax, probmean, proberr):
     ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
 
 
-def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, indegree, nexperiments=1000):
+def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, indegree, nexperiments):
     angles = plotutils.get_angles(kind="centered", half=True)
 
     #Compute the currents in the system
     #mean_cur = curr.bootstrap_system_currents_shuffle(v1_neurons, v1_connections, rates, nexperiments, frac=frac)
-    mean_cur, std_cur = curr.bootstrap_mean_current(indegree, v1_neurons, v1_connections, rates, nexperiments)
+
+    #mean_cur, std_cur = curr.bootstrap_mean_current(indegree, v1_neurons, v1_connections, rates, nexperiments)
+    prob_pref_ori, mean_cur, std_cur = curr.sample_prefori(v1_neurons, v1_connections, nexperiments, rates, nsamples=indegree)
 
     #Total current is shown just in the "unnormalized" version. Also we need to obtain
     #the global total current to normalize according to it
@@ -150,33 +152,21 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
     ax_normalized.set_ylabel('Syn. Current\n(Normalized)')
 
     
-def plot_sampling_current_peaks(ax, v1_neurons, v1_connections, rates, indegree):
 
-    frac = indegree / len(v1_connections)
-
-    current = curr.bootstrap_system_currents_peaks(v1_neurons, v1_connections, rates, frac=frac, nexperiments=1000)
-    bins = np.arange(-7.5, 8.5, 1)
-
-    for layer in ['L23', 'L4']:
-        pref_ori = np.argmax(current[layer], axis=1)
-        pref_ori[pref_ori > 3] = pref_ori[pref_ori > 3] - 8 
-
-        hist, _ = np.histogram(pref_ori, bins=bins)
-        ax.step(bins[1:], hist, color = cr.lcolor[layer], label=layer)
-
-
-def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, indegree, nexperiments=1000): 
+def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, indegree, nexperiments): 
 
     angles = np.arange(9)
-    #tuned_outputs = fl.filter_connections(matched_neurons, matched_connections, tuning="matched", who="post") 
-    tuned_outputs = fl.filter_connections_prepost(matched_neurons, matched_connections, layer=['L23', 'L23'], tuning=['matched', "matched"])
-    prob_pref_ori, currents  = curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
+    tuned_outputs = fl.filter_connections_prepost(matched_neurons, matched_connections,  tuning=['tuned', "tuned"], proofread=['minimum', None])
+    prob_pref_ori, _, _= curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
     
 
     #Plot
     for layer in ['Total', 'L23', 'L4']:
-        prob    = plotutils.shift(prob_pref_ori[layer])
-        proberr = plotutils.shift(prob_pref_ori[layer + "_error"])
+        #prob    = plotutils.shift(prob_pref_ori[layer])
+        #proberr = plotutils.shift(prob_pref_ori[layer + "_error"])
+        prob    = np.insert(prob_pref_ori[layer], 0, prob_pref_ori[layer][-1])
+        proberr = np.insert(prob_pref_ori[layer + "_error"], 0, prob_pref_ori[layer + "_error"][-1])
+
 
         ax.fill_between(angles, prob - proberr, prob + proberr, alpha = 0.5, color=cr.lcolor[layer])
         ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
@@ -186,20 +176,26 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
         #ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
 
 
-    shuffled_neurons = matched_neurons.copy()
-    shuffled_neurons['pref_ori'] = shuffled_neurons['pref_ori'].sample(frac=1).values 
-    null_pref_ori, null_currents = curr.sample_prefori(shuffled_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
-    null_prob    = plotutils.shift(null_pref_ori["Total"])
-    null_proberr = plotutils.shift(null_pref_ori["Total_error"])
 
-    ax.fill_between(angles, null_prob - null_proberr, null_prob + null_proberr, alpha = 0.5, color='purple')
-    ax.plot(angles, null_prob, c='purple', label='Shuffled TOTAL')
+    null_pref_ori, currents, _ = curr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates, nsamples=indegree, shuffle=True)
+    null_prob    = np.insert(null_pref_ori["L4"], 0, null_pref_ori["L4"][-1])
+    null_proberr = np.insert(null_pref_ori["L4_error"], 0, null_pref_ori["Total_error"][-1])
+
+    for layer in ['Total', 'L23', 'L4']:
+        #ax.fill_between(angles, null_prob - null_proberr, null_prob + null_proberr, alpha = 0.5, color='purple')
+        #ax.plot(angles, null_prob, c='purple', label='Shuffled TOTAL')
+        null_prob    = np.insert(null_pref_ori[layer], 0, null_pref_ori[layer][-1])
+        ax.plot(angles, null_prob, label=layer)
+
+    #for layer in ['Total', 'L23', 'L4']:
+    #    prob = plotutils.shift(currents[layer])
+    #    ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
 
     ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
     ax.set_ylabel("Fract. neurons")
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_yticks([0, 0.25, 0.5])
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
 
     ax.legend(loc="best")
 
@@ -237,15 +233,20 @@ def plot_figure(figname):
     #Compute it using the probabilities obtained from the data 
     kee = 150 
     conn_prob = pd.read_csv("data/model/prob_connectomics_cleanaxons.csv", index_col=0)
-    indegree = int(kee * (1.0 + conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E']))
+    #indegree = int(kee * (1.0 + conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E']))
+    indegree = {}
+    indegree['L23'] = kee
+    indegree['L4'] =  int(kee * conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E'])
+    indegree['Total'] = indegree['L23'] + indegree['L4']
+    nexperiments = 3000
 
     show_image(axes["X"], "sketchsampling.png")
 
     plot_dist_inputs(axes['A'], axes['C'], matched_neurons, matched_connections, rates)
     probmean, proberr = compute_conn_prob(units, connections)
     conn_prob_osi(axes['B'], probmean, proberr)
-    plot_sampling_current(axes["D"], axes["E"], matched_neurons, matched_connections, rates, indegree)
-    tuning_prediction_performance(axes['F'], matched_neurons, matched_connections, rates, indegree)
+    plot_sampling_current(axes["D"], axes["E"], matched_neurons, matched_connections, rates, indegree, nexperiments)
+    tuning_prediction_performance(axes['F'], matched_neurons, matched_connections, rates, indegree, nexperiments)
 
 
     axes2label = [axes[k] for k in ['A', 'B', 'C', 'X', 'D', 'E', 'F']]

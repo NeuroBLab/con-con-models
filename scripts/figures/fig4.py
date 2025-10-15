@@ -39,7 +39,7 @@ def plot_ratedist(ax, rates, re, ri):
 
     ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', ls="--", markersize=cr.ms, zorder=3, label='Data E')
 
-    ax.set_xlabel("Rate (Hz)")
+    ax.set_xlabel("Rate")
     ax.set_ylabel('Fract. of neurons')
 
     ax.legend()
@@ -69,8 +69,8 @@ def plot_tuning_curves(ax, units, rates, tuning_curves, tuning_error):
     #ax.set_xticks([0,4,8], ['0', 'π/2', 'π'])
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_ylim(0, 11)
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax.set_ylabel('rate')
+    ax.set_xlabel(r'$\theta - \hat \theta$')
+    ax.set_ylabel('Rate')
 
     return
 
@@ -176,31 +176,171 @@ def compute_currents(units_sample, QJ, rates_sample, k23, k4):
 
     return currmean 
 
-def plot_currents(ax, units, vij, rates, currmean, currerr, k23, k4):
-
+def plot_currents(ax, ax_norm, units, vij, rates, currmean, currerr, k23, k4):
 
 
     currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
     totalmean = currents['Total'].mean(axis=0).max()
     for layer in ['L23', 'L4', 'Total']:
         mean = plotutils.shift(currents[layer].mean(axis=0)/totalmean)
-        #mean = plotutils.shift(currents[layer].mean(axis=0)/currents[layer].mean(axis=0).max())
-        #ax.scatter(np.arange(9), mean, color=cr.lcolor[layer], marker='o', s=cr.ms, zorder=3)
-        ax.plot(np.arange(9), mean, color=cr.lcolor[layer], marker='o', ms=cr.ms, ls = "--")
+        ax.plot(np.arange(9), mean, color=cr.lcolor[layer], marker='o', ms=cr.ms, ls = "--", label=f"{layer} data")
 
     for layer in ['L23', 'L4', 'Total']:
-        totalmean = 1.0 #currmean[layer].max() 
-        ax.fill_between(np.arange(9), (currmean[layer]-currerr[layer]) / totalmean, (currmean[layer]+currerr[layer])/totalmean, alpha=0.2, color=cr.lcolor[layer])
+        ax.fill_between(np.arange(9), (currmean[layer]-currerr[layer]), (currmean[layer]+currerr[layer]), alpha=0.2, color=cr.lcolor[layer])
         ax.plot(currmean[layer]/totalmean, label=layer, color=cr.lcolor[layer])
 
-    ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
-    ax.set_ylim(0.5, 1.1)
+        totalmean = currmean[layer].max() 
+        ax_norm.fill_between(np.arange(9), (currmean[layer]-currerr[layer]) / totalmean, (currmean[layer]+currerr[layer])/totalmean, alpha=0.2, color=cr.lcolor[layer])
+        ax_norm.plot(currmean[layer]/totalmean, label=layer, color=cr.lcolor[layer])
 
-    ax.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    #ax.set_ylabel("μ(∆θ)/μ(0)")
-    ax.set_ylabel("Syn. Current \n(Normalized)")
+    for axis in [ax, ax_norm]:
+        axis.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
+
+        axis.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
+        axis.set_ylabel("Syn. Current \n(Normalized)")
+
 
     ax.legend(loc='best', ncols=3)
+    ax.set_ylim(0.5, 1.1)
+    ax_norm.set_ylim(0., 1.0)
+
+def prediction_shuffling_control(ax, units, connections, rates, vij, nreps = 1000):
+
+    rates = dutl.get_untuned_rate(units, rates) 
+
+    #Initialize 
+    pre = {}
+    post = {}
+    in_degree = {}
+    weights = {}
+
+    #Prediction and observed pref oris
+    pref_oris_pred = {}
+    pref_ori_data = {}
+    #Difference between them and fraction correct
+    delta_target_pred_data = {}
+    fraction_correct = {}
+    abs_error = {}
+
+    #Get connections from proofread presynaptic neurons to tuned L23 ones
+    synapses = fl.filter_connections_prepost(units, connections, layer = [None, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None], cell_type=['exc', 'exc'])
+    pre["Total"] = synapses["pre_id"].unique()
+    post["Total"] = synapses["post_id"].unique()
+    in_degree["Total"] = synapses['post_id'].value_counts().sort_index().values 
+    weights["Total"] = synapses["syn_volume"]
+
+    #Unique does not sort the indices, but we will them to be sorted 
+    pre["Total"].sort()
+    post["Total"].sort()
+
+    #Repeat the very same thing but using presynaptic layers L23 and L4
+    for layer in ["L23", "L4"]:
+        synapses = fl.filter_connections_prepost(units, connections, layer = [layer, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None], cell_type=['exc', 'exc'])
+        pre[layer]   = synapses['pre_id'].unique()
+        post[layer]  = synapses['post_id'].unique()
+        in_degree[layer] = synapses['post_id'].value_counts().sort_index().values 
+        weights[layer] = synapses["syn_volume"]
+
+        pre[layer].sort()
+        post[layer].sort()
+
+    for layer in ["L23", "L4", "Total"]:
+        print('in_degree:', in_degree[layer].mean())
+
+
+    #Compute the difference in target vs predicted for our data
+    for layer in ["L23", "L4", "Total"]:
+        #Compute all the currents to postsynaptic neurons 
+        currents_data = dcur.get_currents_subset(units, vij, rates, post_ids=post[layer], pre_ids=pre[layer], shift=False)
+
+        #Get their predicted pref ori and then compare with the actual postsynp neurons'  pref ori 
+        pref_oris_pred[layer] = np.argmax(currents_data, axis=1)
+        pref_ori_data[layer] = units.loc[units['id'].isin(post[layer]), 'pref_ori'].values
+        delta_target_pred_data[layer] = au.angle_dist(pref_oris_pred[layer], pref_ori_data[layer])
+
+        #Initialize for bootstrap
+        fraction_correct[layer] = np.empty(nreps)
+        abs_error[layer] = np.empty(nreps)
+
+    #Save that last one result from the loop: the prediction of pref_oris using the currents for all presynaptic neurons
+    #pref_oris_pred_total = pref_oris_pred.copy()
+    fraction_shuffled = np.empty(nreps) 
+    abs_error_shuffled = np.empty(nreps)
+
+    #Bootstrap for n repetitions 
+    for i in range(nreps):
+
+        #For each layer, get a bootstrap of our data currents to estimate mean and error
+        for layer in ["Total", "L23", "L4"]:
+            #Bootstrap (shortened to btrp) our real data
+            bootstraped_diff_angle = np.random.choice(delta_target_pred_data[layer], replace=True, size=len(delta_target_pred_data[layer]))
+
+            #Then, get the fractoin of good predictions in this bootstrapped sample and the mean difference
+            fraction_correct[layer][i] = (bootstraped_diff_angle == 0).sum() / len(bootstraped_diff_angle) 
+            abs_error[layer][i] = bootstraped_diff_angle.mean() * np.pi / 8
+
+
+
+        layer = "Total"
+        shuffled_post_oris = np.empty(len(post[layer]))
+        for pix in range(len(post[layer])):
+            k = int(in_degree["Total"][pix])
+            w = np.random.choice(weights[layer], replace=True, size=k)
+            pre_random = np.random.choice(len(pre[layer]), replace=True, size=k)
+            current = np.dot(w, rates[pre_random, :]) 
+            shuffled_post_oris[pix] = np.argmax(current)
+        
+        diff_angles = au.angle_dist(shuffled_post_oris, pref_ori_data[layer])
+        fraction_shuffled[i] = (diff_angles == 0).sum() / len(diff_angles) 
+        abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
+
+
+    #Position of the random level
+    linepos = abs_error_shuffled.mean() 
+    ax.axhline(linepos, color="black")
+
+    xoffset = -0.1
+    yoffset = 0.01
+
+    barpos = np.arange(3)
+
+    #Compute all currents to the postsynaptic neurons
+    for i,layer in enumerate(['L23', 'L4', "Total"]):
+
+        #delta = fraction_correct[layer].mean() 
+        #delta_err = fraction_correct[layer].std() 
+
+        delta = abs_error[layer].mean() 
+        delta_err = abs_error[layer].std() 
+
+        #For each bootstrap test, is the null hypothesis as large as our observation?
+        #The fraction of times this happened is the pvalue
+        p = np.mean(abs_error_shuffled <= abs_error[layer])
+
+        if p < 0.001:
+            sign = '***'
+        elif p < 0.01:
+            sign = '**'
+        elif p < 0.05:
+            sign = '*'
+        else:
+            sign = 'n.s.'
+
+        ax.text(barpos[i] + xoffset + 0.2 * xoffset * len(sign), linepos + yoffset, f"{sign}")
+
+        ax.bar(barpos[i], delta, yerr=delta_err, color=cr.lcolor[layer], edgecolor='k')
+
+    print('my pvalue ', np.mean(abs_error['L23'] <= abs_error['L4']))
+
+    ax.set_yticks([0, np.pi/8, np.pi/4], ['0', 'π/8', 'π/4'])
+    #ax.set_ylim(np.pi/6, np.pi/3.75)
+    ax.set_ylim(0, np.pi/3.25)
+    ax.set_xticks(barpos, ['L2/3', 'L4', 'Total'])
+
+    return
+
+
+
 
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
@@ -231,7 +371,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
     sty.master_format()
-    fig, axes = plt.subplots(figsize=sty.two_col_size(height=9.5), ncols=3, nrows=2, layout="constrained")
+    fig, axes = plt.subplots(figsize=sty.two_col_size(height=9.5), ncols=3, nrows=3, layout="constrained")
 
     k23, k4 = 200, 70 #First is fixed, the second is scaled from the connections probabilities 
     #(it can be get as np.sum(QJ[:ne, ne+ni:] > 0, axis = 1).mean() after a simulation)
@@ -357,7 +497,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     plot_ratedist(axes[0,0], rates, allratesE, allratesI)
     plot_tuning_curves(axes[0,1], units, rates, tuning_curve, tuning_curve_err) 
     circular_variance(axes[0,2], units, rates, allcircvE, allcircvI) 
-    plot_currents(axes[1,0], units, vij, rates, currmean, currerr, k23, k4) 
+    plot_currents(axes[1,0], axes[2,0], units, vij, rates, currmean, currerr, k23, k4) 
     conn_prob_osi(axes[1,1], probmean, proberr, "L23") 
     conn_prob_osi_data(axes[1,1], units, connections, "L23")
     conn_prob_osi(axes[1,2], probmean, proberr, "L4") 
