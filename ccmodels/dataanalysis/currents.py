@@ -183,7 +183,7 @@ def compute_distrib_diffrate_allsynapses(v1_neurons, v1_connections, vij, rates,
 
     return diffs
 
-def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples):
+def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples, shuffle=False):
     """
     Assume a virtual presynaptic neuron. Sample connections to it and compute the current. Determine the 
     preferred orientation from the current maximum. Repeat for nexperiments, and compute the probability
@@ -193,57 +193,75 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples)
     #The number of columns of the rates variables give the number of angles
     nangles = rates.shape[1]
 
+    conns_per_layer = {}
+    conns_per_layer['L4'] = fl.filter_connections_prepost(v1_neurons, tuned_connections, layer=['L4', 'L23'], tuning=['tuned', 'tuned'])
+    conns_per_layer['L23'] = fl.filter_connections_prepost(v1_neurons, tuned_connections, layer=['L23', 'L23'], tuning=['tuned', 'tuned'])
+    currlayer = {}
+
     #Get the untuned rates
     rates_untuned = utl.get_untuned_rate(v1_neurons, rates)
 
     #Prepare to do experiments...
     prob_pref_ori = {} 
     currents = {}
-    prob_pref_ori['Total'] = np.zeros(nangles) 
-    prob_pref_ori['L23'] = np.zeros(nangles) 
-    prob_pref_ori['L4'] = np.zeros(nangles) 
+    currents_err = {}
 
-    currents['Total'] = np.zeros(nangles) 
-    currents['L23'] = np.zeros(nangles) 
-    currents['L4'] = np.zeros(nangles) 
+    #Initialize vectors
+    for layer in ["Total", 'L23', 'L4']:
+        prob_pref_ori[layer] = np.zeros(nangles) 
+        currents[layer] = np.zeros(nangles) 
+        currents_err[layer] = np.zeros(nangles) 
+
 
     for i in range(nexperiments): 
-        #Sample a bunch of neurons
-        neuron_sample = tuned_connections.sample(nsamples, replace=True) 
 
-        #Compute the current they get 
-        current = get_input_virtual_presynaptic(v1_neurons, neuron_sample, rates_untuned) 
+        if shuffle:
+            neurons = v1_neurons.copy()
+            neurons.loc[:, 'pref_ori'] = neurons['pref_ori'].sample(frac=1, replace=False).values 
+        else:
+            neurons = v1_neurons
+            
 
-        #Use the current to determine the preferred orientation
-        idx_prefrd_ori = np.argmax(current)
-        prob_pref_ori['Total'][idx_prefrd_ori] += 1
+        #For each layer
+        for layer in ['L23', 'L4']:
+            #Sample the synapses according to the desired indegree
+            synsample = conns_per_layer[layer].sample(nsamples[layer], replace=True)
+            currlayer[layer]= get_input_virtual_presynaptic(neurons, synsample, rates_untuned) 
 
-        #Now we get the components from L23 and L4. Filter the neurons that were in L23...
-        neuron_sample_L23 = fl.filter_connections(v1_neurons, neuron_sample, layer='L23', who='pre')
-        current_L23 = get_input_virtual_presynaptic(v1_neurons, neuron_sample_L23, rates_untuned) 
-        #The L4 current is the difference between total and L@3
-        neuron_sample_L23 = fl.filter_connections(v1_neurons, neuron_sample, layer='L4', who='pre')
-        #current_L4  = get_input_virtual_presynaptic(v1_neurons, neuron_sample_L23, rates_untuned) 
-        current_L4 = current - current_L23
+            #Check the prediction of pref ori
+            idx_prefrd_ori = np.argmax(currlayer[layer])
+            diff_ori = au.signed_angle_dist(idx_prefrd_ori, 0)
+            prob_pref_ori[layer][diff_ori + 3] += 1
 
-        #Preferred location for each component of the currents
-        idx_prefrd_ori = np.argmax(current_L23)
-        prob_pref_ori['L23'][idx_prefrd_ori] += 1
-        idx_prefrd_ori = np.argmax(current_L4)
-        prob_pref_ori['L4'][idx_prefrd_ori] += 1
+            currents[layer] += currlayer[layer] 
 
-        currents["Total"] += current
-        currents["L23"] += current_L23
-        currents["L4"] += current_L4
+
+        #Same with total current
+        layer = 'Total'
+        currlayer[layer] = currlayer['L23'] + currlayer['L4']
+        idx_prefrd_ori = np.argmax(currlayer[layer])
+        diff_ori = au.signed_angle_dist(idx_prefrd_ori, 0)
+        prob_pref_ori[layer][diff_ori + 3] += 1
+        currents[layer] += currlayer[layer] 
+        currents_err[layer] += currlayer[layer]**2
+
     
     #Normalize with respect to all experiments 
     for layer in ['Total', 'L23', 'L4']:
         prob_pref_ori[layer] /= nexperiments 
         currents[layer] /= nexperiments
+        currents_err[layer] /= nexperiments
+        currents_err[layer] = np.sqrt((currents_err[layer] - currents[layer]**2)/nexperiments)
         prob_pref_ori[layer + "_error"] = np.sqrt((prob_pref_ori[layer] * (1 - prob_pref_ori[layer])) / nexperiments) 
 
+    #To normalize to max total current
+    maxcur = np.max(currents["Total"])
+    for layer in ['Total', 'L23', 'L4']:
+        currents[layer] /= maxcur 
+        currents_err[layer] /= maxcur 
+
     #Return probabilities and the first two moments of the bootstrap distribution  
-    return prob_pref_ori, currents
+    return prob_pref_ori, currents, currents_err
 
 def fraction_prefori_predicted(v1_neurons, tuned_connections, vij, rates):
     """
