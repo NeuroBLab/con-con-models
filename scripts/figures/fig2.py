@@ -140,7 +140,7 @@ def plot_currents(axes, units, rates, vij):
     axes[0].set_ylabel("Synap. curr.")
     axes[1].set_ylabel("Synap. curr.\n(Normalized)")
 
-def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps = 1000):
+def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
 
     rates = dutl.get_untuned_rate(units, rates) 
 
@@ -155,15 +155,15 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
     pref_ori_data = {}
     #Difference between them and fraction correct
     delta_target_pred_data = {}
-    signed_delta = {}
     fraction_correct = {}
     abs_error = {}
+    signed_delta = {}
 
     #Get connections from proofread presynaptic neurons to tuned L23 ones
-    synapses = fl.filter_connections_prepost(units, connections, layer = [None, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None])
+    synapses = fl.filter_connections_prepost(units, connections, layer = [None, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None], cell_type=['exc', 'exc'])
     pre["Total"] = synapses["pre_id"].unique()
     post["Total"] = synapses["post_id"].unique()
-    in_degree["Total"] = synapses['post_id'].value_counts().sort_index().values
+    in_degree["Total"] = synapses['post_id'].value_counts().sort_index().values 
     weights["Total"] = synapses["syn_volume"]
 
     #Unique does not sort the indices, but we will them to be sorted 
@@ -172,10 +172,10 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
 
     #Repeat the very same thing but using presynaptic layers L23 and L4
     for layer in ["L23", "L4"]:
-        synapses = fl.filter_connections_prepost(units, connections, layer = [layer, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None])
+        synapses = fl.filter_connections_prepost(units, connections, layer = [layer, "L23"], tuning=[None, 'tuned'], proofread=["minimum", None], cell_type=['exc', 'exc'])
         pre[layer]   = synapses['pre_id'].unique()
         post[layer]  = synapses['post_id'].unique()
-        in_degree[layer] = synapses['post_id'].value_counts().sort_index().values
+        in_degree[layer] = synapses['post_id'].value_counts().sort_index().values 
         weights[layer] = synapses["syn_volume"]
 
         pre[layer].sort()
@@ -183,6 +183,7 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
 
     for layer in ["L23", "L4", "Total"]:
         print('in_degree:', in_degree[layer].mean())
+
 
     #Compute the difference in target vs predicted for our data
     for layer in ["L23", "L4", "Total"]:
@@ -204,7 +205,6 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
     fraction_shuffled = np.empty(nreps) 
     abs_error_shuffled = np.empty(nreps)
 
-
     #Bootstrap for n repetitions 
     for i in range(nreps):
 
@@ -222,7 +222,7 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
         layer = "Total"
         shuffled_post_oris = np.empty(len(post[layer]))
         for pix in range(len(post[layer])):
-            k = in_degree["Total"][pix]
+            k = int(in_degree["Total"][pix])
             w = np.random.choice(weights[layer], replace=True, size=k)
             pre_random = np.random.choice(len(pre[layer]), replace=True, size=k)
             current = np.dot(w, rates[pre_random, :]) 
@@ -232,23 +232,13 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
         fraction_shuffled[i] = (diff_angles == 0).sum() / len(diff_angles) 
         abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
 
+    return abs_error, abs_error_shuffled, signed_delta
 
-    bins = np.arange(-5.5, 6.5)
-    angles = np.arange(-1, 10)
-    for layer in ['L23', 'L4', 'Total']:
-        dist_diffs, _ = np.histogram(signed_delta[layer], bins=bins)    
-        dist_diffs = dist_diffs / dist_diffs.sum()
-        ax2.step(angles, dist_diffs, color=cr.lcolor[layer])
-    
-    ax2.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
-    ax2.set_xlabel(r"$\hat \theta_\text{pred} - \hat \theta$")
-
-    ax2.set_ylabel("Fraction")
+def plot_error_prediction(ax, abs_error, abs_error_shuffled ):
 
     #Position of the random level
     linepos = abs_error_shuffled.mean() 
     ax.axhline(linepos, color="black")
-
 
     xoffset = -0.1
     yoffset = 0.01
@@ -284,12 +274,28 @@ def prediction_shuffling_control(ax, ax2, units, connections, rates, vij, nreps 
     print('my pvalue ', np.mean(abs_error['L23'] <= abs_error['L4']))
 
     ax.set_yticks([0, np.pi/8, np.pi/4], ['0', 'π/8', 'π/4'])
+    #ax.set_ylim(np.pi/6, np.pi/3.75)
     ax.set_ylim(0, np.pi/3.25)
     ax.set_xticks(barpos, ['L2/3', 'L4', 'Total'])
-
     ax.set_ylabel("Pref. ori. error")
 
     return
+
+def plot_error_prediction_dist(ax, signed_delta):
+    bins = np.arange(-5.5, 6.5)
+    angles = np.arange(-1.5, 10.5)
+    for layer in ['L23', 'L4', 'Total']:
+        dist_diffs, _ = np.histogram(signed_delta[layer], bins=bins)    
+        dist_diffs = dist_diffs / dist_diffs.sum()
+        #The way to symmetrize the step function is a bit more convoluted than just plotutils.add_symmetric_angle, but it works
+        dist_diffs = np.insert(dist_diffs, [0], 0.)
+        dist_diffs[2] = dist_diffs[-2]
+        ax.step(angles, dist_diffs, color=cr.lcolor[layer])
+    
+    ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
+    ax.set_xlabel(r"$\hat \theta_\text{pred} - \hat \theta$")
+
+    ax.set_ylabel("Fraction")
 
 
 #Defining Parser
@@ -347,7 +353,11 @@ def plot_figure(figname):
 
 
     #plot_sampling_current(axes['B1'], axes['B2'], matched_neurons, matched_connections, rates)
-    prediction_shuffling_control(axes['C'], axes['L'], matched_neurons, matched_connections, rates, vij)
+
+    #prediction_shuffling_control(axes['C'], axes['L'], matched_neurons, matched_connections, rates, vij)
+    error, error_shuffled, error_signed = compute_error_prediction(matched_neurons, matched_connections, rates, vij)
+    plot_error_prediction(axes['C'], error, error_shuffled) 
+    plot_error_prediction_dist(axes['L'], error_signed)
 
     #axes['L'].set_axis_off()
     #handles, labels = axes['B1'].get_legend_handles_labels()

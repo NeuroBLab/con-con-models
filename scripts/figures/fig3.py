@@ -4,6 +4,8 @@ import pandas as pd
 import argparse
 from PIL import Image
 
+from scipy.stats import ttest_ind_from_stats
+
 import sys
 import os 
 sys.path.append(os.getcwd())
@@ -33,16 +35,20 @@ def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
     h = h / h.sum()
     h[0] = h[-1] #Between -4.5 and -3.5 value is always 0. To make it periodic, match with the last one
 
-    centered_bins = 0.5 * (bins[:-1] + bins[1:])
+    angles = np.arange(-5.5, 6.5)
+    h = np.insert(h, 0, [0,0])
+    h = np.append(h, [0])
 
-    ax1.plot(centered_bins, h, color='k')
-    ax1.scatter(centered_bins, h, color='k', s=cr.ms, zorder=3)
+    ax1.step(angles, h, color='k')
+
+    #ax1.plot(centered_bins, h, color='k')
+    #ax1.scatter(centered_bins, h, color='k', s=cr.ms, zorder=3)
     ax1.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
 
     ax1.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax1.set_ylabel("Fract. neurons")
+    ax1.set_ylabel("Fract. synapses")
 
-    ax1.set_ylim(0, 0.17)
+    ax1.set_ylim(0, 0.5)
 
     preids = v1_connections['pre_id'].values
     pref_ori = v1_neurons.loc[preids, 'pref_ori']
@@ -68,7 +74,7 @@ def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
     ax2.set_ylim(1e-4, 1e-1)
 
     ax2.set_xlabel('Volume (mean normalized)')
-    ax2.set_ylabel("Frac. Synapses")
+    ax2.set_ylabel("Frac. synapses")
     ax2.legend(loc=(0.2, 0.9), ncol=2, fontsize=8)
 
 def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
@@ -104,7 +110,7 @@ def conn_prob_osi(ax, probmean, proberr):
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
     ax.set_ylim(0.5, 1.1)
-    ax.set_xlabel(r"$|\theta -  \hat \theta_\text{post}|$")
+    ax.set_xlabel(r"$|\hat \theta_\text{post} - \hat \theta _\text{pre}|$")
     ax.set_ylabel("Conn. Prob\n(Normalized)")
 
     ax.legend(loc='best')
@@ -155,41 +161,40 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
 
 def tuning_prediction_performance(ax, matched_neurons, matched_connections, rates, indegree, nexperiments): 
 
-    angles = np.arange(9)
+    #angles = np.arange(9)
+    angles = np.arange(-1.5, 10.5)
     tuned_outputs = fl.filter_connections_prepost(matched_neurons, matched_connections,  tuning=['tuned', "tuned"], proofread=['minimum', None])
     prob_pref_ori, _, _= curr.sample_prefori(matched_neurons, tuned_outputs, nexperiments, rates, nsamples=indegree)
     
-
     #Plot
     for layer in ['Total', 'L23', 'L4']:
-        #prob    = plotutils.shift(prob_pref_ori[layer])
-        #proberr = plotutils.shift(prob_pref_ori[layer + "_error"])
-        prob    = np.insert(prob_pref_ori[layer], 0, prob_pref_ori[layer][-1])
-        proberr = np.insert(prob_pref_ori[layer + "_error"], 0, prob_pref_ori[layer + "_error"][-1])
+        #Prepare for symmetrization and a good-looking aspect for step
+        prob    = np.insert(prob_pref_ori[layer], 0, [0, 0, prob_pref_ori[layer][-1]])
+        prob = np.append(prob, [0])
 
-
-        ax.fill_between(angles, prob - proberr, prob + proberr, alpha = 0.5, color=cr.lcolor[layer])
-        ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
-        ax.scatter(angles, prob, color=cr.dotcolor[layer], zorder=3, s=cr.ms) 
-
-        #prob = plotutils.shift(currents[layer])
-        #ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
-
-
+        ax.step(angles, prob, color=cr.lcolor[layer], label=layer)
 
     null_pref_ori, currents, _ = curr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates, nsamples=indegree, shuffle=True)
-    null_prob    = np.insert(null_pref_ori["L4"], 0, null_pref_ori["L4"][-1])
-    null_proberr = np.insert(null_pref_ori["L4_error"], 0, null_pref_ori["Total_error"][-1])
 
+    print()
+    print()
     for layer in ['Total', 'L23', 'L4']:
-        #ax.fill_between(angles, null_prob - null_proberr, null_prob + null_proberr, alpha = 0.5, color='purple')
-        #ax.plot(angles, null_prob, c='purple', label='Shuffled TOTAL')
-        null_prob    = np.insert(null_pref_ori[layer], 0, null_pref_ori[layer][-1])
-        ax.plot(angles, null_prob, label=layer)
+        p1    = prob_pref_ori[layer][3]
+        p1err = prob_pref_ori[layer + "_error"][3] * np.sqrt(nexperiments)
+        p2    = null_pref_ori[layer][3]
+        p2err = null_pref_ori[layer + "_error"][3] * np.sqrt(nexperiments)
+        st, pval = ttest_ind_from_stats(p1, p1err, nexperiments, p2, p2err, nexperiments)
+        print(f"Comparision test {layer} = ({st}, {pval})")
+    print()
+    print()
 
-    #for layer in ['Total', 'L23', 'L4']:
-    #    prob = plotutils.shift(currents[layer])
-    #    ax.plot(angles, prob, color=cr.lcolor[layer], label=layer)
+    """
+    for layer in ['Total', 'L23', 'L4']:
+        null_prob    = np.insert(null_pref_ori[layer], 0, null_pref_ori[layer][-1])
+        null_prob_err    = np.insert(null_pref_ori[layer + "_error"], 0, null_pref_ori[layer + "_error"][-1])
+        ax.fill_between(angles, null_prob - null_proberr, null_prob + null_proberr, alpha = 0.5, color='purple')
+        ax.plot(angles, null_prob, c='purple', label='Shuffled TOTAL')
+    """
 
     ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
     ax.set_ylabel("Fract. neurons")

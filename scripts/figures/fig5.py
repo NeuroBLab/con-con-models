@@ -95,7 +95,7 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
 
         #Then just adjust axes and put a legend
         axes[layer].tick_params(axis='both', which='major')
-        axes[layer].set_xlabel(r"$|\hat \theta _\text{pos} - \hat \theta _\text{pre} |$")
+        axes[layer].set_xlabel(r"$|\hat \theta _\text{post} - \hat \theta _\text{pre} |$")
         #axes[layer].set_ylabel(r"$p(\Delta \theta) / p(0)$")
         axes[layer].set_ylabel("Conn. Prob. \n(Normalized)")
 
@@ -113,7 +113,7 @@ def make_bar_plot(ax, cvsims, cvdata, title):
     x = np.arange(4)
 
     print(m.shape)
-    ax.bar(x, m, color = cr.reshuf_color) 
+    ax.bar(x, m, color = cr.reshuf_color, edgecolor='k') 
     ax.errorbar(x, m, yerr = s, color = 'black', marker = 'none', ls='none') 
 
     ax.axhline(cvdata, ls='--', color = 'black')
