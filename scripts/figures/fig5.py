@@ -23,17 +23,28 @@ import ccmodels.plotting.color_reference as cr
 def diff_emergent2target_prefori(ax, diff_ori, color, label):
 
 
-    bins = np.arange(-4.5, 5.5)
+    bins = np.arange(-5.5, 6.5)
 
     hist, edges = np.histogram(diff_ori, bins=bins)
+    hist = hist / hist.sum() 
 
-    hist[0] = hist[-1] #Boundary conditions for angle
+    xvals = 0.5 * (bins[1:] + bins[:-1]) * np.pi / 8  
+    print(xvals)
+    print(hist)
+    print(hist * xvals**2)
+    av  = np.dot(hist,  xvals**2)
+    av2 = np.dot(hist,  xvals**4)
+    print('mse', av,  np.sqrt(av2 - av**2))
+    print(hist.sum() - hist[5])
+    print()
 
-    hist = hist / len(diff_ori)
-    lines, = ax.plot(bins[:-1]+0.5, hist, marker='.', color=color, label=label)
+    hist[1] = hist[-2] #Boundary conditions for angle
+
+    #lines, = ax.plot(bins[:-1]+0.5, hist, marker='.', color=color, label=label)
+    lines, = ax.step(bins[:-1]+1, hist, color=color, label=label)
 
     ax.set_xlabel(r"$\hat \theta _\text{targt}- \hat \theta _\text{emerg}$")
-    ax.set_ylabel('Frac. of Neurons')
+    ax.set_ylabel('Neuron frac.')
     ax.set_xticks([-4, 0, 4], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.2, 0.4])
     ax.set_ylim(0., 0.41)
@@ -44,11 +55,11 @@ def plot_ratedist(ax, re, color):
     bins = np.linspace(0.01, 25, 60)
     w = np.ones(re.size) / re.size
 
+    print("rate ", re.mean(), re.std())
     ax.hist(re.ravel(), density=False,  weights=w, histtype='step', bins=bins, color=color)
 
-    ax.set_xlabel("Rate (spk/s)")
-    ax.set_ylabel('Fract. of neurons')
-    #ax.set_xscale('log')
+    ax.set_xlabel("Rate")
+    #ax.set_ylabel('Neuron frac.')
     return
 
 
@@ -60,7 +71,7 @@ def circular_variance(ax, cved, color):
     ax.hist(cved, bins=bins, density=False, weights=w, color=color, histtype='step')
 
     ax.set_xlabel("Circ. Var.")
-    ax.set_ylabel("Fract. of neurons")
+    #ax.set_ylabel("Neuron frac.")
 
 
 def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
@@ -96,13 +107,13 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
         #Then just adjust axes and put a legend
         axes[layer].tick_params(axis='both', which='major')
         axes[layer].set_xlabel(r"$|\hat \theta _\text{post} - \hat \theta _\text{pre} |$")
-        #axes[layer].set_ylabel(r"$p(\Delta \theta) / p(0)$")
-        axes[layer].set_ylabel("Conn. Prob. \n(Normalized)")
+        #axes[layer].set_ylabel("Conn. Prob. \n(Normalized)")
 
         axes[layer].set_ylim(0.5, 1.1)
 
         axes[layer].set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
     
+    axes['L23'].set_ylabel("Conn. Prob. \n(Normalized)")
     return 
 def make_bar_plot(ax, cvsims, cvdata, title):
 
@@ -286,5 +297,5 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
-plot_figure("fig5", is_tuned=False,  generate_data=True)
-plot_figure("fig5", is_tuned=True,  generate_data=True)
+plot_figure("fig5", is_tuned=False,  generate_data=False)
+plot_figure("fig5", is_tuned=True,  generate_data=False)

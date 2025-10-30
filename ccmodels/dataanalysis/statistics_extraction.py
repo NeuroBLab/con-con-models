@@ -110,7 +110,7 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
 
     #Filter to the connections we want
     pre_ids  = fl.filter_neurons(v1_neurons, tuning='tuned', layer=pre_layer, proofread=proofread[0])['id'].unique()
-    post_ids = fl.filter_neurons(v1_neurons, tuning='tuned', layer="L23")['id'].unique()
+    post_ids = fl.filter_neurons(v1_neurons, tuning='tuned', layer="L23", proofread=proofread[1])['id'].unique()
 
     conn_from_tunedpre = fl.synapses_by_id(v1_connections, pre_ids=pre_ids, post_ids=post_ids, who='both')
     

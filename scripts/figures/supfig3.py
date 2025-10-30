@@ -61,25 +61,31 @@ def compute_summary_data(units, connections, rates):
     pL4  = means_data['L4'][-1]
     pL4mid  = means_data['L4'][2]
 
-    summary_data = np.zeros(12)
+    summary_data = np.zeros(10)
     summary_data[0] = r0
     summary_data[1] = rf
     summary_data[2] = cvd
     summary_data[3] = pL23
     summary_data[4] = pL4
-    summary_data[5] = pL23mid
-    summary_data[6] = pL4mid
+    #summary_data[5] = pL23mid
+    #summary_data[6] = pL4mid
 
     cvoexp, cvdexp = utl.compute_circular_variance(rates23, orionly=True)
 
     #Started in 5 before
-    summary_data[7] = np.mean(cvdexp)
-    summary_data[8] = np.std(cvdexp)
-    summary_data[9] = skew(cvdexp)
+    #summary_data[7] = np.mean(cvdexp)
+    #summary_data[8] = np.std(cvdexp)
+    #summary_data[9] = skew(cvdexp)
+
+    summary_data[5] = np.mean(cvdexp)
+    summary_data[6] = np.std(cvdexp)
+    summary_data[7] = skew(cvdexp)
 
     logrates = np.log(rates23.flatten())
-    summary_data[10] = np.mean(logrates)
-    summary_data[11] = np.std(logrates)
+    #summary_data[10] = np.mean(logrates)
+    #summary_data[11] = np.std(logrates)
+    summary_data[8] = np.mean(logrates)
+    summary_data[9] = np.std(logrates)
 
     return summary_data
 
@@ -101,7 +107,7 @@ def compute_errors(summary_data, folder_files, is_sbi):
     nparams = 8
     nfiles = 100
     params = np.empty((0, nparams))
-    summary_stats = np.empty((0,7))
+    summary_stats = np.empty((0,5))
 
     for i in range(nfiles):
         inputfile = np.loadtxt(f"data/model/simulations/{folder_files}/{i}.txt")
@@ -115,15 +121,17 @@ def compute_errors(summary_data, folder_files, is_sbi):
 
             pL23 = inputfile[:,21] 
             pL4  = inputfile[:, 26] 
-            pL23mid = inputfile[:,19] 
-            pL4mid  = inputfile[:, 24] 
+            #pL23mid = inputfile[:,19] 
+            #pL4mid  = inputfile[:, 24] 
 
-            stats = np.vstack((r0, rf, cvd, pL23, pL4, pL23mid, pL4mid)).transpose()
+            #stats = np.vstack((r0, rf, cvd, pL23, pL4, pL23mid, pL4mid)).transpose()
+            stats = np.vstack((r0, rf, cvd, pL23, pL4)).transpose()
 
             summary_stats = np.vstack((summary_stats, stats))
 
 
     #Increase the size of the summary stats
+    start_ind = 5
     summary_stats = np.hstack((summary_stats, np.zeros((summary_stats.shape[0], 5))))
 
 
@@ -132,22 +140,26 @@ def compute_errors(summary_data, folder_files, is_sbi):
 
         cvo, cvd = utl.compute_circular_variance(readrates, orionly=True)
         #Started on 5!
-        summary_stats[sim, 7] = np.mean(cvd)
-        summary_stats[sim, 8] = np.std(cvd)
-        summary_stats[sim, 9] = skew(cvd)
+        summary_stats[sim, start_ind] = np.mean(cvd)
+        summary_stats[sim, start_ind+1] = np.std(cvd)
+        summary_stats[sim, start_ind+2] = skew(cvd)
 
         logrates = np.log(readrates.flatten())
-        summary_stats[sim, 10] = np.mean(logrates)
-        summary_stats[sim, 11] = np.std(logrates)
+        summary_stats[sim, start_ind+3] = np.mean(logrates)
+        summary_stats[sim, start_ind+4] = np.std(logrates)
 
     ndata = params.shape[0]
     errors = np.empty((ndata, 4))
 
     for i in range(ndata):
+        #errors[i,0] = np.sum((summary_stats[i, 0:3] - summary_data[0:3])**2)
+        #errors[i,1] = np.sum((summary_stats[i, 3:7] - summary_data[3:7])**2)
+        #errors[i,2] = np.sum((summary_stats[i, 7:10] - summary_data[7:10])**2)
+        #errors[i,3] = np.sum((summary_stats[i, 10:12] - summary_data[10:12])**2)
         errors[i,0] = np.sum((summary_stats[i, 0:3] - summary_data[0:3])**2)
-        errors[i,1] = np.sum((summary_stats[i, 3:7] - summary_data[3:7])**2)
-        errors[i,2] = np.sum((summary_stats[i, 7:10] - summary_data[7:10])**2)
-        errors[i,3] = np.sum((summary_stats[i, 10:12] - summary_data[10:12])**2)
+        errors[i,1] = np.sum((summary_stats[i, 3:5] - summary_data[3:5])**2)
+        errors[i,2] = np.sum((summary_stats[i, 5:8] - summary_data[5:8])**2)
+        errors[i,3] = np.sum((summary_stats[i, 8:10] - summary_data[8:10])**2)
     
     if is_sbi:
         best = np.argwhere((errors[:,0] < 0.29) & (errors[:,1] < 0.0051) & (errors[:,2] < 0.07) & (errors[:,3] < 2.))[:,0]
@@ -166,39 +178,23 @@ def plot_posterior_distrib(axes, posterior_samples, intervals, color, bw='ISJ'):
 
     #A plot for each parameter
     for param in range(len(axes)):
-
-        #Histogram
-        bins = np.linspace(intervals[param][0], intervals[param][1], 100)
-        hist, edges = np.histogram(posterior_samples[:,param], bins=bins, density=True)
-        centered = 0.5*(edges[1:]+edges[:-1])
-        
         x, y = FFTKDE(kernel='gaussian', bw=bw).fit(posterior_samples[:,param].numpy()).evaluate()
-        #Fill between for fancyness
-        #axes[param].fill_between(centered, np.zeros(99), hist, color=color, lw=2.0, alpha=0.5)
-        axes[param].fill_between(x, np.zeros(len(x)), y, color=color, lw=2.0, alpha=0.5)
+        axes[param].plot(x, y, color=color)
 
-        #Now highlight correct and most common (estimation)
-        #axes[param].axvline(inferred[param], c=colorline, ls="--", lw=lw)
-        
-        
         #Despine and clean axes
-        axes[param].spines['right'].set_visible(False)
-        axes[param].spines['top'].set_visible(False)
         axes[param].set_yticks([])
-        axes[param].set_ylim(0, 1.1*np.max(hist))
+        axes[param].set_ylim(0, 1.1*np.max(y))
 
         #Set labels
         axes[param].set_xlabel(labels[param], fontsize=14)
 
 
     #Finish graph
-    axes[0].set_ylabel("Prob. density", fontsize=14)
     return
 
 def plot_sbi_result(axes, sbinet, summary_data, best_pars, color):
     j0, jf = 0., 4.
     g0, gf = 0., 5.
-    #theta0, thetaf = 19., 19.
     sigmaE0, sigmaEf = 7., 12.
     sigmaI0, sigmaIf = 7., 12.
     hei0, heif = 50., 150.
@@ -209,7 +205,7 @@ def plot_sbi_result(axes, sbinet, summary_data, best_pars, color):
     intervals = [[j0, jf], [g0, gf], [sigmaE0, sigmaEf], [sigmaI0, sigmaIf], [hei0, heif], [hii0, hiif], [b230, b23f], [b40, b4f]]
 
     posterior = msbi.load_posterior(f"data/model/sbi_networks/{sbinet}.sbi") 
-    pars = posterior.sample((10000,), x=summary_data).numpy()
+    pars = posterior.sample((100000,), x=summary_data).numpy()
     parameters_sample = torch.tensor(pars)
 
     ncols = 8
@@ -225,14 +221,24 @@ def plot_errors(axes, errors_random, errors_sbi, best_error, c1):
     c2 = 'gray' 
 
     bin_vec = [[0, 100, 300], [0, 0.2, 100], [0, 0.5, 100], [0, 2., 100]]
+    ylabels = ["tuning curve", "conn. prob.", "circ. var.", "rate dist."]
 
     for i in range(4):
         binslims = bin_vec[i]
         bins = np.linspace(binslims[0], binslims[1], binslims[2])
-        axes[i].hist(errors_random[:,i], bins=bins, density=True, color=c2, label='Random')
-        axes[i].hist(errors_sbi[:,i], bins=bins, alpha=0.5, density=True, color=c1, label='sbi')
-        axes[i].axvline(best_error[i], color='black', ls=":")
 
+        h, edges = np.histogram(errors_random[:,i], bins=bins, density=True)
+        edges = 0.5 * (edges[1:] + edges[:-1])
+        axes[i].plot(edges, h, color=c2, label='Random')
+
+        h, edges = np.histogram(errors_sbi[:,i], bins=bins, density=True)
+        edges = 0.5 * (edges[1:] + edges[:-1])
+        axes[i].plot(edges, h, color=c1, label='SBI')
+
+        axes[i].axvline(best_error[i], color='black', ls=":")
+        axes[i].set_xlabel(f"Error {ylabels[i]}")
+
+    axes[0].set_ylabel("Prob. density")
     axes[0].legend(loc='best')
 
 #Defining Parser
@@ -242,38 +248,61 @@ parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
 parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
 args = parser.parse_args()
 
-def plot_figure(figname):
+def plot_figure(figname, is_tuned):
     # load files
     units, connections, rates = loader.load_data(orientation_only=True)
     connections = fl.remove_autapses(connections)
 
     connections.loc[:, 'syn_volume'] /=  connections.loc[:, 'syn_volume'].mean()
 
+    if is_tuned:
+        dataname = "tunedk150"
+        sbiname = "tunedk150_mini"
+    else:
+        dataname = "randk150"
+        sbiname = "randk150_mini"
+
     summary_data                       = compute_summary_data(units, connections, rates)
-    errors_random                      = compute_errors(summary_data, "randk150", False)
-    errors_sbi, best_pars, best_error  = compute_errors(summary_data, "sbi_randk150", True)
+    errors_random                      = compute_errors(summary_data, dataname, False)
+    errors_sbi, best_pars, best_error  = compute_errors(summary_data, f"sbi_{dataname}", True)
+
+    if is_tuned:
+        best_pars = best_pars = np.array([9.94296014e-01, 2.04172418e-01, 7.58484888e+00, 8.25478363e+00, 6.88277740e+01, 4.54100189e+02, 1.44280359e-01, 1.49676427e-01])
+    else:
+        best_pars = np.array([7.92474210e-01, 3.59854251e-01, 7.69989061e+00, 7.60365248e+00, 9.98869781e+01, 4.66699005e+02, 2.98812389e-01, 1.46130979e-01])
 
 
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=1.7), layout="constrained")
+    fig = plt.figure(figsize=sty.two_col_size(ratio=1.5), layout="constrained")
 
     axes = fig.subplot_mosaic(
         """
-        ABCDEFGH
-        XXYYZZWW
-        """
+        1111
+        ABCD
+        EFGH
+        2222
+        XYZW
+        """, height_ratios=[0.1, 0.5, 0.5, 0.1, 1]
     )
 
     color = cr.pal_extended[1]
 
-    plot_sbi_result([axes[k] for k in 'ABCDEFGH'], "randk150_mini", summary_data, best_pars, color)
+    #Add some titles
+    for i in "12":
+        axes[i].set_axis_off()
+    axes['1'].text(0.5, 0.5, "Parameter posterior density distributions from SBI", weight='bold', horizontalalignment='center')
+    axes['2'].text(0.5, 0.5, "Errors in summary statistics", weight='bold', horizontalalignment='center')
+
+    plot_sbi_result([axes[k] for k in 'ABCDEFGH'], sbiname, summary_data, best_pars, color)
     plot_errors([axes[k] for k in 'XYZW'], errors_random, errors_sbi, best_error, color)
 
 
-    #axes2label = [axes[k] for k in ['A', 'X', 'Y', 'Z', 'E']]
-    #label_pos  = [[0.8, 0.95]] * 5 
-    #sty.label_axes(axes2label, label_pos)
+    axes2label = [axes[k] for k in list('ABCDEFGHXYZW')]
+    label_pos  = [[0.05, 0.95]] * 8 + [[0.1, 0.95]] * 4 
+    sty.label_axes(axes2label, label_pos)
+
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure("supfig3.pdf")
+plot_figure("supfig3_normal.pdf", is_tuned=False)
+plot_figure("supfig3_tuned.pdf",  is_tuned=True)
