@@ -70,8 +70,8 @@ def plot_tuning_curve(ax, units, rates):
 
 def plot_pref_ori(ax, units):
 
-    bins = np.arange(-1.5, 9.5)
-    angles = np.arange(-1, 9)
+    bins = np.arange(-2.5, 9.5)
+    angles = np.arange(-1.5, 9.5)
     for layer in ['L23', 'L4']:
         neurons_layer = fl.filter_neurons(units, layer=layer, tuning='tuned')
         h, _ = np.histogram(neurons_layer['pref_ori'].values, bins=bins)
@@ -81,7 +81,8 @@ def plot_pref_ori(ax, units):
 
     ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
     ax.set_xlabel(r"$\hat \theta$")
-    ax.set_ylabel("Fraction")
+    ax.set_ylabel("Neuron frac.")
+    ax.set_ylim(0, 0.35)
 
 
 
@@ -132,7 +133,7 @@ def plot_resultant_dist(ax, v1_neurons, rates):
 
     ax.set_xticks([0, 0.5, 1])
     ax.set_xlabel("Circ. Var")
-    ax.set_ylabel("Fract. neurons")
+    ax.set_ylabel("Neuron frac.")
 
 
 
@@ -171,13 +172,13 @@ def plot_figure(figname):
     #Top part: example of the tuning currents with the gratings, then tuning curve, then distribution 
     subfig_graphs = subfigs[0].subfigures(ncols=4, width_ratios = [1,1,1,1.25])
     subfigs_example = subfig_graphs[0].subplots(nrows=1, ncols=1)
-    subfigs_prefori = subfig_graphs[1].subplots(nrows=1, ncols=1)
-    subfigs_tcurve = subfig_graphs[2].subplots(nrows=1, ncols=1) #single one!
+    subfigs_tcurve = subfig_graphs[1].subplots(nrows=1, ncols=1)
+    subfigs_prefori = subfig_graphs[2].subplots(nrows=1, ncols=1) #single one!
     subfigs_tuned = subfig_graphs[3].subplots(nrows=2, height_ratios = [0.35, 1.])
 
     axes['A'] = subfigs_example
-    axes['B'] = subfigs_prefori
-    axes['C'] = subfigs_tcurve
+    axes['B'] = subfigs_tcurve
+    axes['C'] = subfigs_prefori
     axes['D1'] = subfigs_tuned[0]
     axes['D2'] = subfigs_tuned[1]
 
@@ -192,9 +193,8 @@ def plot_figure(figname):
 
     example_tuning_curve(axes['A'], units, rates, error_rates)
 
-    plot_tuning_curve(axes['B'], matched_neurons, rates)
-
-    plot_pref_ori(axes['C'], units)
+    plot_pref_ori(axes['B'], units)
+    plot_tuning_curve(axes['C'], matched_neurons, rates)
 
     fraction_tuned(axes['D1'], matched_neurons) 
     plot_resultant_dist(axes['D2'], matched_neurons, rates)
@@ -202,7 +202,7 @@ def plot_figure(figname):
     fig.get_layout_engine().set(wspace=1/72, w_pad=0)
 
     axes2label = [axes[k] for k in ['A', 'B', 'C', 'D1', 'E', 'F']]
-    label_pos  = 2*[[0.1, 0.9]] + [[0.2, 0.9]] + [[-0.3, 0.9]] + 2*[[0.1, 1.]] 
+    label_pos  = 2*[[0.1, 0.9]] +[[0.2, 0.9]] + [[-0.3, 0.9]] + 2*[[0.1, 1.]] 
     sty.label_axes(axes2label, label_pos)
 
     for ax in [axes['E'], axes['F']]:

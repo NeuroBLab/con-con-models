@@ -138,8 +138,8 @@ def remap_all_tables(v1_neurons, v1_connections, v1_activity):
     remap_table(idx_remap, v1_neurons, ["id"])
 
     #Put back the pt root ids to identify units with neuroglancer if needed
-    v1_neurons['pt_root_id'] = v1_neurons['save_ptroot']
-    v1_neurons.drop(columns=['save_ptroot'])
+    v1_neurons.rename(columns = {'save_ptroot' : 'pt_root_id'}, inplace=True) 
+    v1_neurons.drop(columns = "index", inplace=True)
 
 
 #============================================================

@@ -31,9 +31,12 @@ def show_image(ax, path2im):
 def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
 
     bins = np.arange(-4.5, 5.5, 1)
+
     h, _ = np.histogram(v1_connections['delta_ori'],  bins=bins, density=False)
+
     h = h / h.sum()
     h[0] = h[-1] #Between -4.5 and -3.5 value is always 0. To make it periodic, match with the last one
+
 
     angles = np.arange(-5.5, 6.5)
     h = np.insert(h, 0, [0,0])
@@ -46,9 +49,9 @@ def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
     ax1.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
 
     ax1.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax1.set_ylabel("Fract. synapses")
+    ax1.set_ylabel("Syanpse frac.")
 
-    ax1.set_ylim(0, 0.5)
+    ax1.set_ylim(0, 0.3)
 
     preids = v1_connections['pre_id'].values
     pref_ori = v1_neurons.loc[preids, 'pref_ori']
@@ -74,7 +77,7 @@ def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
     ax2.set_ylim(1e-4, 1e-1)
 
     ax2.set_xlabel('Volume (mean normalized)')
-    ax2.set_ylabel("Frac. synapses")
+    ax2.set_ylabel("Synapse frac.")
     ax2.legend(loc=(0.2, 0.9), ncol=2, fontsize=8)
 
 def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
@@ -152,8 +155,6 @@ def plot_sampling_current(ax, ax_normalized, v1_neurons, v1_connections, rates, 
     ax_normalized.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
 
     ax.set_ylim(0, 1.05)
-    #ax.set_ylabel('μ(Δθ)')
-    #ax_normalized.set_ylabel('μ(Δθ)/μ(0)')
     ax.set_ylabel('Syn. Current')
     ax_normalized.set_ylabel('Syn. Current\n(Normalized)')
 
@@ -169,9 +170,19 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
     #Plot
     for layer in ['Total', 'L23', 'L4']:
         #Prepare for symmetrization and a good-looking aspect for step
+        prob    = prob_pref_ori[layer]
+
+        xvals = np.arange(-3, 5) * np.pi / 8  
+        print(xvals)
+        print(prob)
+        print(prob * xvals**2)
+        av  = np.dot(prob,  xvals**2)
+        av2 = np.dot(prob,  xvals**4)
+        print('mse', av,  np.sqrt(av2 - av**2))
+        print(f'Neurons correctly predicted {layer},', prob[6])
+
         prob    = np.insert(prob_pref_ori[layer], 0, [0, 0, prob_pref_ori[layer][-1]])
         prob = np.append(prob, [0])
-
         ax.step(angles, prob, color=cr.lcolor[layer], label=layer)
 
     null_pref_ori, currents, _ = curr.sample_prefori(matched_neurons, matched_connections, nexperiments, rates, nsamples=indegree, shuffle=True)
@@ -188,16 +199,8 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
     print()
     print()
 
-    """
-    for layer in ['Total', 'L23', 'L4']:
-        null_prob    = np.insert(null_pref_ori[layer], 0, null_pref_ori[layer][-1])
-        null_prob_err    = np.insert(null_pref_ori[layer + "_error"], 0, null_pref_ori[layer + "_error"][-1])
-        ax.fill_between(angles, null_prob - null_proberr, null_prob + null_proberr, alpha = 0.5, color='purple')
-        ax.plot(angles, null_prob, c='purple', label='Shuffled TOTAL')
-    """
-
     ax.set_xlabel(r"$\hat \theta_\text{target} - \hat \theta_\text{emerg}$")
-    ax.set_ylabel("Fract. neurons")
+    ax.set_ylabel("Neuron frac.")
 
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
@@ -244,6 +247,7 @@ def plot_figure(figname):
     indegree['L4'] =  int(kee * conn_prob.loc['E', 'X'] / conn_prob.loc['E', 'E'])
     indegree['Total'] = indegree['L23'] + indegree['L4']
     nexperiments = 3000
+    print(indegree)
 
     show_image(axes["X"], "sketchsampling.png")
 
@@ -261,5 +265,3 @@ def plot_figure(figname):
 
 
 plot_figure("fig3.pdf")
-
-#TODO ADD RANDOM CONTROL TO LAST PANEL

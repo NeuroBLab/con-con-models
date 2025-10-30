@@ -26,12 +26,13 @@ def example_tuning_curve(ax, rates, rates_err, id):
     rangle = plotutils.shift(rates[id, :])
     rangle_err = plotutils.shift(rates_err[id, :])
 
-    ax.plot(np.arange(9), rangle,  lw=1, color=cr.lcolor['L23'])
-    ax.plot(np.arange(9), rangle,  lw=1, color=cr.dotcolor['L23'], ls='none', marker='o', ms=cr.ms)
-    ax.errorbar(np.arange(9), rangle,  yerr = rangle_err , color=cr.dotcolor['L23'], fmt='none')
+    ax.annotate("", xytext=(4, 4), xy=(4, 2.75), arrowprops=dict(arrowstyle="->"), color='k')
+    ax.plot(np.arange(9), rangle,  lw=1, color='dimgray')
+    ax.plot(np.arange(9), rangle,  lw=1, color='dimgray', ls='none', marker='o', ms=cr.ms)
+    ax.errorbar(np.arange(9), rangle,  yerr = rangle_err , color='dimgray', fmt='none')
 
     ax.set_xticks([0, 4, 8], [0, 'π/2', 'π'])
-    ax.set_ylim(0, 11)
+    ax.set_ylim(0, 5)
     ax.set_xlabel("θ")
     ax.set_ylabel("Rate")
 
@@ -43,11 +44,17 @@ def example_current(ax, v1_neurons, connections, vij, rates, rates_err, id):
     
     #Get the presynaptic filtering and compute the current 
     pre_ids = fl.filter_neurons(v1_neurons, layer='L23', tuning='matched', proofread='minimum')
+    ptroots = connections.loc[connections['post_id'] == id, 'pre_id']
+    print('prepts L23, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id']) 
+    print('prepts L23, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id'].nunique()) 
     currents['L23'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
     currents_err['L23'] = curr.get_currents_subset(v1_neurons, vij, rates_err, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
 
     #Then repeat for the other layer
     pre_ids = fl.filter_neurons(v1_neurons, layer='L4', tuning='matched', proofread='minimum')
+    ptroots = connections.loc[connections['post_id'] == id, 'pre_id']
+    print('prepts L4, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id']) 
+    print('prepts L4, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id'].nunique()) 
     currents['L4'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
     currents_err['L4'] = curr.get_currents_subset(v1_neurons, vij, rates_err, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
 
@@ -68,7 +75,7 @@ def example_current(ax, v1_neurons, connections, vij, rates, rates_err, id):
 
 
     ax.set_xticks([0, 4, 8], [0, 'π/2', 'π'])
-    ax.set_yticks([0, 0.5, 1])
+    ax.set_yticks([0, 0.55, 1])
     ax.set_xlabel("θ")
     ax.set_ylabel("Synap. curr.")
 
@@ -80,12 +87,14 @@ def plot_currents(axes, units, rates, vij):
 
     #Get the postsynaptic tuned neurons
     post = fl.filter_neurons(units, layer='L23', tuning='tuned')
+    print("n neurons", len(post)) 
     
     #Get the presynaptic neurons in each one of the layers + the total one
     pre = {}
     pre["Total"]  = fl.filter_neurons(units, proofread='minimum')
     for layer in ["L23", "L4"]:
         pre[layer]  = fl.filter_neurons(units, layer=layer, proofread='minimum')
+        print(f"n neurons {layer}", len(pre[layer])) 
     
     #To store the results...
     avgcurrent = {}
@@ -132,6 +141,9 @@ def plot_currents(axes, units, rates, vij):
         axes[1].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer],color=cr.lcolor[layer], alpha=0.5, edgecolor=None) 
         axes[1].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
         axes[1].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
+
+    axes[0].set_ylim(0, 1.05)
+    axes[0].legend(loc=(0.02, 0.55), ncols=3, fontsize=9)
 
     for ax in axes:
         ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
@@ -232,6 +244,7 @@ def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
         fraction_shuffled[i] = (diff_angles == 0).sum() / len(diff_angles) 
         abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
 
+    print("errors prediction, ", abs_error)
     return abs_error, abs_error_shuffled, signed_delta
 
 def plot_error_prediction(ax, abs_error, abs_error_shuffled ):
@@ -269,6 +282,7 @@ def plot_error_prediction(ax, abs_error, abs_error_shuffled ):
 
         ax.text(barpos[i] + xoffset + 0.2 * xoffset * len(sign), linepos + yoffset, f"{sign}")
 
+        print(layer, delta, delta_err)
         ax.bar(barpos[i], delta, yerr=delta_err, color=cr.lcolor[layer], edgecolor='k')
 
     print('my pvalue ', np.mean(abs_error['L23'] <= abs_error['L4']))
@@ -295,7 +309,7 @@ def plot_error_prediction_dist(ax, signed_delta):
     ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
     ax.set_xlabel(r"$\hat \theta_\text{pred} - \hat \theta$")
 
-    ax.set_ylabel("Fraction")
+    ax.set_ylabel("Neuron frac.")
 
 
 #Defining Parser
@@ -328,8 +342,8 @@ def plot_figure(figname):
         [['T', 'T', 'T',  'T'],
          ['X', 'A1','B1', 'C'],
          ['X', 'A2','B2', 'L']],
-         height_ratios=[0.5, 1, 1],
-          width_ratios=[0.8, 1,1,1]
+         height_ratios=[0.6, 1, 1],
+          width_ratios=[1.1, 1,1,1]
     )
 
     #USe the upper space for titles
@@ -340,13 +354,14 @@ def plot_figure(figname):
     axes['T'].set_in_layout(False)
 
     #units = fl.filter_neurons(units, layer='L23', tuning='tuned', proofread='dn_clean')
-    selected_unit = 19 #1119
+    selected_unit = 291 
     id = units['id'].values[selected_unit] 
 
     axes['X'].set_axis_off()
-    axes['X'].text(0.1, 0.9, f"pt_root_id:\n{units['pt_root_id'].values[selected_unit]}", fontsize=10)
+    axes['X'].text(0.1, 0.9, f"nucleus_id:\n{units['nucleus_id'].values[selected_unit]}", fontsize=10)
+    print("pt_root_id ", units['pt_root_id'].values[selected_unit])
 
-
+    #show_image(axes["X"], "example_neuron_cut.png")
     example_tuning_curve(axes['A1'], rates, rates_err, id)
     example_current(axes['A2'], matched_neurons, matched_connections, vij, rates, rates_err, id)
     plot_currents([axes['B1'], axes['B2']], matched_neurons, rates, vij)

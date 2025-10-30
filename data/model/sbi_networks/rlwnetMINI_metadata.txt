@@ -1,1 +1,0 @@
-Network generated with commit hash: afdcac9e2ac8c704310b13f182ba93dc935748c2 and sample mode normal using L23 L4 CV rates entirely

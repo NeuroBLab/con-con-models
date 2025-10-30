@@ -1,1 +1,0 @@
-Network generated with commit hash: {gitc}.

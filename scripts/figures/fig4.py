@@ -42,7 +42,7 @@ def plot_ratedist(ax, rates, re, ri):
     ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', ls="--", markersize=cr.ms, zorder=3, label='data exc')
 
     ax.set_xlabel("Rate")
-    ax.set_ylabel('Fract. of neurons')
+    ax.set_ylabel('Neuron frac.')
 
     ax.legend(loc='best', fontsize=9)
     return
@@ -74,7 +74,7 @@ def plot_tuning_curves(ax, units, rates, tuning_curves, tuning_error):
     ax.set_xlabel(r'$\theta - \hat \theta$')
     ax.set_ylabel('Rate')
 
-    ax.legend(loc=(0.05, 0.6), fontsize=9)
+    ax.legend(loc=(0.03, 0.75), fontsize=9)
 
     return
 
@@ -180,7 +180,7 @@ def compute_currents(units_sample, QJ, rates_sample, k23, k4):
 
     return currmean 
 
-def plot_currents(ax, ax_norm, units, vij, rates, currmean, currerr, k23, k4):
+def plot_currents(ax, ax_norm, ax_leg, units, vij, rates, currmean, currerr, k23, k4):
 
 
     currents = mcur.bootstrap_mean_current(units, vij, rates, ['tuned', 'tuned'])
@@ -209,10 +209,13 @@ def plot_currents(ax, ax_norm, units, vij, rates, currmean, currerr, k23, k4):
     ax_norm.set_ylabel("Syn. Current \n(Normalized)")
 
 
-    ax.legend(loc=(0.05, 0.9), ncols=3, fontsize=9)
     ax.set_ylim(0.0, 1.1)
     ax_norm.set_ylim(0.75, 1.05)
 
+    handles, labels = ax.get_legend_handles_labels()
+    ax_leg.legend(handles, labels, loc=(-0.1, 0.5), ncols=3, fontsize=9)
+
+#"""
 def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
 
     rates = dutl.get_untuned_rate(units, rates) 
@@ -353,9 +356,28 @@ def plot_error_prediction(ax, abs_error, abs_error_shuffled):
     #ax.set_ylabel("Pref. ori. error")
 
     return
+#"""
 
+def compute_pref_ori(units):
+    bins = np.arange(-2.5, 9.5)
+    h = {}
+    for layer in ['L23', 'L4']:
+        neurons_layer = fl.filter_neurons(units, layer=layer, tuning='tuned')
+        h[layer], _ = np.histogram(neurons_layer['pref_ori'].values, bins=bins)
+        h[layer] = h[layer] / h[layer].sum()
+    
+    return h
 
+def plot_pref_ori(ax, h):
 
+    angles = np.arange(-1.5, 9.5)
+    for layer in ['L23', 'L4']:
+        ax.step(angles, h[layer], color = cr.lcolor[layer])
+
+    ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
+    ax.set_xlabel(r"$\hat \theta$")
+    ax.set_ylabel("Neuron frac.")
+    ax.set_ylim(0, 0.25)
 
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 1''')
@@ -386,7 +408,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
     sty.master_format()
-    fig, axes = plt.subplots(figsize=sty.two_col_size(height=12.5), ncols=3, nrows=3, layout="constrained")
+    fig, axes = plt.subplots(figsize=sty.two_col_size(height=9.5), ncols=4, nrows=2, layout="constrained")
 
     k23, k4 = 200, 70 #First is fixed, the second is scaled from the connections probabilities 
     #(it can be get as np.sum(QJ[:ne, ne+ni:] > 0, axis = 1).mean() after a simulation)
@@ -409,6 +431,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
         error_pred_shuffle = np.zeros(1000)
         error_subs_pred = {'L23' : np.zeros(1000), 'L4' : np.zeros(1000), 'Total' : np.zeros(1000)} 
         error_subs_pred_shuffle = np.zeros(1000)
+        #prefori_hist = {'L23' : np.zeros(11), 'L4' : np.zeros(11), 'Total' : np.zeros(11)} 
 
         for j in range(nexp):
             #units_sample, connections_sample, rates_sample, n_neurons, target_ori = utl.load_synthetic_data(f"best_ale_{j}")
@@ -441,9 +464,13 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
                 currmean[layer] += means_curr[layer]
                 currerr[layer] += means_curr[layer]**2
 
+                #h = compute_pref_ori(units_sample)
+                #prefori_hist[layer] += h[layer]
+
             currmean['Total'] += means_curr['Total']
             currerr['Total']  += means_curr['Total']**2
 
+            #"""
             error, error_shuffled, _ = compute_error_prediction(units_sample, connections_sample, rates_sample, QJ)
 
             error_pred_shuffle += error_shuffled
@@ -467,7 +494,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
 
             #Leave it as it was, just in case it is needed for something else
             units_sample.loc[:, 'axon_proof'] = 'extended'
-
+            #"""
 
 
         for layer in ['L23', 'L4']:
@@ -480,6 +507,8 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
             currerr[layer]  /= nexp  
             currerr[layer]  -= currmean[layer]**2
             currerr[layer] = np.sqrt(currerr[layer]) 
+
+            #prefori_hist[layer] /= nexp
 
 
         currmean['Total'] /= nexp
@@ -494,8 +523,8 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
             error_pred[layer]               /= nexp
             error_subs_pred[layer]          /= nexp
 
-        error_pred_shuffle       /= nexp
-        error_subs_pred_shuffle  /= nexp
+        #error_pred_shuffle       /= nexp
+        #error_subs_pred_shuffle  /= nexp
 
 
 
@@ -515,26 +544,22 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
         for layer in ['L23', 'L4']:
             np.save(f"{args.save_destination}/{figname}_probmean{layer}", probmean[layer])
             np.save(f"{args.save_destination}/{figname}_proberro{layer}", proberr[layer])
+
+            #np.save(f"{args.save_destination}/{figname}_preforihist{layer}", prefori_hist[layer])
+
         for layer in ['L23', 'L4', 'Total']:
             np.save(f"{args.save_destination}/{figname}_currmean{layer}", currmean[layer])
             np.save(f"{args.save_destination}/{figname}_currerro{layer}", currerr[layer])
 
-            np.save(f"{args.save_destination}/{figname}_errorpred{layer}",  error_pred[layer])
-            np.save(f"{args.save_destination}/{figname}_errorsubspred{layer}",  error_subs_pred[layer])
+            #np.save(f"{args.save_destination}/{figname}_errorpred{layer}",  error_pred[layer])
+            #np.save(f"{args.save_destination}/{figname}_errorsubspred{layer}",  error_subs_pred[layer])
 
-        np.save(f"{args.save_destination}/{figname}_errorpredshuffle",  error_pred_shuffle)
-        np.save(f"{args.save_destination}/{figname}_errorsubspredshuffle",  error_subs_pred_shuffle)
+            print("full", layer, error_pred[layer].mean(), error_pred[layer].std())
+            print("subs", layer, error_subs_pred[layer].mean(), error_subs_pred[layer].std())
 
-        #np.save(f"{args.save_destination}/{figname}_probmeanL23", probmean['L23'])
-        #np.save(f"{args.save_destination}/{figname}_proberroL23", proberr['L23'])
-        #np.save(f"{args.save_destination}/{figname}_probmeanL4", probmean['L4'])
-        #np.save(f"{args.save_destination}/{figname}_proberroL4", proberr['L4'])
-        #np.save(f"{args.save_destination}/{figname}_currmeanL23", currmean['L23'])
-        #np.save(f"{args.save_destination}/{figname}_currerroL23", currerr['L23'])
-        #np.save(f"{args.save_destination}/{figname}_currmeanL4",  currmean['L4'])
-        #np.save(f"{args.save_destination}/{figname}_currerroL4",  currerr['L4'])
-        #np.save(f"{args.save_destination}/{figname}_currmeanLT",  currmean['Total'])
-        #np.save(f"{args.save_destination}/{figname}_currerroLT",  currerr['Total'])
+        #np.save(f"{args.save_destination}/{figname}_errorpredshuffle",  error_pred_shuffle)
+        #np.save(f"{args.save_destination}/{figname}_errorsubspredshuffle",  error_subs_pred_shuffle)
+
     else:
         probmean = {}
         proberr  = {}
@@ -542,6 +567,7 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
         currerr  = {}
         error_pred = {}
         error_subs_pred = {}
+        #prefori_hist = {}
 
         allratesE = np.load(f"{args.save_destination}/{figname}_rateE_data.npy")
         allratesI = np.load(f"{args.save_destination}/{figname}_rateI_data.npy")
@@ -553,33 +579,26 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
             probmean[layer] = np.load(f"{args.save_destination}/{figname}_probmean{layer}.npy")
             proberr[layer] = np.load(f"{args.save_destination}/{figname}_proberro{layer}.npy")
 
+            #prefori_hist[layer] = np.load(f"{args.save_destination}/{figname}_preforihist{layer}.npy")
+
         for layer in ['L23', 'L4', 'Total']:
             currmean[layer] = np.load(f"{args.save_destination}/{figname}_currmean{layer}.npy")
             currerr[layer] = np.load(f"{args.save_destination}/{figname}_currerro{layer}.npy")
 
-            error_pred[layer]               = np.load(f"{args.save_destination}/{figname}_errorpred{layer}.npy")
-            error_subs_pred[layer]          = np.load(f"{args.save_destination}/{figname}_errorsubspred{layer}.npy")
+            #error_pred[layer]               = np.load(f"{args.save_destination}/{figname}_errorpred{layer}.npy")
+            #error_subs_pred[layer]          = np.load(f"{args.save_destination}/{figname}_errorsubspred{layer}.npy")
 
-        error_pred_shuffle       = np.load(f"{args.save_destination}/{figname}_errorpredshuffle.npy")
-        error_subs_pred_shuffle  = np.load(f"{args.save_destination}/{figname}_errorsubspredshuffle.npy")
+        #error_pred_shuffle       = np.load(f"{args.save_destination}/{figname}_errorpredshuffle.npy")
+        #error_subs_pred_shuffle  = np.load(f"{args.save_destination}/{figname}_errorsubspredshuffle.npy")
 
-        #probmean['L23'] = np.load(f"{args.save_destination}/{figname}_probmeanL23.npy")
-        #proberr['L23'] = np.load(f"{args.save_destination}/{figname}_proberroL23.npy")
-        #probmean['L4'] = np.load(f"{args.save_destination}/{figname}_probmeanL4.npy")
-        #proberr['L4'] = np.load(f"{args.save_destination}/{figname}_proberroL4.npy")
-        #currmean['L23'] = np.load(f"{args.save_destination}/{figname}_currmeanL23.npy")
-        #currerr['L23'] = np.load(f"{args.save_destination}/{figname}_currerroL23.npy")
-        #currmean['L4'] = np.load(f"{args.save_destination}/{figname}_currmeanL4.npy")
-        #currerr['L4'] = np.load(f"{args.save_destination}/{figname}_currerroL4.npy")
-        #currmean['Total'] = np.load(f"{args.save_destination}/{figname}_currmeanLT.npy")
-        #currerr['Total'] = np.load(f"{args.save_destination}/{figname}_currerroLT.npy")
 
 
     #plot_posterior(axes[0,0], "cosine_0402_POST")
     plot_ratedist(axes[0,0], rates, allratesE, allratesI)
     circular_variance(axes[0,1], units, rates, allcircvE, allcircvI) 
     plot_tuning_curves(axes[0,2], units, rates, tuning_curve, tuning_curve_err) 
-    plot_currents(axes[1,2], axes[2,2], units, vij, rates, currmean, currerr, k23, k4) 
+
+    plot_currents(axes[1,2], axes[1,3], axes[0,3], units, vij, rates, currmean, currerr, k23, k4) 
     conn_prob_osi(axes[1,0], probmean, proberr, "L23") 
     conn_prob_osi_data(axes[1,0], units, connections, "L23")
     conn_prob_osi(axes[1,1], probmean, proberr, "L4") 
@@ -590,12 +609,20 @@ def plot_figure(figname, is_tuned = False, generate_data = False):
     axes[1,0].legend(loc=(0.05, 0.9), ncols=2, fontsize=9)
     axes[1,1].legend(loc=(0.05, 0.9), ncols=2, fontsize=9)
 
-    plot_error_prediction(axes[2,0], error_pred, error_pred_shuffle)
-    plot_error_prediction(axes[2,1], error_subs_pred, error_subs_pred_shuffle)
-    axes[2,0].set_ylabel("Pref. ori. error")
+    #plot_error_prediction(axes[2,0], error_pred, error_pred_shuffle)
+    #plot_error_prediction(axes[2,1], error_subs_pred, error_subs_pred_shuffle)
+    #axes[2,0].set_ylabel("Pref. ori. error")
 
-    axes2label = [axes[k,l] for k in range(3) for l in range(3)] 
-    label_pos  = [-0.25, 1.05] * 9 
+    #plot_pref_ori(axes[2,0], prefori_hist)
+    axes[0,3].set_axis_off()
+
+    #axes2label = [axes[k,l] for k in range(3) for l in range(3)] 
+    axes2label = []
+    for k in range(2):
+        for l in range(4):
+            if not (k == 0 and l == 3):
+                axes2label.append(axes[k,l])
+    label_pos  = [-0.25, 1.05] * 8 
     sty.label_axes(axes2label, label_pos)
 
     print(f"{args.save_destination}/{figname}.pdf")

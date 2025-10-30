@@ -230,7 +230,7 @@ def slide_size(fraction_w, fraction_h, software='powerpoint', ratio=16/9):
 # -------------------------
 
 #Does all text formatting at once
-def format_text(usetex=False, font="Helvetica", label_fs=10, tick_fs=9, legend_fs=9, pdffonttype=3, title_fs=12, **kwargs):
+def format_text(usetex=False, font="tex gyre heros", label_fs=10, tick_fs=9, legend_fs=9, pdffonttype=3, title_fs=12, **kwargs):
     #Font and sizes
     mpl.rcParams["font.family"] = font
 
@@ -244,9 +244,12 @@ def format_text(usetex=False, font="Helvetica", label_fs=10, tick_fs=9, legend_f
     mpl.rcParams["text.usetex"] = usetex
     mpl.rcParams["mathtext.fontset"] = "custom"
     
-    mpl.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
-    mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
-    mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
+    #mpl.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
+    #mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
+    #mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
+    mpl.rcParams['mathtext.rm'] = 'tex gyre heros'
+    mpl.rcParams['mathtext.it'] = 'tex gyre heros:italic'
+    mpl.rcParams['mathtext.bf'] = 'tex gyre heros:bold'
 
     #Type 3 is smaller, type 42 is more compliant and sometimes required
     mpl.rcParams["pdf.fonttype"] = pdffonttype
