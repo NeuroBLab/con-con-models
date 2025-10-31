@@ -244,7 +244,6 @@ def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
         fraction_shuffled[i] = (diff_angles == 0).sum() / len(diff_angles) 
         abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
 
-    print("errors prediction, ", abs_error)
     return abs_error, abs_error_shuffled, signed_delta
 
 def plot_error_prediction(ax, abs_error, abs_error_shuffled ):
