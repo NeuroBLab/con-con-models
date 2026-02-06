@@ -29,6 +29,10 @@ def compute_conn_prob(v1_neurons, v1_connections, proofread):
     conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections, proofread=proofread)
     meandata  = {}
     errordata = {}
+    n_connections = {}
+
+    post_ids = fl.filter_neurons(v1_neurons, tuning='tuned', layer="L23", proofread=proofread[1])['id'].unique()
+
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
@@ -36,9 +40,12 @@ def compute_conn_prob(v1_neurons, v1_connections, proofread):
         meandata[layer]  = p['mean'].values 
         errordata[layer]  = p['std'].values 
 
-    return meandata, errordata
+        pre_ids  = fl.filter_neurons(v1_neurons, tuning='tuned', layer=layer, proofread=proofread[0])['id'].unique()
+        n_connections[layer] = len(fl.synapses_by_id(v1_connections, pre_ids=pre_ids, post_ids=post_ids, who='both'))
 
-def conn_prob_osi(ax, probmean, proberr, layer, label, color):
+    return meandata, errordata, n_connections
+
+def conn_prob_osi(ax, probmean, proberr, n_connections, layer, label, color):
 
     #Plot it!
     angles = np.linspace(0, np.pi/2, 5)
@@ -47,13 +54,13 @@ def conn_prob_osi(ax, probmean, proberr, layer, label, color):
     high_band = probmean[layer] + proberr[layer]
 
     ax.fill_between(angles, low_band, high_band, color = color, alpha = 0.2)
-    ax.plot(angles, probmean[layer], color = color, label = label.replace("->", "→"))
+    ax.plot(angles, probmean[layer], color = color, label = label.replace("->", "→") + rf", $N_\text{{syn}}=${n_connections[layer]}")
     ax.scatter(angles, probmean[layer], color=color, s=cr.ms, zorder = 3)
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
     ax.set_xticks([0, np.pi/4, np.pi/2], ["0", "π/4", "π/2"])
-    ax.set_ylim(-0.005, 0.075)
+    ax.set_ylim(-0.005, 0.1)
 
 def conn_prob_osi_norm(ax, probmean, proberr, norm, layer, label, color):
     angles = np.linspace(0, np.pi/2, 5)
@@ -91,45 +98,50 @@ def plot_figure(figname):
 
 
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=1.7), layout='constrained')
+    fig = plt.figure(figsize=sty.two_col_size(ratio=1.4), layout='constrained')
 
     axes = fig.subplot_mosaic(
         [["T", "T"],
         ["L23l", 'L4l'],
         ["L23b", 'L4b']],
-        height_ratios=[0.05, 1, 1.]
+        height_ratios=[0.4, 1, 1.]
     )
 
     axes["T"].set_axis_off()
     axes['T'].text(0.2, 1., 'Layer 2/3',    weight='bold', ha='center')
     axes['T'].text(0.75, 1., 'Layer 4',      weight='bold', ha='center')
 
-    probmean = {}
-    proberr = {}
-    probmean["all -> all"], proberr["all -> all"]= compute_conn_prob(matched_neurons, matched_connections, proofread=[None, None])
-    probmean["clean -> all"], proberr["clean -> all"]= compute_conn_prob(matched_neurons, matched_connections, proofread=['minimum', None])
-    probmean["extended -> extended"], proberr["extended -> extended"]= compute_conn_prob(matched_neurons, matched_connections, proofread=['ax_extended', 'dn_extended'])
+
+    proofreadcases = {"extended -> all" : ["ax_extended", None], "clean -> all":["minimum", None], "extended -> extended":["ax_extended", "dn_extended"]}
 
     colors = {} 
 
     for layer in ['L23', 'L4']:
         colorshades = cr.darken(cr.lcolor[layer], 2, 0.35) 
-        colors["all -> all"] = cr.lcolor[layer] 
-        colors["clean -> all"] = colorshades[0] 
+        colors["clean -> all"] = cr.lcolor[layer] 
+        colors["extended -> all"] = colorshades[0] 
         colors["extended -> extended"] = colorshades[1] 
 
-        for case in ['all -> all', 'clean -> all', 'extended -> extended']:
-            conn_prob_osi(axes[f"{layer}l"], probmean[case], proberr[case], layer, case, colors[case])
-            conn_prob_osi_norm(axes[f"{layer}b"], probmean[case], proberr[case], probmean[case][layer].sum(), layer, case, colors[case])
+        for pcase in ['clean -> all', 'extended -> all', 'extended -> extended']:
+            probmean, proberr, n_connections = compute_conn_prob(matched_neurons, matched_connections, proofread=proofreadcases[pcase])
+            conn_prob_osi(axes[f"{layer}l"], probmean, proberr, n_connections, layer, pcase, colors[pcase])
+            conn_prob_osi_norm(axes[f"{layer}b"], probmean, proberr, probmean[layer].sum(), layer, pcase, colors[pcase])
 
-        axes[f"{layer}l"].legend(loc=(0.2, 0.8), ncols=1, fontsize=9)
+        #axes[f"{layer}l"].legend(loc=(0.2, 0.8), ncols=1, fontsize=9)
         axes[f'{layer}b'].set_xlabel(r"$|\hat \theta_\text{post} - \hat \theta _\text{pre}|$")
+
+    #Add both legends to the text axis. using XX.legend only one can be, so assign to variable and readd using add_artist
+    handles1, labels1 = axes[f"L23l"].get_legend_handles_labels()
+    leg1 = axes["T"].legend(handles1, labels1, loc=(0.05, 0.),fontsize=9, bbox_transform=axes["T"].transAxes)
+    handles2, labels2 = axes[f"L4l"].get_legend_handles_labels()
+    leg2 = axes["T"].legend(handles2, labels2, loc=(0.6, 0.),fontsize=9, bbox_transform=axes["T"].transAxes)
+    axes["T"].add_artist(leg1)
 
     axes['L23l'].set_ylabel("Conn. Prob\n")
     axes['L23b'].set_ylabel("Conn. Prob\n(Normalized)")
 
     axes2label = [axes[k] for k in ['L23l', 'L4l', 'L23b', 'L4b']]
-    label_pos  = [[0.1, 0.95]] * 4 
+    label_pos  = [[0.02, 0.95]] * 4 
     sty.label_axes(axes2label, label_pos)
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
