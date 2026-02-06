@@ -1,190 +1,141 @@
-#Imports
-import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
-def min_act(max_rad, model_type):
-    '''This function returns the oreintation for where the minimum of the selective activity should be
-    
-    Parameters:
-    max_rad: integer or float with estimated preferred orientation of the cell
-    model_type: string idenfiying whether the modelled cell is  oreintationn selectivity (model_type = 'single')
-    or orientation and direction selectivity (model_type = 'double')
-    
-    Returns:
-    min_rad: estimated least preferred orientation
-    '''
-    #If there is a single peak, frequency of 2pi -> neuron is direction selective
-    if model_type == 'direction':
-        min_rad = max_rad-8 if max_rad >= 8 else max_rad +8
-    #If there are two peak, frequency of pi -> neuron is orientation selective
-    # NOTE: here we treat those neurons that are not selective as orientation selective 
-    # for the purpose of calculating an osi value also for them
-    else:
-        #TODO is this constraining necessary?? Is it even correct?
-        #max_rad = max_rad - 8 if max_rad >= 8 else max_rad
-        min_rad = max_rad-4 if max_rad >=12 else max_rad +4
-    
-    return min_rad 
+from scipy.optimize import curve_fit
+from scipy.stats import wilcoxon
 
+#Von mises function for direction and orientation...
+def von_mises_dir(x, k, m, a1, a2, b):
+    return a1*np.exp(k*np.cos(x-m)) + a2*np.exp(k*np.cos(x-m+np.pi)) + b
 
-def constrainer(dirs, reversed = False):
-    #TODO it seems that this function does exactly the same thing that the angleutil constrainer does.
-    #check and most probably eliminate.
-    '''Function that constrains given matrix of directions between [-2pi, 2pi] in to (-pi, pi]
-    
-    Parameters:
-    dirs: numpy array of directions
-    
-    Returns:
-    all_truncated: numpy array of constrained directions
-    '''
-    
+def von_mises_ori(x, k, m, a, b):
+    return a*np.exp(k*np.cos(2*(x-m))) + b
 
-    #remap between [-np.pi, np.pi]
-    #find cells below -np.pi
-    smaller = (dirs<=-np.pi).astype(int)*(2*np.pi)
-    
-    #find cells above np.pi
-    larger = (dirs>np.pi).astype(int)*(2*np.pi)
+#Function to curve_fit an average tuning curve
+def fit_ori(thetas_ori, ydata, tol=1e-4):
 
-    #add 2pi to dirs below -np.pi
-    small_truncated = dirs+smaller
+    #Initial guess, using some info from the data
+    k = 7
+    max_pos = np.argmax(ydata)
+    m = thetas_ori[max_pos] 
+    a = ydata[max_pos] 
+    b = ydata[np.argmin(ydata)] 
 
-    #subtract 2pi to cells above np.pi
-    all_truncated = small_truncated-larger
+    p0 = [k, m, a, b]
+    bounds = ([0, -np.inf, 0, 0], np.inf) 
 
-    if reversed:
-        smaller = (dirs<0).astype(int)*(2*np.pi)
-        detruncated = dirs+smaller
-        return detruncated
+    #Try helps us in case curve_fit fails without cutting the program
+    try:
+        #Fit the orientation function with the correct bounds
+        popt, _ = curve_fit(von_mises_ori, thetas_ori, ydata, p0=p0, bounds=bounds, maxfev=2000, xtol=tol, ftol=tol)
 
-    return all_truncated
+        #Compute the R^2 of the model from its definition and return it
+        residuals = np.sum((ydata - von_mises_ori(thetas_ori, *popt))**2)
+        sumtotal  = np.sum((ydata - ydata.mean())**2) 
 
-def constrain_act_range(post_root_col, post_root_id, directions, pre_df, currents = True):
-    '''This function maps the discretized directions shown in the stimulus from the [-2pi, 2pi]
-    range to the [-pi, pi] range and re-orders the activities of each pre-synaptic
-    connections of a specified post-synaptic cell according to the new direction mapping
-    
-    Parameters:
-    post_root_col: str, column containing postsynaptic ids of neurons
-    post_root_id: id of the post_synaptic cell
-    directions: array of discretized directions in [-2pi, 2pi] range
-    pre_df: data frame containing activities of pre-synaptic cell and key (post_root_id) specifiying which post_synaptic cell they connect to 
-    
-    Returns:
-    reordered_act: list where each item is an array of the activity for a pre_synaptic cell
-    with values reordered according to their new [-pi, pi] range
+        r2 = 1 - residuals / sumtotal
 
-    constrained_dirs: list of directions remapped in range (-pi, pi]
-    '''
+        return popt, r2
+    except:
+        #If it fails, return R^2 = 0 and no parameters
+        return np.zeros(len(p0)), 0.
 
-    #select all pre synaptic cells
-    cell = pre_df[pre_df[post_root_col] == post_root_id]
-    
-    #differences with post max
-    arr_diffs = directions-cell['post_po'].values[0]
+#Same as above but for direction
+def fit_dir(thetas_dir, ydata, tol=1e-4):
 
-    #constrainn directions between (-pi, pi]
-    all_truncated = constrainer(arr_diffs)
-    all_truncated = np.around(all_truncated, 6)
-    all_truncated[all_truncated ==-3.141593] = 3.141593
+    #Initial guess
+    k = 7
+    max_pos = np.argmax(ydata)
+    m = thetas_dir[max_pos] 
+    a = ydata[max_pos] 
+    b = ydata[np.argmin(ydata)] 
 
-    #extract index sorted from smallest direction to largest
-    idx= np.argsort(all_truncated)
-    
-    #generate array with activities of pre_synaptic cells
-    if currents:
-        activities = np.array(cell['current'].tolist())
-    else:
-        activities = np.array(cell['pre_activity'].tolist())
+    #Notice secondary peak is assumed to be 1/10 of the largest one
+    p0 = [k, m, a, a/10, b]
 
+    #Same as in the function above
+    try:
+        popt, _ = curve_fit(von_mises_dir, thetas_dir, ydata, p0=p0, bounds=(0, np.inf), maxfev=2000, xtol=tol, ftol=tol)
 
-    #order these activities accoridng to their sorted value in the new
-    #[-np.pi, np.pi] range
-    reordered_act = list(activities[:,idx])
+        residuals = np.sum((ydata - von_mises_dir(thetas_dir, *popt))**2)
+        sumtotal  = np.sum((ydata - ydata.mean())**2) 
 
-    constrained_dirs = list(all_truncated[idx])
+        r2 = 1 - residuals / sumtotal
 
+        return popt, r2
+    except:
+        return np.zeros(len(p0)), 0.
 
-    return reordered_act, constrained_dirs
+#Test if 
+def test_ori(n_neurons, thetas_ori, response_stacked_trials, oris_stacked_trials, params_neuron):
+    pvals    = np.empty(n_neurons)
+    pref_ori = np.empty(n_neurons, dtype=int)
 
+    #Count how many times each orientation appears. There are few frames of difference for each one...
+    #We will use the minimum one in order to be able to always substract and test 
+    oris, counts = np.unique(oris_stacked_trials, return_counts=True)
+    min_len = np.min(counts)
 
-def tuning_labeler(df, id_col = 'root_id', delt_r_col = 'r_squared_diff', pval_col = 'pvalue', model_col = 'model_type', p_sign = 0.05):
-    '''This function labels the neurons according to their tuning type. It labels neurons as 'not_selective' if they are not.
-    Args:
-    df: pandas dataframe containing the results of the tuning curve fitting
-    id_col: string, column name containing the unique id of each neuron
-    delt_r_col: string, column name containing the difference in r squared between the two models used during fitting process
-    pval_col: string, column name containing the p value of the wilcoxon test
-    model_col: string, column name containing the type of model used for fitting the tuning curve
-    p_sign : float, value at which we consder the statistcs to be significant (default 0.05)
-    
-    Returns:
-    neur_seltype: pandas dataframe containing the unique id of each neuron, and the type of tuning it displays
-    '''
-    
-    ############# Select all cells that are NOT selective ###############
-    #select all those with p value larger than 0.05
-    significant = df[pval_col] <= p_sign
-    not_sel = df[~significant]
+    #Precompute the differences between responses for each angle and its angle + pi/2
+    diffs_precomputed = np.empty((n_neurons, min_len, 8))
+    for ori in range(8):
+        mid_ori = (ori + 4) % 8
+        mask_max  = oris_stacked_trials == ori 
+        mask_mid  = oris_stacked_trials == mid_ori 
 
-    #group by root id and select ids of only those cells that are not significant for both orientation and direction
-    not_sel_grouped = not_sel.groupby(id_col).count().reset_index()
-    not_sel_id = not_sel_grouped[not_sel_grouped[pval_col]>1][id_col]
+        #These two DO have different lengths because there is a different # of ori and mid_ori
+        response_max = response_stacked_trials[:, mask_max]
+        response_mid = response_stacked_trials[:, mask_mid]
 
-    #Select only those cells that are not significant to both orientation and direction
-    not_sel = not_sel[not_sel[id_col].isin(not_sel_id)]
+        #So clip them down to the minimum length when substracting
+        diffs_precomputed[:, :, ori] = response_max[:, :min_len] - response_mid[:, :min_len] 
 
-    #Drop duplicates, so the fact that there are two entries for each cell
-    not_sel = not_sel.drop_duplicates(subset=id_col)
-    not_sel['tuning_type'] = not_sel[model_col].replace('single', 'not_selective')
-    not_sel['tuning_type'] = not_sel[model_col].replace('double', 'not_selective')
+    #Check for every neuron
+    for i in range(n_neurons):
+        #Estimate the preferred orientation from the fit
+        fit = von_mises_ori(thetas_ori, *params_neuron[i, :])
+        pref_ori[i]   = np.argmax(fit) 
 
-    ############# Select all cells that ARE selective ###############
-    good = df[significant]
-   
-    #Select all cells that are significant according to both models
-    grouped_res = good.groupby([id_col]).count().reset_index()
-    double_sig = grouped_res[grouped_res[pval_col]>1][id_col].values
+        #Check the difference between pref_ori and pref_ori + pi/2
+        stat,pvals[i] = wilcoxon(diffs_precomputed[i, :, pref_ori[i]])
 
-    #Select only the double model for those with 'fringe case 1'
-    double_fringe = good[(good[id_col].isin(double_sig)) & (good[delt_r_col]>0.8) & (good[model_col] == 'double')]
+    #Return
+    return pref_ori, pvals
 
-    #Select only single model in neurons where both models significant and not in 'fringe case 1'
-    single_good = good[(good[id_col].isin(double_sig)) & (good[delt_r_col]<0.8) & (good[model_col] == 'single')]
+#Same as the function above, but for directions
+def test_dir(n_neurons, thetas_dir, response_stacked_trials, dirs_stacked_trials, params_neuron):
+    #Now we have to check differences for two, one for + pi/2 and another for +pi
+    pvals_mid  = np.empty(n_neurons)
+    pvals_anti = np.empty(n_neurons)
+    pref_dir   = np.empty(n_neurons, dtype=int)
 
-    #Select all remaining neurons with only one significant model
-    remaining_good = good[~good[id_col].isin(double_sig)]
+    #Minimum number of trials...
+    dirs, counts = np.unique(dirs_stacked_trials, return_counts=True)
+    min_len = np.min(counts)
 
-    tot_good = pd.concat([double_fringe,single_good,remaining_good]) 
-    tot_good['tuning_type'] = tot_good[model_col].replace('single', 'direction')
-    tot_good['tuning_type'] = tot_good[model_col].replace('double', 'orientation')
+    #Precompute differences 
+    diffs_mid_precomputed  = np.empty((n_neurons, min_len, 16))
+    diffs_anti_precomputed = np.empty((n_neurons, min_len, 16))
+    for dir in range(16):
+        mid_dir =  (dir + 4) % 16
+        anti_dir = (dir + 8) % 16
+        mask_max  = dirs_stacked_trials == dir 
+        mask_mid  = dirs_stacked_trials == mid_dir 
+        mask_anti = dirs_stacked_trials == anti_dir
 
-    #Concatenate selective and non selective cells
-    neur_seltype = pd.concat([tot_good, not_sel])
-    
-    return neur_seltype
+        response_max  = response_stacked_trials[:n_neurons, mask_max]
+        response_mid  = response_stacked_trials[:n_neurons, mask_mid]
+        response_anti = response_stacked_trials[:n_neurons, mask_anti]
 
+        diffs_mid_precomputed[:, :, dir]  = response_max[:, :min_len] - response_mid[:, :min_len] 
+        diffs_anti_precomputed[:, :, dir] = response_max[:, :min_len] - response_anti[:, :min_len] 
 
-def osi_calculator(least_pref_ori, pref_ori, responses, dirs):
-    '''This function calculates the orientation selectivity index of a neuron
-    Args:
-    least_pref_ori: float, least preferred orientation of the neuron
-    pref_ori: float, preferred orientation of the neuron
-    responses: array, array of responses of the neuron at each orientation
-    dirs: array, array of orientations
+    #Get preferred direction and test differences!
+    for i in range(n_neurons):
+        fit = von_mises_dir(thetas_dir, *params_neuron[i, :])
+        pref_dir[i]        = np.argmax(fit) 
+        stat,pvals_mid[i]  = wilcoxon(diffs_mid_precomputed[i, :,  pref_dir[i]])
+        stat,pvals_anti[i] = wilcoxon(diffs_anti_precomputed[i, :, pref_dir[i]])
 
-    Returns:
-    osi: float, orientation selectivity index of the neuron
-    '''
-
-    # Extract the activity at the preferred orientation and at the least preferred one
-    maxact = responses[pref_ori]
-    minact = responses[least_pref_ori]
-
-    return (maxact-minact)/(maxact+minact)
-
-   
-if __name__ == '__main__':
-    import os
-    print(os.getcwd())
+    return pref_dir, pvals_mid, pvals_anti

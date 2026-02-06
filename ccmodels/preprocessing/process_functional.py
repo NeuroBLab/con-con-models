@@ -8,7 +8,7 @@ from scipy.stats import sem
 from tqdm import tqdm
 
 sys.path.append(os.getcwd())
-import ccmodels.preprocessing.utils_new as ut
+import ccmodels.preprocessing.utils as ut
 
 
 # ------------------------- Main functions (program logic is below) ---------------------------------
