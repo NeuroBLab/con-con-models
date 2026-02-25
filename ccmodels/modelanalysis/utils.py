@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 import ccmodels.dataanalysis.filters as fl
-import ccmodels.utils.angleutils as au
+import ccmodels.utils.distances as au
 
 import scipy.integrate as scpint
 from scipy.special import erf
@@ -215,6 +215,11 @@ def compute_circular_variance(rates, orionly=False):
         r_dir = np.abs(num_dir.sum()/norma)
 
     return r_ori, r_dir
+
+def compute_spatial_selectivity_index(rates):
+    rmax = np.max(rates, axis=1)
+    rmin = np.min(rates, axis=1)
+    return (rmax - rmin) / (rmax + rmin)
 
 ##################################################################
 ##### I/O 

@@ -269,8 +269,8 @@ def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
         #Get their predicted pref ori and then compare with the actual postsynp neurons'  pref ori 
         pref_oris_pred[layer] = np.argmax(currents_data, axis=1)
         pref_ori_data[layer] = units.loc[units['id'].isin(post[layer]), 'pref_ori'].values
-        delta_target_pred_data[layer] = au.angle_dist(pref_oris_pred[layer], pref_ori_data[layer])
-        signed_delta[layer] = au.signed_angle_dist_vectorized(pref_oris_pred[layer], pref_ori_data[layer])
+        delta_target_pred_data[layer] = au.unsigned_dist(pref_oris_pred[layer], pref_ori_data[layer])
+        signed_delta[layer] = au.signed_dist_vectorized(pref_oris_pred[layer], pref_ori_data[layer])
 
         #Initialize for bootstrap
         fraction_correct[layer] = np.empty(nreps)
@@ -304,7 +304,7 @@ def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
             current = np.dot(w, rates[pre_random, :]) 
             shuffled_post_oris[pix] = np.argmax(current)
         
-        diff_angles = au.angle_dist(shuffled_post_oris, pref_ori_data[layer])
+        diff_angles = au.unsigned_dist(shuffled_post_oris, pref_ori_data[layer])
         fraction_shuffled[i] = (diff_angles == 0).sum() / len(diff_angles) 
         abs_error_shuffled[i] = diff_angles.mean() * np.pi / 8
 

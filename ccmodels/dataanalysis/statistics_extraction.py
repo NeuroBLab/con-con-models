@@ -122,7 +122,7 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
     units_pre['key']  = 1
     units_post['key'] = 1
     pairs = units_pre.merge(units_post, on='key')[['pre_id', 'pre_pref_ori', 'post_id', 'post_pref_ori']]
-    pairs['delta_ori'] = au.angle_dist(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)
+    pairs['delta_ori'] = au.unsigned_dist(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)
 
     conn_from_tunedpre['abs_delta_ori'] = np.abs(conn_from_tunedpre['delta_ori']) 
     conn_from_tunedpre['abs_delta_ori'] = conn_from_tunedpre['abs_delta_ori'].astype(int) 
@@ -265,7 +265,7 @@ def estimate_conn_prob_functmatch(fm_neurons, fm_connections, proof=["minimum", 
     #Now, loop over the angles and get the probability that corresponds to a certain dtheta, which is assigned to the table
     for i in range(limit_angle):
         for j in range(limit_angle):
-            dtheta = au.signed_angle_dist(i, j, half=half)
+            dtheta = au.signed_dist(i, j, half=half)
             ptable.loc[f"ET_{j}", f"ET_{i}"] = prob_T2T_L23.loc[dtheta+offset, "mean"]
             ptable.loc[f"ET_{j}", f"XT_{i}"] = prob_T2T_L4.loc[dtheta+offset, "mean"]
 
@@ -461,7 +461,7 @@ def prob_symmetric_links(v1_neurons_, v1_connections_, half=True, nangles=16):
         #number of elements in each group
         for j in range(limit_angle):
             if i != j:
-                dtheta = au.angle_dist(i, j)
+                dtheta = au.unsigned_dist(i, j)
                 normalization[dtheta] += n_units_by_angle[i] * n_units_by_angle[j]
 
     #Last distance is computed twice

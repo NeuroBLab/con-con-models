@@ -29,7 +29,7 @@ def example_tuning_curve(ax, v1_neurons, rates, error_rates, layer='L23'):
     neurons_ids = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
     neurons_ids = neurons_ids['id']
 
-    ids = [8, 10, 11]
+    ids = [8, 3, 11]
 
 
     for c,id in enumerate(ids):
@@ -40,9 +40,9 @@ def example_tuning_curve(ax, v1_neurons, rates, error_rates, layer='L23'):
         ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3])
         ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3], ls='none', marker='o', ms=cr.ms)
         ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.pal_extended[c+3], fmt='none') 
-        ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
+        ax.set_xticks([0, 4, 8], ['0.01', '0.09', '0.17'])
         ax.set_ylim(0,7)
-        ax.set_xlabel("θ")
+        ax.set_xlabel("k")
         ax.set_ylabel("Rate")
 
 
@@ -55,15 +55,15 @@ def plot_tuning_curve(ax, units, rates):
         tcurve     = np.mean(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) 
         tcurve_err = np.std(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) / np.sqrt(rates_layer.shape[0])
 
-        tcurve     = plotutils.shift(tcurve)
-        tcurve_err = plotutils.shift(tcurve_err)
-        ax.fill_between(np.arange(9), tcurve - tcurve_err, tcurve + tcurve_err, color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
-        ax.plot(np.arange(9), tcurve, color=cr.lcolor[layer], label=layer)
-        ax.plot(np.arange(9), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
+        tcurve     = plotutils.shift(tcurve, with_symmetric=False)
+        tcurve_err = plotutils.shift(tcurve_err, with_symmetric=False)
+        ax.fill_between(np.arange(8), tcurve - tcurve_err, tcurve + tcurve_err, color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
+        ax.plot(np.arange(8), tcurve, color=cr.lcolor[layer], label=layer)
+        ax.plot(np.arange(8), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
 
-    ax.set_xticks([0, 4, 8], ['-π/2', '0', 'π/2'])
+    ax.set_xticks([0, 4, 8], ['-0.08', '0.0', '0.08'])
     ax.set_ylim(0, 10)
-    ax.set_xlabel(r"$\theta - \hat \theta$")
+    ax.set_xlabel(r"$k - \hat k$")
     ax.set_ylabel("Rate")
     ax.legend(loc='best')
 
@@ -80,8 +80,8 @@ def plot_pref_ori(ax, units):
 
         ax.step(angles, h, color = cr.lcolor[layer])
 
-    ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
-    ax.set_xlabel(r"$\hat \theta$")
+    ax.set_xticks([0, 4, 8], ['0.01', '0.09', '0.17'])
+    ax.set_xlabel(r"$\hat k$")
     ax.set_ylabel("Neuron frac.")
     ax.set_ylim(0, 0.35)
 
@@ -90,7 +90,7 @@ def plot_pref_ori(ax, units):
 def fraction_tuned(ax, data, fstitle=8):
     barw = 0.1
     ybars = [0, barw] 
-    offset = 0.02 #To display text
+    offset = -0.2 #for text 
 
     #Create a Pandas Series which contains the number of tuned neurons in a layer
     #The value is accesed by the key of the pandas dataframe, e.g. n_tuned["L2/3"]
@@ -126,14 +126,14 @@ def plot_resultant_dist(ax, v1_neurons, rates):
     for layer in ['L23', 'L4']:
         tuned_neurons = fl.filter_neurons(v1_neurons, tuning="tuned", layer=layer)
         ratestuned = rates[tuned_neurons['id']]
-        cvo, cvd = mutl.compute_circular_variance(ratestuned, orionly=True)
+        ssi = mutl.compute_spatial_selectivity_index(ratestuned)
 
         #Histogram them, normalizing to count (not by density) 
-        hist, _ = np.histogram(cvd, bins, density=False, weights=np.ones(len(cvd))/len(cvd))
+        hist, _ = np.histogram(ssi, bins, density=False, weights=np.ones(len(ssi))/len(ssi))
         ax.step(bins_centered, hist, color = cr.lcolor[layer])
 
     ax.set_xticks([0, 0.5, 1])
-    ax.set_xlabel("Circ. Var")
+    ax.set_xlabel("SSI")
     ax.set_ylabel("Neuron frac.")
 
 
@@ -161,21 +161,15 @@ args = parser.parse_args()
 
 def plot_figure(figname):
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=1.4), layout='constrained')
+    fig = plt.figure(figsize=sty.two_col_size(ratio=3), layout='constrained')
 
-    #Bottom part of figure has two sketches 
-    subfigs = fig.subfigures(nrows=2, height_ratios=[0.65,1])#[1/3, 2/3]) 
     axes = {}
-    sketches = subfigs[1].subplots(ncols=2, width_ratios=[0.625, 1.])
-    axes['E'] = sketches[0]
-    axes['F'] = sketches[1]
 
-    #Top part: example of the tuning currents with the gratings, then tuning curve, then distribution 
-    subfig_graphs = subfigs[0].subfigures(ncols=4, width_ratios = [1,1,1,1.25])
+    subfig_graphs = fig.subfigures(ncols=4, width_ratios = [1,1,1,1.15])
     subfigs_example = subfig_graphs[0].subplots(nrows=1, ncols=1)
-    subfigs_tcurve = subfig_graphs[1].subplots(nrows=1, ncols=1)
+    subfigs_tcurve  = subfig_graphs[1].subplots(nrows=1, ncols=1)
     subfigs_prefori = subfig_graphs[2].subplots(nrows=1, ncols=1) #single one!
-    subfigs_tuned = subfig_graphs[3].subplots(nrows=2, height_ratios = [0.35, 1.])
+    subfigs_tuned   = subfig_graphs[3].subplots(nrows=2, height_ratios = [0.35, 1.])
 
     axes['A'] = subfigs_example
     axes['B'] = subfigs_tcurve
@@ -193,7 +187,6 @@ def plot_figure(figname):
     vij = loader.get_adjacency_matrix(matched_neurons, matched_connections)
 
     example_tuning_curve(axes['A'], units, rates, error_rates)
-
     plot_pref_ori(axes['B'], units)
     plot_tuning_curve(axes['C'], matched_neurons, rates)
 
@@ -202,22 +195,11 @@ def plot_figure(figname):
 
     fig.get_layout_engine().set(wspace=1/72, w_pad=0)
 
-    axes2label = [axes[k] for k in ['A', 'B', 'C', 'D1', 'E', 'F']]
-    label_pos  = 2*[[0.1, 0.9]] +[[0.2, 0.9]] + [[-0.3, 0.9]] + 2*[[0.1, 1.]] 
+    axes2label = [axes[k] for k in ['A', 'B', 'C', 'D1']]
+    label_pos  = 2*[[0.1, 0.9]] + [[0.2, 0.9]] + [[-0.3, 0.9]] 
     sty.label_axes(axes2label, label_pos)
-
-    for ax in [axes['E'], axes['F']]:
-        ax.set_axis_off()
-
-    fig.savefig(f"{args.save_destination}/{figname[:-3]}_clean.pdf",  bbox_inches="tight")
-
-    show_image(axes['E'], "sketch1.png")
-    show_image(axes['F'], "new_neurons2.png")
-    #show_image(subfigs_example['U'], "horizontal.png")
-    #show_image(subfigs_example['V'], "vertical.png")
-    #show_image(subfigs_example['W'], "horizontal.png")
 
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 
 
-plot_figure('fig1.pdf')
+plot_figure('fig1_sfq.pdf')

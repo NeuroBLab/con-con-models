@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from scipy.optimize import curve_fit
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, ttest_ind_from_stats
 
 #Von mises function for direction and orientation...
 def von_mises_dir(x, k, m, a1, a2, b):
@@ -11,6 +11,16 @@ def von_mises_dir(x, k, m, a1, a2, b):
 
 def von_mises_ori(x, k, m, a, b):
     return a*np.exp(k*np.cos(2*(x-m))) + b
+
+def lognormal_sfq(x, k, m, a, b):
+    #Broadcasting so parameters can be actual arrays
+    #x = x[None, :] #1 x npars
+    #k = k[:, None] #npars x 1
+    #m = m[:, None]
+    #a = a[:, None]
+    #b = b[:, None]
+
+    return a * np.exp(-k * np.power((np.log(x) - m), 2)) + b
 
 #Function to curve_fit an average tuning curve
 def fit_ori(thetas_ori, ydata, tol=1e-4):
@@ -67,7 +77,36 @@ def fit_dir(thetas_dir, ydata, tol=1e-4):
     except:
         return np.zeros(len(p0)), 0.
 
-#Test if 
+#Same, for spatial frequencies
+def fit_sfq(spat_freqs, ydata, tol=1e-4):
+
+    #Initial guess, using some info from the data
+    k = 1
+    max_pos = np.argmax(ydata)
+    m = np.log(spat_freqs[max_pos]) 
+    a = ydata[max_pos] 
+    b = ydata[np.argmin(ydata)] 
+
+    p0 = [k, m, a, b]
+    bounds = ([0, -np.inf, 0, 0], np.inf) 
+
+    #Try helps us in case curve_fit fails without cutting the program
+    try:
+        #Fit the orientation function with the correct bounds
+        popt, _ = curve_fit(lognormal_sfq, spat_freqs, ydata, p0=p0, bounds=bounds, maxfev=2000, xtol=tol, ftol=tol)
+
+        #Compute the R^2 of the model from its definition and return it
+        residuals = np.sum((ydata - lognormal_sfq(spat_freqs, *popt))**2)
+        sumtotal  = np.sum((ydata - ydata.mean())**2) 
+
+        r2 = 1 - residuals / sumtotal
+
+        return popt, r2
+    except:
+        #If it fails, return R^2 = 0 and no parameters
+        return np.zeros(len(p0)), 0.
+
+#Test if the rates are significantly different at top and smaller point
 def test_ori(n_neurons, thetas_ori, response_stacked_trials, oris_stacked_trials, params_neuron):
     pvals    = np.empty(n_neurons)
     pref_ori = np.empty(n_neurons, dtype=int)
@@ -139,3 +178,17 @@ def test_dir(n_neurons, thetas_dir, response_stacked_trials, dirs_stacked_trials
         stat,pvals_anti[i] = wilcoxon(diffs_anti_precomputed[i, :, pref_dir[i]])
 
     return pref_dir, pvals_mid, pvals_anti
+
+
+def test_sfq(n_neurons, spat_frequencies, params_neuron):
+    pvals    = np.empty(n_neurons)
+    #pref_sfq = np.empty(n_neurons, dtype=int)
+
+    #Call the fit function for each neuron with its respective parameters 
+    fit = lognormal_sfq(spat_frequencies, params_neuron[:, 0], params_neuron[:, 1], params_neuron[:, 2], params_neuron[:, 3])
+    pref_sfq = np.argmax(fit, axis=1) 
+
+
+    #Return
+    #return pref_ori, pvals
+    return pref_sfq

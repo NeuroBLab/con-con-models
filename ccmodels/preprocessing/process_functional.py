@@ -8,14 +8,16 @@ from scipy.stats import sem
 from tqdm import tqdm
 
 sys.path.append(os.getcwd())
+import ccmodels.preprocessing.spatialfreqtuning as sf
 import ccmodels.preprocessing.utils as ut
 
 
 # ------------------------- Main functions (program logic is below) ---------------------------------
 
+
 #Performs a fit of the tuning curves and check if the difference between the rates at different opposed angles 
 #is significant for a given session and scan. Returns a dataframe with all the information. 
-def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="data/functional"):
+def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="data/functional", DTpath="data/digitaltwin/", get_spatial_frequency=True):
 
     #Get the path to the main folder where this session and scan are stored
     folder_data =f"{funcdatapath}/{session}_{scan_idx}" 
@@ -115,12 +117,36 @@ def fit_tuning_curves_and_check_significance(session, scan_idx, funcdatapath="da
     results['pvals_dir_anti'] = pvals_dir_anti
     results['pars_dir'] = list(pars_dir)
 
+    #Compute and add results for spatial frequency
+    if get_spatial_frequency:
+        #Compute tuning curves for spatial frequency using the Digital Twin
+        spatial_freq_tuning = sf.get_tuning_curve(session, scan_idx, DTpath, spfreqonly=True) 
+        results['rate_sfq'] = list(spatial_freq_tuning)
+        results['semrate_sfq'] = list(np.zeros_like(spatial_freq_tuning))
+
+        spat_freqs = np.arange(0.01, 0.17, 0.02)
+        npars_sfq = 4
+        pars_sfq = np.empty((n_neurons, npars_sfq))
+        r2_sfq   = np.empty(n_neurons)
+        for id in range(n_neurons):
+            pars_sfq[id, :], r2_sfq[id] = ut.fit_sfq(spat_freqs, spatial_freq_tuning[id, :])
+
+        #TODO get pvals
+        pref_sfq = ut.test_sfq(n_neurons, spat_freqs, pars_sfq) 
+
+        #Get the preferred spatial frequency
+        results['pref_sfq'] = pref_sfq 
+
+
+
     return results
 
 
 # ------------------------- User input ---------------------------------
 
-parser = argparse.ArgumentParser(description='''Process the functional data''')
+#parser = argparse.ArgumentParser(description='''Process the functional data''')
+'''
+
 
 # Adding and parsing arguments
 parser.add_argument('funcdatapath', type=str, help='Path where the functional data is stored')
@@ -143,3 +169,4 @@ for f in tqdm(folders_to_analyse, desc="Analysing functional data"):
 
 functional_table.to_csv("data/in_processing/functional_fits.csv", index=False)
 
+'''

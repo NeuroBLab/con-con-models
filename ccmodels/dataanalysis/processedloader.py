@@ -1,9 +1,17 @@
 import pandas as pd
 import numpy as np
+import os
 
 import ccmodels.dataanalysis.filters as fl
-import ccmodels.utils.angleutils as au
-import ccmodels.dataanalysis.utils as utl
+import ccmodels.utils.distances as au
+#import ccmodels.utils.angleutils  as aux1 
+#import ccmodels.utils.spfrequtils as aux2 
+
+#if os.getenv("USE_FREQ", "false")=="true":
+#    au = aux2
+#else:
+#    au = aux1
+
 
 #============================================================
 # ---------------------- LOAD UTILITIES ---------------------
@@ -11,7 +19,7 @@ import ccmodels.dataanalysis.utils as utl
 # Functions here help to load the preprocessed data 
 #============================================================
 
-def load_data(orientation_only=True, return_error=False, nangles=16, prepath="../con-con-models/data/", suffix="", version="661"):
+def load_data(orientation_only=True, return_error=False, nangles=16, prepath="../con-con-models/data/", suffix=""):
     """
     Load the neurons and the connections. If activity is true, also returns the activity as a Nx16 array.
     All returned values are inside a 3-element list.
@@ -25,13 +33,22 @@ def load_data(orientation_only=True, return_error=False, nangles=16, prepath="..
         Gives the number of angles for the full case (default 16)
     path : string.
         Folder where the ccmodels package is located 
-    version : string
-        Which version of the dataset to use.
+    use_spatialfreq: string
+        Load activity as function of spatial frequency instead of angle 
     """
+
+    if au.using_spatial_freq():
+        suffix = '_SF'
 
     v1_neurons = pd.read_csv(f'{prepath}/preprocessed/unit_table_v1300{suffix}.csv')
     v1_connections = pd.read_csv(f'{prepath}/preprocessed/connections_table_v1300{suffix}.csv')
-    rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300{suffix}.csv')
+    if not au.using_spatial_freq():
+        rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300{suffix}.csv')
+    else:
+        rates_table = pd.read_csv(f'{prepath}/preprocessed/activity_table_v1300_spfreq{suffix}.csv')
+        #IMPORTANT here we override the tuning type to use the tuning for spatial frequencies
+        v1_neurons['tuning_type'] = v1_neurons['tuning_type_sfq']
+        v1_neurons.drop(columns='tuning_type_sfq', inplace=True)
 
     #Sort with the selective ones first in order to match the ids in activity table
     v1_neurons = v1_neurons.sort_values(by='tuning_type', ascending=False).reset_index(drop=False)
@@ -50,7 +67,13 @@ def load_data(orientation_only=True, return_error=False, nangles=16, prepath="..
     #v1_neurons.loc[v1_neurons['id'].isin(func_matched_neurons['id']), 'pref_ori']= np.argmax(rates, axis=1)
 
     #Angles are integers to avoid any roundoff error
-    v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
+    if not au.using_spatial_freq():
+        v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_ori"].astype("Int64")
+    else:
+        #IMPORTANT: override the pref_ori property with spatial frequency! 
+        v1_neurons.loc[:, "pref_ori"] = v1_neurons["pref_sfq"].astype("Int64")
+        v1_neurons.drop(columns='pref_sfq', inplace=True)
+
 
     #Once angles have been constrained, construct the delta ori values 
     v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=orientation_only)
@@ -199,4 +222,5 @@ def get_rates_matrix(v1_neurons, v1_activity, nangles=8):
         rates[i,:]       = v1_activity.loc[mask, "rate"].values 
         error_rates[i,:] = v1_activity.loc[mask, "rate_error"].values 
 
-    return rates, error_rates
+    #Scale
+    return rates*5, error_rates*5

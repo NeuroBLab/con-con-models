@@ -231,7 +231,7 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples,
 
             #Check the prediction of pref ori
             idx_prefrd_ori = np.argmax(currlayer[layer])
-            diff_ori = au.signed_angle_dist(idx_prefrd_ori, 0)
+            diff_ori = au.signed_dist(idx_prefrd_ori, 0)
             prob_pref_ori[layer][diff_ori + 3] += 1
 
             currents[layer] += currlayer[layer] 
@@ -241,7 +241,7 @@ def sample_prefori(v1_neurons, tuned_connections, nexperiments, rates, nsamples,
         layer = 'Total'
         currlayer[layer] = currlayer['L23'] + currlayer['L4']
         idx_prefrd_ori = np.argmax(currlayer[layer])
-        diff_ori = au.signed_angle_dist(idx_prefrd_ori, 0)
+        diff_ori = au.signed_dist(idx_prefrd_ori, 0)
         prob_pref_ori[layer][diff_ori + 3] += 1
         currents[layer] += currlayer[layer] 
         currents_err[layer] += currlayer[layer]**2
@@ -274,7 +274,7 @@ def fraction_prefori_predicted(v1_neurons, tuned_connections, vij, rates):
     currents = np.matmul(vij, rates)
     idx_pref_ori = np.argmax(currents, axis=1)
 
-    return au.signed_angle_dist_vectorized(idx_pref_ori, all_pref_oris)
+    return au.signed_dist_vectorized(idx_pref_ori, all_pref_oris)
 
 def bootstrap_mean_current(kee, v1_neurons, tuned_connections, rates, nexperiments):
     """

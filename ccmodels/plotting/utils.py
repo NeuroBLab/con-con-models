@@ -45,13 +45,16 @@ def add_symmetric_angle(array):
     return np.insert(array, [0], array[-1])
 
 
-def shift(observable):
+def shift(observable, with_symmetric=True):
     """
     This function changes an observable measured in [0, 2pi[ to be plotted in [-pi, pi] (including both extreme) 
     for nice-looking plots.
     """
 
-    return add_symmetric_angle(np.roll(observable, len(observable)//2-1))
+    if with_symmetric:
+        return add_symmetric_angle(np.roll(observable, len(observable)//2-1))
+    else:
+        return np.roll(observable, len(observable)//2)
 
 def get_xticks(ax, max=np.pi, half=True):
     """

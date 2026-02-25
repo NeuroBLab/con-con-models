@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser(description='''Data download and processing''')
 parser.add_argument('--download_nucleus',  action='store_true', help='Boolean. If true, downloads all nucleus data')
 parser.add_argument('--download_synapses', action='store_true', help='Boolean. If true, downloads all the synapse data as well')
 parser.add_argument('--table_suffix', default="") 
+#parser.add_argument('--use_spatial_frequency', default="") 
 args = parser.parse_args()
 
 table_suffix = str(args.table_suffix)
@@ -61,7 +62,8 @@ func_4_units    = dt[['target_id', 'pref_ori', 'tuning_type']]
 
 #Read the result of the functional fits and chekc the coregistrated neurons
 coreg = pd.read_csv("data/1300/raw/coregistration_manual_v4.csv") 
-funcprops = pd.read_csv("data/in_processing/functional_fits_nobound.csv")
+#funcprops = pd.read_csv("data/in_processing/functional_fits_nobound.csv")
+funcprops = pd.read_csv("data/in_processing/functional_fits_nobounds_wsfq.csv")
 
 coreg = coreg[['session', 'scan_idx', 'unit_id', 'target_id']]
 
@@ -72,13 +74,21 @@ funcprops = coreg.merge(funcprops, on=['session', 'scan_idx', 'unit_id'], how='i
 funcprops = funcprops.sort_values(by='r2_ori', ascending=False)
 funcprops = funcprops.drop_duplicates(subset='target_id', keep='first')
 
+#Get which neurons are considered selective for orientation
 funcprops['tuning_type'] = 'not_selective'
 pvals_rescaled = false_discovery_control(funcprops['pvals_ori'], method='bh')
 funcprops.loc[(funcprops['r2_ori'] > 0.5) & (pvals_rescaled < 0.01), 'tuning_type'] = 'selective'
-funcprops['target_id'] = funcprops['target_id'].astype(int)
 
-func_4_units = funcprops[['target_id', 'pref_ori', 'tuning_type']]
-activity     = funcprops[['target_id', 'rate_ori']]
+#Get which neurons are considered selective for spatial frequencies 
+funcprops['tuning_type_sfq'] = 'not_selective'
+funcprops.loc[(funcprops['r2_ori'] > 0.5), 'tuning_type_sfq'] = 'selective'
+#Session 7_4 did not exist in the digital twin. These ones have NaN rates. We need to flag those here accordingly, setting their tuning type to nan
+funcprops.loc[funcprops['rate_sfq'].isna(), 'tuning_type_sfq'] = pd.NA
+
+#Set the target id as int and select the columns to go on
+funcprops['target_id'] = funcprops['target_id'].astype(int)
+func_4_units = funcprops[['target_id', 'pref_ori', 'tuning_type', 'pref_sfq', 'tuning_type_sfq']]
+
 
 
 # ------------ Format nucleus table with functional stuff ----------------
@@ -117,6 +127,12 @@ unit_table.loc[not_matched, 'pref_ori']= 0.
 #Once there is no more nans, we can put them as integers
 unit_table['pref_ori'] = unit_table['pref_ori'].astype(int)
 
+#Repeat for spatial frequency
+not_matched = unit_table['tuning_type_sfq'].isna()
+unit_table.loc[not_matched, 'tuning_type_sfq']= "not_matched"
+unit_table.loc[not_matched, 'pref_sfq']= 0.
+unit_table['pref_sfq'] = unit_table['pref_sfq'].astype(int)
+
 #Use 'exc' or 'inh' as the cell type, using the first three characters from the classification system. 
 #Then drop all the columns that we will not need
 unit_table['cell_type'] = unit_table['classification_system'].apply(lambda x: x[:3])
@@ -135,7 +151,7 @@ unit_table.loc[(unit_table['dendr_proof']=='dendrite_extended'), 'dendr_proof'] 
 
 #Change name of several columns and finally select the ones we need for our unit table
 unit_table.rename(columns={'pt_position_x':'pial_dist_x', 'pt_position_y':'pial_dist_y', 'pt_position_z':'pial_dist_z'}, inplace=True)
-unit_table = unit_table[['pt_root_id', 'nucleus_id', 'cell_type', 'tuning_type', 'layer', 'axon_proof', 'dendr_proof', 'pref_ori', 'pial_dist_x', 'pial_dist_y', 'pial_dist_z']]
+unit_table = unit_table[['pt_root_id', 'nucleus_id', 'cell_type', 'tuning_type', 'tuning_type_sfq', 'layer', 'axon_proof', 'dendr_proof', 'pref_ori', 'pref_sfq', 'pial_dist_x', 'pial_dist_y', 'pial_dist_z']]
 
 print(len(unit_table), unit_table['nucleus_id'].value_counts().sum(), unit_table['pt_root_id'].value_counts().sum())
 print(len(unit_table['pt_root_id']), len(unit_table['pt_root_id'].unique()))
@@ -187,3 +203,30 @@ activity_merged = activity_merged[['pt_root_id', 'angle_shown', 'rate_ori', 'sem
 activity_merged.rename(columns={'pt_root_id':'neuron_id', 'rate_ori':'rate', 'semrate_ori':'rate_error'}, inplace=True)
 
 activity_merged.to_csv(f"data/preprocessed/activity_table_v1300{table_suffix}.csv", index=False)
+
+#Repeat the steps before to generate a table with activity as a function of spatial frequency
+#Filter out session 7_4, that has NaN rates
+activity = funcprops[['target_id', 'rate_sfq', 'semrate_sfq']]
+activity = activity.loc[~activity['rate_sfq'].isna(), :]
+
+#The rate_ori column is str so we transform it to arrays first 
+activity.loc[:, 'rate_sfq'] = activity['rate_sfq'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
+activity.loc[:, 'semrate_sfq'] = activity['semrate_sfq'].apply(lambda x: np.fromstring(x.strip('[]'), sep=' ')) 
+activity = activity.explode(['rate_sfq', 'semrate_sfq'])
+#Write the sf that corresponds to each one 
+activity['freq_shown'] = np.tile(np.arange(8),  len(activity)//8)
+
+#Merge and get only the areas we are interested in
+activity_merged = units.merge(activity, left_on='nucleus_id', right_on='target_id', how='inner')
+activity_merged = activity_merged[['pt_root_id', 'brain_area', 'layer', 'freq_shown', 'rate_sfq', 'semrate_sfq']]
+
+#Filter for V1 L23 
+activity_merged = activity_merged[(activity_merged['brain_area']=='V1')&(activity_merged['layer'].isin(['L23', 'L4']))]
+
+#Then just get the minimal columns needed
+activity_merged = activity_merged[['pt_root_id', 'freq_shown', 'rate_sfq', 'semrate_sfq']]
+
+#Rename to match columns to our codebase and save
+activity_merged.rename(columns={'pt_root_id':'neuron_id', 'rate_sfq':'rate', 'semrate_sfq':'rate_error'}, inplace=True)
+
+activity_merged.to_csv(f"data/preprocessed/activity_table_v1300_spfreq{table_suffix}.csv", index=False)

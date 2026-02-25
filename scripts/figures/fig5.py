@@ -215,7 +215,7 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
                 
                 exc_pref_ori = fl.filter_neurons(units_sample, cell_type='exc', layer='L23')['pref_ori'].values
                 target_ori = target_ori[:ne]
-                diff_ori = np.concatenate((diff_ori, au.signed_angle_dist_vectorized(target_ori, exc_pref_ori)))
+                diff_ori = np.concatenate((diff_ori, au.signed_dist_vectorized(target_ori, exc_pref_ori)))
 
                 allrates = np.concatenate((allrates, re.ravel()))
 
