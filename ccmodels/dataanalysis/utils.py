@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 import ccmodels.dataanalysis.filters as fl
+import ccmodels.utils.distances as au
 
 
 # ---------------------------------------------------------------------------------
@@ -115,41 +116,100 @@ def split_by_tuning(v1_connections):
 # ---------------------- ACTIVITY HELPER -----------------
 # ------------------------------------------------------------
 
-def shift_rates(v1_neurons, pre_ids, post_id, rates):
-    """
-    Shift all the rates corresponding to the pre_ids, so that the post_id neuron
-    would be oriented at angle = 0.
+if au.using_spatial_freq():
+    def shift_rates(v1_neurons, pre_ids, post_id, rates):
+        """
+        Shift all the rates corresponding to the pre_ids, so that the post_id neuron
+        would be oriented at angle = 0.
 
-    Parameters
-    v1_neurons : DataFrame
-        The table with info of all the neurons.
-    pre_ids : arraylike
-        An array with all the ids of the considered presynaptic neurons 
-    post_id : int
-        The selected postsynaptic neuron id
-    rates : numpy matrix
-        The matrix with the rates information
-    """
-    if isinstance(post_id, (int, float, np.int64, np.float64)): 
-        rates_selected = rates[pre_ids, :]
-        post_pref_ori  = v1_neurons.loc[post_id, "pref_ori"]
-        return  np.roll(rates_selected, -post_pref_ori, axis=1) 
-    else:
-        raise ValueError("shift_rates accepts only a scalar (int) postsynaptic id to work.")
+        Parameters
+        v1_neurons : DataFrame
+            The table with info of all the neurons.
+        pre_ids : arraylike
+            An array with all the ids of the considered presynaptic neurons 
+        post_id : int
+            The selected postsynaptic neuron id
+        rates : numpy matrix
+            The matrix with the rates information
+        """
+        if isinstance(post_id, (int, float, np.int64, np.float64)): 
+            rates_selected = rates[pre_ids, :]
+            post_pref_ori  = v1_neurons.loc[post_id, "pref_ori"]
 
-def shift_multi(rates, rollamount):
-    """
-    Perform a roll for each one of the rows of the vector rates by
-    the quantities defined in rollamount
 
-    Parameters
-    ==========
-    rates : numpy array NxM
-        An array to be reshuffled 
-    rollamount : numpy array N
-        rollamount[i] says how much to roll rates[i, :]
-    """
-    return np.array([np.roll(rates[i, :], -int(r)) for i,r in enumerate(rollamount)])
+            pad = np.zeros((rates.shape[0], 15))
+            #Ids for the rows, formatted correctly
+            rows = np.arange(rates.shape[0])[:, None]
+            #Get shifted ids for the columns
+            cols = np.arange(8)[None, :] + (7 - post_pref_ori)
+            #Fill the padded vector and return
+            pad[pre_ids, cols] = rates_selected 
+            return pad 
+        else:
+            raise ValueError("shift_rates accepts only a scalar (int) postsynaptic id to work.")
+
+    def shift_multi(rates, rollamount):
+        """
+        Perform a roll for each one of the rows of the vector rates by
+        the quantities defined in rollamount. Here we create a longer vector of zeros
+
+        Parameters
+        ==========
+        rates : numpy array NxM
+            An array to be reshuffled 
+        rollamount : numpy array N
+            rollamount[i] says how much to roll rates[i, :]
+        """
+
+        if isinstance(rollamount, pd.Series):
+            rollamount = rollamount.values
+
+
+        #Create a series of zeros
+        pad = np.zeros((rates.shape[0], 15))
+        #Ids for the rows, formatted correctly
+        rows = np.arange(rates.shape[0])[:, None]
+        #Get shifted ids for the columns
+        cols = np.arange(8)[None, :] + (7 - rollamount)[:, None]
+        #Fill the padded vector and return
+        pad[rows, cols] = rates 
+        return pad 
+else:
+    def shift_rates(v1_neurons, pre_ids, post_id, rates):
+        """
+        Shift all the rates corresponding to the pre_ids, so that the post_id neuron
+        would be oriented at angle = 0.
+
+        Parameters
+        v1_neurons : DataFrame
+            The table with info of all the neurons.
+        pre_ids : arraylike
+            An array with all the ids of the considered presynaptic neurons 
+        post_id : int
+            The selected postsynaptic neuron id
+        rates : numpy matrix
+            The matrix with the rates information
+        """
+        if isinstance(post_id, (int, float, np.int64, np.float64)): 
+            rates_selected = rates[pre_ids, :]
+            post_pref_ori  = v1_neurons.loc[post_id, "pref_ori"]
+            return  np.roll(rates_selected, -post_pref_ori, axis=1) 
+        else:
+            raise ValueError("shift_rates accepts only a scalar (int) postsynaptic id to work.")
+
+    def shift_multi(rates, rollamount):
+        """
+        Perform a roll for each one of the rows of the vector rates by
+        the quantities defined in rollamount
+
+        Parameters
+        ==========
+        rates : numpy array NxM
+            An array to be reshuffled 
+        rollamount : numpy array N
+            rollamount[i] says how much to roll rates[i, :]
+        """
+        return np.array([np.roll(rates[i, :], -int(r)) for i,r in enumerate(rollamount)])
 
 
 

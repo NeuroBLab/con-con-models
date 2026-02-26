@@ -13,15 +13,7 @@ def signed_dist(pre, post, nangles=16, half=True):
     if pd.isnull(pre) or pd.isnull(post):
         return np.nan 
 
-    d = post - pre
-    max_angle = nangles//4 if half else nangles//2
-
-    if d <= -max_angle:
-        return d + 2*max_angle
-    elif d > max_angle:
-        return d - 2*max_angle
-    else:
-        return d
+    return post - pre
 
 def signed_dist_vectorized(pre, post, nangles=16, half=True):
     """
@@ -29,16 +21,7 @@ def signed_dist_vectorized(pre, post, nangles=16, half=True):
     In this way, we get differences in [-k, ..., 0, ...k], being nangle-k mapped to -k until -nangle//2,
     where results jump to be positive. 
     """
-    dtheta = post - pre
-    max_angle = nangles//4 if half else nangles//2
-
-    mask1 = dtheta <= -max_angle
-    mask2 = dtheta > max_angle
-
-    dtheta[mask1] = dtheta[mask1] + 2*max_angle
-    dtheta[mask2] = dtheta[mask2] - 2*max_angle
-
-    return dtheta
+    return post - pre
 
 
 
@@ -48,9 +31,7 @@ def unsigned_dist(pre, post, nangles=16, half=True):
     """
     Classic distance with boundary conditions between angles pre and post, given as integers.
     """
-    d = abs(post - pre)
-    max_angle = nangles//2 if half else nangles
-    return np.minimum(d, max_angle - d)
+    return abs(post - pre)
 
 def construct_delta_ori(v1_neurons, v1_connections, nfreqs=8, half=True):
     """

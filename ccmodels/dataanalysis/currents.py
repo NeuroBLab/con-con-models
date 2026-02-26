@@ -4,7 +4,7 @@ import pandas as pd
 
 import ccmodels.dataanalysis.utils as utl
 import ccmodels.dataanalysis.filters as fl
-import ccmodels.utils.angleutils as au
+import ccmodels.utils.distances as au
 
 
 

@@ -55,15 +55,15 @@ def plot_tuning_curve(ax, units, rates):
         tcurve     = np.mean(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) 
         tcurve_err = np.std(utl.shift_multi(rates_layer, neurons_layer['pref_ori']), axis=0) / np.sqrt(rates_layer.shape[0])
 
-        tcurve     = plotutils.shift(tcurve, with_symmetric=False)
-        tcurve_err = plotutils.shift(tcurve_err, with_symmetric=False)
-        ax.fill_between(np.arange(8), tcurve - tcurve_err, tcurve + tcurve_err, color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
-        ax.plot(np.arange(8), tcurve, color=cr.lcolor[layer], label=layer)
-        ax.plot(np.arange(8), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
+        #tcurve     = plotutils.shift(tcurve, with_symmetric=False)
+        #tcurve_err = plotutils.shift(tcurve_err, with_symmetric=False)
+        ax.fill_between(np.arange(15), tcurve - tcurve_err, tcurve + tcurve_err, color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
+        ax.plot(np.arange(15), tcurve, color=cr.lcolor[layer], label=layer)
+        ax.plot(np.arange(15), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
 
-    ax.set_xticks([0, 4, 8], ['-0.08', '0.0', '0.08'])
+    ax.set_xticks([-1, 7, 16], ['-0.17', '0.0', '0.17'])
     ax.set_ylim(0, 10)
-    ax.set_xlabel(r"$k - \hat k$")
+    ax.set_xlabel(r"$\hat k - k$")
     ax.set_ylabel("Rate")
     ax.legend(loc='best')
 

@@ -8,7 +8,7 @@ sys.path.append(os.getcwd())
 import ccmodels.dataanalysis.processedloader as loader
 import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.filters as fl
-import ccmodels.utils.angleutils as au
+import ccmodels.utils.distances as au
 
 is_real_data = True 
 
