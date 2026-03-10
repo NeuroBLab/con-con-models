@@ -12,14 +12,20 @@ import ccmodels.utils.distances as au
 
 is_real_data = True 
 
+#If using spatial frequencies just add a suffix to each table saved to avoid mixing. Also shared with the suffix from load tables to ensure we load the correct data.
+if au.using_spatial_freq():
+    freqsuffix = 'SF'
+else:
+    freqsuffix = ''
 
 #Load the data
 if is_real_data:
-    v1_neurons, v1_connections, activity = loader.load_data()
+    v1_neurons, v1_connections, activity = loader.load_data(suffix=freqsuffix)
 else:
-    v1_neurons = pd.read_csv('data/model/usampled.csv')
-    v1_connections = pd.read_csv('data/model/csampled.csv')
+    v1_neurons = pd.read_csv(f'data/model/usampled{freqsuffix}.csv')
+    v1_connections = pd.read_csv(f'data/model/csampled{freqsuffix}.csv')
     v1_connections["delta_ori"] = au.construct_delta_ori(v1_neurons, v1_connections, half=True)
+
 
 
 # --- Extract connectivity statistics 
@@ -28,16 +34,16 @@ else:
 table = ste.estimate_conn_prob_connectomics(v1_neurons, v1_connections)
 
 if is_real_data:
-    table.to_csv("data/model/prob_connectomics_cleanaxons.csv")
+    table.to_csv(f"data/model/prob_connectomics_cleanaxons{freqsuffix}.csv")
 else:
-    table.to_csv("data/model/prob_connectomics_cleanaxons_sampled.csv")
+    table.to_csv(f"data/model/prob_connectomics_cleanaxons_sampled{freqsuffix}.csv")
 
 #The same, without proofreading
 table = ste.estimate_conn_prob_connectomics(v1_neurons, v1_connections, proof=[None, None])
 if is_real_data:
-    table.to_csv("data/model/prob_connectomics.csv")
+    table.to_csv(f"data/model/prob_connectomics{freqsuffix}.csv")
 else:
-    table.to_csv("data/model/prob_connectomics_sampled.csv")
+    table.to_csv(f"data/model/prob_connectomics_sampled{freqsuffix}.csv")
 
 #Get the matched neurons and the inhibtory ones, together...
 #In the real data, inh are not matched, so we have to put them together
@@ -56,26 +62,30 @@ else:
     fmconnections = v1_connections
 
 
-#Then get the table for proofread and not proofread neurons
-table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections)
+#Then get the table for proofread and not proofread neurons. Take into account we might be using spatial freqs
+if au.using_spatial_freq():
+    table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections, use_spatial_frequency=True)
+else:
+    table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections)
+
 table.index.name = "Population"
 if is_real_data:
-    table.to_csv("data/model/prob_funcmatch_cleanaxons.csv")
+    table.to_csv(f"data/model/prob_funcmatch_cleanaxons{freqsuffix}.csv")
 else:
-    table.to_csv("data/model/prob_funcmatch_cleanaxons_sampled.csv")
+    table.to_csv(f"data/model/prob_funcmatch_cleanaxons_sampled{freqsuffix}.csv")
 
 table = ste.estimate_conn_prob_functmatch(fm_and_inh, fmconnections, proof=[None,None])
 table.index.name = "Population"
 if is_real_data:
-    table.to_csv("data/model/prob_funcmatch.csv")
+    table.to_csv(f"data/model/prob_funcmatch{freqsuffix}.csv")
 else:
-    table.to_csv("data/model/prob_funcmatch_sampled.csv")
+    table.to_csv(f"data/model/prob_funcmatch_sampled{freqsuffix}.csv")
 
 #Finally, let's get the number of neurons for each family
 if is_real_data:
     table = ste.get_fraction_populations(v1_neurons)
     table.index.name = "Population"
-    table.to_csv("data/model/fractions_populations.csv")
+    table.to_csv(f"data/model/fractions_populations{freqsuffix}.csv")
 else:
     sys.exit()
 

@@ -135,6 +135,43 @@ def bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer, proofread=
 
     return pd.DataFrame({'mean':p_mean , 'std':p_std})
 
+def bootstrap_prob_tuned2tuned_spatialfreq(v1_neurons, v1_connections, pre_layer, proofread=["minimum", None], nfreqs=8):
+    '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
+    for a specific layer as a function of the difference in preferred orientation
+    
+    half_dirs: if true directions between 0 and pi else between 0 and pi
+    '''
+
+    #Filter to the connections we want
+    pre_ids  = fl.filter_neurons(v1_neurons, tuning='tuned', layer=pre_layer, proofread=proofread[0])
+    post_ids = fl.filter_neurons(v1_neurons, tuning='tuned', layer="L23", proofread=proofread[1])
+
+    #Initialize the variables
+    p_mean = np.zeros((nfreqs, nfreqs))
+    p_std = np.zeros((nfreqs, nfreqs))
+    
+    for kpre in range(nfreqs):
+        for kpost in range(nfreqs):
+            #Get those neurons with unique names in their colums for the next merge
+            units_pre  = pre_ids.loc[pre_ids['pref_ori'] == kpre,  ['id']].rename(columns=lambda x: f"pre_{x}")
+            units_post = post_ids.loc[post_ids['pref_ori'] == kpost,  ['id']].rename(columns=lambda x: f"post_{x}")
+
+            #Create a table where each presynaptic neuron is connected to all potential postsynaptic ones
+            units_pre['key']  = 1
+            units_post['key'] = 1
+            pairs = units_pre.merge(units_post, on='key')[['pre_id', 'post_id']]
+
+            #Get the actual connections
+            conn_from_tunedpre = fl.synapses_by_id(v1_connections, pre_ids=units_pre['pre_id'], post_ids=units_post['post_id'], who='both')
+
+            n_potential_conns = len(pairs)
+            n_observed_conns  = len(conn_from_tunedpre)
+
+            p_mean[kpre, kpost] = n_observed_conns / n_potential_conns
+            p_std[kpre, kpost]  = np.sqrt((p_mean[kpre, kpost] * (1 - p_mean[kpre, kpost]) / n_potential_conns))
+
+    return {'mean':p_mean , 'std':p_std}
+
 def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[None,None], cell_type=[None, None], proofread=[None, None], half=True, nangles=16, n_samps=1000):
     '''calculates boostrap mean and standard error for connection porbability for presynpatic neurons
     for a specific layer as a function of the difference in preferred orientation
@@ -167,7 +204,7 @@ def bootstrap_prob_A2B(v1_neurons, v1_connections, layer=[None, None], tuning=[N
     return p_mean
 
                                             
-def estimate_conn_prob_functmatch(fm_neurons, fm_connections, proof=["minimum", None], nangles=16, half=True):
+def estimate_conn_prob_functmatch(fm_neurons, fm_connections, proof=["minimum", None], nangles=16, half=True, use_spatial_frequency=False):
 
     if half:
         offset = nangles//4-1
@@ -247,27 +284,41 @@ def estimate_conn_prob_functmatch(fm_neurons, fm_connections, proof=["minimum", 
         ptable.loc[f"ET_{angle}", "XU"] = prob_XU_2_ET
         ptable.loc[f"ET_{angle}", "I"] = prob_I_2_ET
 
-    #For the connections between tuned neurons we will need the angle of both. 
-    #First, compute the submatrix of probabilities as a function of the angle for each layer.
-    prob_T2T_L23 = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L23', proofread=proof)
-    prob_T2T_L4  = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L4',  proofread=proof)
+    #Our usual, orientation selectivity code. Compute T2T connectivity and create a symmetric matrix with periodic boundaries for p(pre, post) = p(Δθ
+    if not use_spatial_frequency:
+        #For the connections between tuned neurons we will need the angle of both. 
+        #First, compute the submatrix of probabilities as a function of the angle for each layer.
+        prob_T2T_L23 = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L23', proofread=proof)
+        prob_T2T_L4  = bootstrap_prob_tuned2tuned(fm_neurons, fm_connections, pre_layer='L4',  proofread=proof)
 
-    #We are working now with half of the angles, but we need the symmetrized distribution
-    #So use a small trick to get first all the negative distances
-    for i in range(1, limit_angle//2):
-        prob_T2T_L23.loc[-i] = prob_T2T_L23.loc[i]
-        prob_T2T_L4.loc[-i] = prob_T2T_L4.loc[i]
+        #We are working now with half of the angles, but we need the symmetrized distribution
+        #So use a small trick to get first all the negative distances
+        for i in range(1, limit_angle//2):
+            prob_T2T_L23.loc[-i] = prob_T2T_L23.loc[i]
+            prob_T2T_L4.loc[-i] = prob_T2T_L4.loc[i]
 
-    #Then sort them in the way that the code below expects 
-    prob_T2T_L23 = prob_T2T_L23.sort_index().reset_index(drop=True)
-    prob_T2T_L4  = prob_T2T_L4.sort_index().reset_index(drop=True)
+        #Then sort them in the way that the code below expects 
+        prob_T2T_L23 = prob_T2T_L23.sort_index().reset_index(drop=True)
+        prob_T2T_L4  = prob_T2T_L4.sort_index().reset_index(drop=True)
 
-    #Now, loop over the angles and get the probability that corresponds to a certain dtheta, which is assigned to the table
-    for i in range(limit_angle):
-        for j in range(limit_angle):
-            dtheta = au.signed_dist(i, j, half=half)
-            ptable.loc[f"ET_{j}", f"ET_{i}"] = prob_T2T_L23.loc[dtheta+offset, "mean"]
-            ptable.loc[f"ET_{j}", f"XT_{i}"] = prob_T2T_L4.loc[dtheta+offset, "mean"]
+        #Now, loop over the angles and get the probability that corresponds to a certain dtheta, which is assigned to the table
+        for i in range(limit_angle):
+            for j in range(limit_angle):
+                dtheta = au.signed_dist(i, j, half=half)
+                ptable.loc[f"ET_{j}", f"ET_{i}"] = prob_T2T_L23.loc[dtheta+offset, "mean"]
+                ptable.loc[f"ET_{j}", f"XT_{i}"] = prob_T2T_L4.loc[dtheta+offset, "mean"]
+
+    #Compute the T2T table for spatial frequencies which just gets the table for pre/post directly 
+    else:
+        #Get the entire tables. Warning! Above they are dataframes, here they are dicts with keys mean and std
+        prob_T2T_L23 = bootstrap_prob_tuned2tuned_spatialfreq(fm_neurons, fm_connections, pre_layer='L23', proofread=proof)
+        prob_T2T_L4  = bootstrap_prob_tuned2tuned_spatialfreq(fm_neurons, fm_connections, pre_layer='L4',  proofread=proof)
+
+        #Fill the content of the full mtarices manually. Note nangles goes up to directions, and we use up to orientations as nfreqs
+        for i in range(nangles//2):
+            for j in range(nangles//2):
+                ptable.loc[f"ET_{j}", f"ET_{i}"] = prob_T2T_L23["mean"][i,j]
+                ptable.loc[f"ET_{j}", f"XT_{i}"] = prob_T2T_L4["mean"][i,j]
 
     #and ready!
     return ptable

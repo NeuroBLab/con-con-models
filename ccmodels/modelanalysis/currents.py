@@ -4,7 +4,7 @@ import pandas as pd
 import ccmodels.dataanalysis.currents as cur
 import ccmodels.dataanalysis.utils as utl
 import ccmodels.dataanalysis.filters as fl
-import ccmodels.utils.angleutils as au
+import ccmodels.utils.distances as au
 
 def get_model_prefcurrentori(units_sampled, rates_sampled, vij):
 

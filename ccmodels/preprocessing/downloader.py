@@ -229,4 +229,9 @@ activity_merged = activity_merged[['pt_root_id', 'freq_shown', 'rate_sfq', 'semr
 #Rename to match columns to our codebase and save
 activity_merged.rename(columns={'pt_root_id':'neuron_id', 'rate_sfq':'rate', 'semrate_sfq':'rate_error'}, inplace=True)
 
+#Scale the activity so the average rate matches the orientation one, as this was obtained arbitrary to get spk/s (see process_functional.py)
+#The magic number was obtained checking a posteriori
+activity_merged.loc[:, ['rate', 'rate_error']] *= 7.95 
+
+
 activity_merged.to_csv(f"data/preprocessed/activity_table_v1300_spfreq{table_suffix}.csv", index=False)

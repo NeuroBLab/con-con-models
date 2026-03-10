@@ -5,7 +5,7 @@ import ccmodels.dataanalysis.filters as fl
 import ccmodels.dataanalysis.utils as utl
 import ccmodels.dataanalysis.statistics_extraction as ste
 
-import ccmodels.utils.angleutils as au
+import ccmodels.utils.distances as au
 
 def sample_L4_rates(units, activity, units_sample, mode='normal'): 
     #Get neurons and their activity in L4
@@ -23,6 +23,7 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
 
     #Get the submatrix of rates in L4
     act_matrix = act_matrix[neurons_L4['id'], :]
+    print(act_matrix.shape)
 
     if mode == 'random':
         #In the random case, it suffices to just sample from the system's statistics. 
@@ -34,6 +35,8 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
         #So we have to sample from the system, shifting at zero, and then shift again to each neuron's ori
 
         #Shift all neurons so the largest rate is centered at 0
+        print("first shift")
+        print(act_matrix.shape)
         act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
 
         #Number of tuned neurons in data and synthetic tables
@@ -46,9 +49,12 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
         idx_selected = np.concatenate([idx_tuned, idx_untuned])
 
         #Fill the matrix with the sampled ids
+        print(act_matrix.shape)
         act_matrix = act_matrix[idx_selected, :]
+        print(act_matrix.shape)
 
         #The tuned ones have to to be moved back to their pref oris
+        print("second shift")
         act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.loc[:n_tuned_sample-1, 'pref_ori'])
 
     return act_matrix

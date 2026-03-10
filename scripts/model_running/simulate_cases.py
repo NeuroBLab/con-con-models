@@ -12,7 +12,7 @@ import ccmodels.modelanalysis.model as md
 import ccmodels.modelanalysis.utils as utl
 import ccmodels.modelanalysis.sbi_utils as msbi 
 
-import ccmodels.utils.angleutils as au
+import ccmodels.utils.distances as au
 
 import ccmodels.dataanalysis.processedloader as loader
 import ccmodels.dataanalysis.filters as fl
