@@ -223,4 +223,4 @@ def get_rates_matrix(v1_neurons, v1_activity, nangles=8):
         error_rates[i,:] = v1_activity.loc[mask, "rate_error"].values 
 
     #Scale
-    return rates*5, error_rates*5
+    return rates, error_rates
