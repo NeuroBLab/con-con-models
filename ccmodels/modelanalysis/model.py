@@ -3,6 +3,7 @@ import pandas as pd
 
 import ccmodels.modelanalysis.matrixsampler as msa 
 import ccmodels.modelanalysis.utils as mut 
+import ccmodels.utils.distances as au
 
 import ccmodels.dataanalysis.processedloader as loader 
 import ccmodels.dataanalysis.filters as fl
@@ -168,7 +169,10 @@ def make_simulation(units, connections, rates, k_ee, N, J, g, hEI=0.0, hII=0.0, 
     tunedL23_ids = tunedL23['id']
     original_prefori = units_sampled.loc[units_sampled['id'].isin(tunedL23_ids), 'pref_ori']
     
-    rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode=mode)
+    if au.using_spatial_freq():
+        rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode='spfreqs')
+    else:
+        rate_xtheta = msa.sample_L4_rates(units, rates, units_sampled, mode=mode)
 
     #Compute the response function for the used parameters
     phi = mut.tabulate_response(tau_E, tau_I, theta_E, theta_I, V_r, sigma_tE, sigma_tI)

@@ -8,6 +8,8 @@ import os
 sys.path.append(os.getcwd())
 import argparse
 
+os.environ['USE_FREQ'] = 'true'
+
 import ccmodels.modelanalysis.model as md 
 import ccmodels.modelanalysis.utils as utl
 import ccmodels.modelanalysis.sbi_utils as msbi 
@@ -23,7 +25,7 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 N = 3001
 kee = 150 
 nreps = 10 
-filename = "v1300_def_tuned"
+filename = "v1300_def_spfreq"
 
 def compute_conn_prob(v1_neurons, v1_connections):
 
@@ -43,7 +45,10 @@ def compute_conn_prob(v1_neurons, v1_connections):
 orionly= True
 local_connectivity = False 
 mode = 'cosine'
-intmode = 'tunedinh'
+if au.using_spatial_freq():
+    intmode = 'spfreq'
+else:
+    intmode = 'normal'
 
 units, connections, rates = loader.load_data()
 connections = fl.remove_autapses(connections)
@@ -93,8 +98,10 @@ elif intmode=='tunedinh':
     best_pars = np.array([[9.94296014e-01, 2.04172418e-01, 7.58484888e+00, 8.25478363e+00, 6.88277740e+01, 4.54100189e+02, 1.44280359e-01, 1.49676427e-01]])
 
     betas = [best_pars[id, 6], best_pars[id, 7], best_pars[id, 6], best_pars[id, 6], best_pars[id, 6], best_pars[id, 7]]
-elif intmode=='kin':
-    betas = np.zeros(6) 
+elif intmode=='spfreq':
+    best_pars = np.array([[7.92474210e-01, 3.59854251e-01, 7.69989061e+00, 7.60365248e+00, 9.98869781e+01, 4.66699005e+02, 2.98812389e-01, 1.46130979e-01]])
+    best_pars[id,5] = 100 
+    betas = [best_pars[id, 6], best_pars[id, 7], 0., 0., 0., 0.]
 
 for i in range(nreps):
     print(f"SIMULATION ID: {i}")

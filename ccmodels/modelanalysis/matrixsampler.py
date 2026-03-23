@@ -23,20 +23,17 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
 
     #Get the submatrix of rates in L4
     act_matrix = act_matrix[neurons_L4['id'], :]
-    print(act_matrix.shape)
 
     if mode == 'random':
         #In the random case, it suffices to just sample from the system's statistics. 
         #Doing that, fractions of tuned/untuned and each pref ori is respected.
         idx_selected = np.random.choice(np.arange(0, n), size=n_sample, replace=True)
         act_matrix = act_matrix[idx_selected, :] 
-    else:
+    elif mode == 'normal':
         #In the normal case, each neuron has a predefined orientation that we must match.
         #So we have to sample from the system, shifting at zero, and then shift again to each neuron's ori
 
         #Shift all neurons so the largest rate is centered at 0
-        print("first shift")
-        print(act_matrix.shape)
         act_matrix = utl.shift_multi(act_matrix, neurons_L4['pref_ori'])
 
         #Number of tuned neurons in data and synthetic tables
@@ -49,13 +46,50 @@ def sample_L4_rates(units, activity, units_sample, mode='normal'):
         idx_selected = np.concatenate([idx_tuned, idx_untuned])
 
         #Fill the matrix with the sampled ids
-        print(act_matrix.shape)
         act_matrix = act_matrix[idx_selected, :]
-        print(act_matrix.shape)
 
         #The tuned ones have to to be moved back to their pref oris
-        print("second shift")
         act_matrix[:n_tuned_sample] = utl.shift_multi(act_matrix[:n_tuned_sample], -neurons_L4_sample.loc[:n_tuned_sample-1, 'pref_ori'])
+    elif mode == 'spfreqs':
+        #If we want to have spatial frequencies, there is no periodicity between the angles and shift_multi cannot be used.
+        #What we have to do is create 8 groups of neurons with the correct pref_ori by filtering directly
+
+        #Get selective neurons in L4 from data
+        selectiveL4 = fl.filter_neurons(units, layer='L4', tuning='tuned')
+
+        #Get the number of neurons for each frequency that we need for our sampled data
+        #n_neurons_by_ori = neurons_L4_sample['pref_ori'].value_counts().sort_index().values
+        n_neurons_by_ori = selectiveL4['pref_ori'].value_counts().sort_index().values 
+        n_neurons_by_ori = len(neurons_L4_sample) * n_neurons_by_ori / n_neurons_by_ori.sum()
+        n_neurons_by_ori = np.round(n_neurons_by_ori).astype(int)
+        n_neurons_by_ori[-1] -= n_neurons_by_ori.sum() - len(neurons_L4_sample)   
+        print(np.array(n_neurons_by_ori))
+
+        #Store at which indices we write in act_matrix. If we need 5 neurons for the first freq and then 15 for the second,
+        #we need to go from 0 to 5 (5 neurons), then from 5 to 20 (15 neurons). Cumsum does this nicely
+        #First element must be 0
+        idx_fromto = np.zeros(9)
+        idx_fromto[1:] = np.cumsum(n_neurons_by_ori)
+        idx_fromto = idx_fromto.astype(int)
+
+        #Initialize the result matrix
+        act_matrix = np.empty((idx_fromto[-1], 8))
+
+        #Then, for each potential frequency
+        for freq in range(8):   
+            #Get the list of all neurons that we have for that freq and how many we need 
+            neurons_freq_id = selectiveL4.loc[selectiveL4['pref_ori'] ==freq, 'id']
+            n_freq = len(neurons_freq_id) 
+
+            rates_by_freq = activity[neurons_freq_id, :]
+
+            #Select n_freq of the potential indices and the selected ids 
+            idx_selected = np.random.choice(np.arange(0, n_freq), size=n_neurons_by_ori[freq], replace=True)
+
+            #Overwrite the entires of the matrix with the selected values for this freq
+            act_matrix[idx_fromto[freq]:idx_fromto[freq+1], :] = rates_by_freq[idx_selected, :]
+
+        print(act_matrix.shape, )
 
     return act_matrix
 
@@ -88,10 +122,14 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
     #Get the scaling for a correct definition of k_ee
     #scaling_prob=fun.Compute_scaling_factor_for_target_K_EE(connections, units, k_ee, N)
     #scaling_prob=compute_scaling_factor_kEE(units, connections, k_ee, N)
+    if au.using_spatial_freq():
+        table_suffix = 'SF'
+    else:
+        table_suffix = ''
 
     #Get the fraction of total size that each population has as a pandas Series
     #This was previously estimated from data
-    fractions = pd.read_csv(f"{prepath}/model/fractions_populations.csv", index_col='Population')
+    fractions = pd.read_csv(f"{prepath}/model/fractions_populations{table_suffix}.csv", index_col='Population')
     fractions = fractions.squeeze()
 
     #Read the connection probabilities between each paper of populations 
@@ -99,7 +137,8 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
     if mode=='normal' in mode:
         ptable = pd.read_csv(f"{prepath}/model/prob_connectomics_cleanaxons.csv", index_col="Unnamed: 0") 
         av_prob = ptable.loc['E', 'E']
-        ptable = pd.read_csv(f"{prepath}/model/prob_funcmatch_cleanaxons.csv", index_col="Population") 
+
+        ptable = pd.read_csv(f"{prepath}/model/prob_funcmatch_cleanaxons{table_suffix}.csv", index_col="Population") 
         #Scale to get our desired k_ee. In this case the avg E-E probability is taken from connectomics
         scaling_prob = k_ee / (N * fractions['E'] * av_prob) 
         ptable *= scaling_prob
@@ -180,7 +219,6 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
         fractions["ET"] += fractions['EU']
         fractions["XT"] += fractions['XU']
 
-
     #Get the number of neurons we have, from the fractions
     n_neurons = np.array([fractions['E'], fractions['I'], fractions['X']]) * N
     n_neurons = np.round(n_neurons).astype(int)
@@ -250,8 +288,6 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
             block[block > 0] *=  syn_vols.values
 
             #Negative scaling for inhibitory neurons 
-            #TODO bug: the inhtuned cannot work because of the !=, while columns are now IT_X
-            #flips = +1 if col != 'I' else -g
             flips = +1 if not 'I' in col else -g
 
             #Assign our weighted block to the matrix

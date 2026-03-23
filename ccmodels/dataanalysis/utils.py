@@ -172,7 +172,6 @@ if au.using_spatial_freq():
         #Get shifted ids for the columns
         cols = np.arange(8)[None, :] + (7 - rollamount)[:, None]
         #Fill the padded vector and return
-        print(rates.shape)
         pad[rows, cols] = rates 
         return pad 
 else:

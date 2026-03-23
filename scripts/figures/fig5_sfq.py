@@ -1,10 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerTuple
+from scipy.stats import ttest_ind_from_stats
 
 import sys
 import os 
 sys.path.append(os.getcwd())
+os.environ['USE_FREQ'] = 'true'
 import argparse
 
 import ccmodels.modelanalysis.utils as utl
@@ -23,12 +25,12 @@ import ccmodels.plotting.color_reference as cr
 def diff_emergent2target_prefori(ax, diff_ori, color, label):
 
 
-    bins = np.arange(-5.5, 6.5)
+    bins = np.arange(-7.5, 8.5)
 
     hist, edges = np.histogram(diff_ori, bins=bins)
     hist = hist / hist.sum() 
 
-    xvals = 0.5 * (bins[1:] + bins[:-1]) * np.pi / 8  
+    xvals = 0.5 * (bins[1:] + bins[:-1]) * 0.02125
     print(xvals)
     print(hist)
     print(hist * xvals**2)
@@ -38,14 +40,12 @@ def diff_emergent2target_prefori(ax, diff_ori, color, label):
     print(hist.sum() - hist[5])
     print()
 
-    hist[1] = hist[-2] #Boundary conditions for angle
 
-    #lines, = ax.plot(bins[:-1]+0.5, hist, marker='.', color=color, label=label)
-    lines, = ax.step(bins[:-1]+1, hist, color=color, label=label)
+    lines, = ax.step(bins[:-1]+0.5, hist, color=color, label=label)
 
-    ax.set_xlabel(r"$\hat \theta _\text{targt}- \hat \theta _\text{emerg}$")
+    ax.set_xlabel(r"$\hat k_\text{targt}- \hat k_\text{emerg}$")
     ax.set_ylabel('Neuron frac.')
-    ax.set_xticks([-4, 0, 4], ['-π/2', '0', 'π/2'])
+    ax.set_xticks([-8, 0, 8], ['-0.17', '0.0', '0.17'])
     ax.set_yticks([0, 0.2, 0.4])
     ax.set_ylim(0., 0.41)
     
@@ -63,12 +63,11 @@ def plot_ratedist(ax, re, color):
     return
 
 
-#def circular_variance(ax, re, color):
-def circular_variance(ax, cved, color):
+def spatial_selectivity_index(ax, ssf, color):
     bins = np.linspace(0,1,50)
 
-    w = np.ones(cved.size) / cved.size
-    ax.hist(cved, bins=bins, density=False, weights=w, color=color, histtype='step')
+    w = np.ones(ssf.size) / ssf.size
+    ax.hist(ssf, bins=bins, density=False, weights=w, color=color, histtype='step')
 
     ax.set_xlabel("Circ. Var.")
     #ax.set_ylabel("Neuron frac.")
@@ -78,13 +77,12 @@ def compute_conn_prob(v1_neurons, v1_connections, half=True, n_samps=100):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_prepost(v1_neurons, v1_connections)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
         #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
-        meandata[layer]  = p['mean'].values 
+        meandata[layer] = p["mean"] / np.max(p["mean"])
 
     return meandata
 
@@ -115,28 +113,73 @@ def conn_prob_osi(axL23, axL4, meandata, error, colorL23, colorL4, half=True):
     
     axes['L23'].set_ylabel("Conn. Prob. \n(Normalized)")
     return 
+
 def make_bar_plot(ax, cvsims, cvdata, title):
 
-    print(cvsims.shape)
     m = cvsims.mean(axis=0)
     s = cvsims.std(axis=0) / np.sqrt(len(cvsims))
 
     x = np.arange(4)
 
-    print(m.shape)
     ax.bar(x, m, color = cr.reshuf_color, edgecolor='k') 
     ax.errorbar(x, m, yerr = s, color = 'black', marker = 'none', ls='none') 
 
-    ax.axhline(cvdata, ls='--', color = 'black')
-    ax.text(x[1], cvdata + 0.005, "Experiment")
+    #ax.axhline(cvdata, ls='--', color = 'gray', lw=1)
+    #ax.text(x[1], cvdata + 0.005, "Experiment")
+
+    ax.axhline(m[0], ls='--', color = 'black')
+
+    for i in range(1, 4):
+        tstat, pval = ttest_ind_from_stats(m[0], s[0], 10, m[i], s[i], 10, alternative='greater')
+        add_sig_bracket(ax, 0, i, m[0], m[i], yerr1=s[0], yerr2=s[1], p=pval, level=i-1, fs=9)
+
 
     ax.tick_params(axis='x', labelrotation=20)
     ax.set_xticks(x, ['Original', 'All Reshf.', 'L23 Reshf.', 'L4 Reshf.'])
     ax.set_ylabel("Circ. Var.")
-    ax.set_ylim(0, 0.4)
+    ax.set_ylim(0,0.6)
 
     ax.set_title(title)
     return
+
+def p_to_stars(p):
+    if p < 1e-3:
+        return '***'
+    elif p < 1e-2:
+        return '**'
+    elif p < 5e-2:
+        return '*'
+    else:
+        return 'n.s.'
+
+def add_sig_bracket(ax, x1, x2, y1, y2, yerr1=0.0, yerr2=0.0, p=1.0,
+                    level=0, pad_frac=0.03, h_frac=0.1, text_frac=-0.05,fs=11):
+    """
+    Draw a significance bracket between bars at x1 and x2.
+    """
+    y0, y1_lim = ax.get_ylim()
+    yr = y1_lim - y0
+
+    pad = pad_frac * yr
+    h = h_frac * yr
+    text_pad = text_frac * yr
+
+    base = max(y1 + yerr1, y2 + yerr2) + pad
+    y = base + level * (pad + h + text_pad)
+
+    label = p_to_stars(p)
+
+    ax.plot([x1, x1, x2, x2],
+            [y,  y + h, y + h, y],
+            color='black', clip_on=False)
+
+    ax.text((x1 + x2) / 2,
+            y + h + text_pad,
+            label,
+            ha='center', va='bottom',
+            fontsize=fs)
+
+    return y + h + text_pad
 
 #Defining Parser
 parser = argparse.ArgumentParser(description='''Generate plot for figure 5''')
@@ -146,16 +189,9 @@ parser = argparse.ArgumentParser(description='''Generate plot for figure 5''')
 parser.add_argument('save_destination', type=str, help='Destination path to save figure in')
 args = parser.parse_args()
 
-def plot_figure(figname, is_tuned=True, generate_data=True):
+def plot_figure(figname, generate_data=True):
 
-    if is_tuned:
-        figname += 'tuned'
-        filename = 'v1300_def_tuned'
-        #cvcomp = np.loadtxt(f"data/model/simulations/{args.datafolder}/cvtuned.txt")
-    else:
-        figname  += 'normal'
-        filename = 'v1300_def'
-        #cvcomp = np.loadtxt(f"data/model/simulations/{args.datafolder}/cvnormal.txt")
+    filename = 'v1300_def_spfreq'
 
     nexp = 10 
 
@@ -184,7 +220,7 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
     #labels = ['Original', 'All reshfl.', 'L23 reshfl.', 'L4 reshfl.']
     legend_handles = []
 
-    cvcomp = np.empty((0, 4))
+    ssfcomp = np.empty((0, 4))
 
     for i, reshuffle_mode in enumerate(['', 'all', 'L23', 'L4']):
     #for i, reshuffle_mode in enumerate(['', 'all']):
@@ -196,9 +232,9 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
             diff_ori = np.empty(0)
             allrates = np.empty(0)
-            allcircv = np.empty(0)
-            probmean = {'L23' : np.zeros(5), 'L4' : np.zeros(5)} 
-            proberr = {'L23' : np.zeros(5), 'L4' : np.zeros(5)} 
+            allssf = np.empty(0)
+            probmean = {'L23' : np.zeros((8,8)), 'L4' : np.zeros((8,8))} 
+            proberr = {'L23' : np.zeros((8,8)), 'L4' : np.zeros((8,8))} 
 
             for j in range(nexp):
                 if len(reshuffle_mode) > 1:
@@ -219,8 +255,8 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
                 allrates = np.concatenate((allrates, re.ravel()))
 
-                cveo, cved = utl.compute_circular_variance(re, orionly=True)    
-                allcircv = np.concatenate((allcircv, cved))
+                ssftrial = utl.compute_spatial_selectivity_index(re)
+                allssf = np.concatenate((allssf, ssftrial))
 
 
                 means = compute_conn_prob(units_sample, connections_sample)
@@ -236,7 +272,7 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
             np.save(f"{args.save_destination}/{figname}_{i}_angl_data", diff_ori)
             np.save(f"{args.save_destination}/{figname}_{i}_rate_data", allrates)
-            np.save(f"{args.save_destination}/{figname}_{i}_circ_data", allcircv)
+            np.save(f"{args.save_destination}/{figname}_{i}_ssf_data", allssf)
             np.save(f"{args.save_destination}/{figname}_{i}_probmeanL23", probmean['L23'])
             np.save(f"{args.save_destination}/{figname}_{i}_proberroL23", proberr['L23'])
             np.save(f"{args.save_destination}/{figname}_{i}_probmeanL4", probmean['L4'])
@@ -250,7 +286,7 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
             diff_ori = np.load(f"{args.save_destination}/{figname}_{i}_angl_data.npy")
             allrates = np.load(f"{args.save_destination}/{figname}_{i}_rate_data.npy")
-            allcircv = np.load(f"{args.save_destination}/{figname}_{i}_circ_data.npy")
+            allssf   = np.load(f"{args.save_destination}/{figname}_{i}_ssf_data.npy")
             probmean['L23'] = np.load(f"{args.save_destination}/{figname}_{i}_probmeanL23.npy")
             proberr['L23']  = np.load(f"{args.save_destination}/{figname}_{i}_proberroL23.npy")
             probmean['L4']  = np.load(f"{args.save_destination}/{figname}_{i}_probmeanL4.npy")
@@ -259,9 +295,9 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
         #First time we need to resize this to the number of Exc neurons in the simulation, which was not known a priori
         if reshuffle_mode == '':
-            cvcomp.resize((allcircv.shape[0], 4))
+            ssfcomp.resize((allssf.shape[0], 4))
         
-        cvcomp[:, i] = allcircv
+        ssfcomp[:, i] = allssf
 
         #diff_emergent2target_prefori(axes['A'], exc_pref_ori, target_ori, c23)    
         handle = diff_emergent2target_prefori(axes['A'], diff_ori, c23, label)    
@@ -270,23 +306,20 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
         #plot_ratedist(axes['B'], re, c23)
         plot_ratedist(axes['B'], allrates, c23)
 
-        #circular_variance(axes['C'], re, c23)
-        circular_variance(axes['C'], allcircv, c23)
+        spatial_selectivity_index(axes['C'], allssf, c23)
 
-        print("all ", allcircv.shape)
-        print("comp ", cvcomp.shape)
         #cvcomp = np.vstack((cvcomp, allcircv))
 
-        #p1, p2 = conn_prob_osi(axes['D'], axes['E'], units_sample, connections_sample, c23, c4)
-        conn_prob_osi(axes['D'], axes['E'], probmean, proberr, c23, c23)
+        #TODO will need to be plotted somehow...
+        #conn_prob_osi(axes['D'], axes['E'], probmean, proberr, c23, c23)
 
 
     units_e = fl.filter_neurons(units, layer='L23', tuning='matched', cell_type='exc')
-    _, cv_data = utl.compute_circular_variance(rates[units_e['id']], orionly=True)
-    aver_cv = cv_data.mean()
+    ssf_data = utl.compute_spatial_selectivity_index(rates[units_e['id']])
+    aver_ssf = ssf_data.mean()
 
     #axes['L'].set_axis_off()
-    make_bar_plot(axes['L'], cvcomp, aver_cv, "")
+    make_bar_plot(axes['L'], ssfcomp, aver_ssf, "")
     axes['A'].legend(handles=legend_handles, loc=(0.1, 0.55))
 
 
@@ -297,5 +330,4 @@ def plot_figure(figname, is_tuned=True, generate_data=True):
 
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
-plot_figure("fig5", is_tuned=False,  generate_data=False)
-plot_figure("fig5", is_tuned=True,  generate_data=False)
+plot_figure("fig5_sfq",  generate_data=False)

@@ -354,6 +354,35 @@ def estimate_conn_prob_connectomics(v1_neurons, v1_connections, proof = ["minimu
 
     return ptable
 
+def estimate_func_connprob_prepost(units, connections, pre_layer, proofread = ['ax_clean', None]):
+
+    p = np.zeros((8, 8))
+    p_err = np.zeros((8, 8))
+
+    for kpre in range(8):
+        for kpost in range(8):
+            pre_neurons  = fl.filter_neurons(units, layer=pre_layer, tuning='tuned', proofread=proofread[0])
+            post_neurons = fl.filter_neurons(units, layer='L23', tuning='tuned', proofread=proofread[1])
+
+            pre_neurons  = pre_neurons.loc[pre_neurons['pref_ori']==kpre, ['id']].rename(columns = lambda x : f"pre_{x}")
+            post_neurons = post_neurons.loc[post_neurons['pref_ori']==kpost, ['id']].rename(columns = lambda x : f"post_{x}")
+            pre_neurons['key'] = 1
+            post_neurons['key'] = 1
+            pairs = pre_neurons.merge(post_neurons, on='key')[['pre_id', 'post_id']]
+            selected_connections = fl.synapses_by_id(connections, pre_ids=pre_neurons['pre_id'], post_ids=post_neurons['post_id'], who='both')
+
+            p[kpre, kpost] = len(selected_connections) / len(pairs)
+            p_err[kpre, kpost] = np.sqrt(p[kpre, kpost] * (1 - p[kpre, kpost]) / len(pairs)) 
+
+
+    #maxp = np.max(p) 
+    #p /= maxp
+    #p_err /= maxp
+
+    return {"mean":p, "std":p_err}
+
+
+
 def estimate_conn_prob_connectomics_2(v1_neurons, v1_connections, proof = ["minimum", None], n_samps=100):
 
     #Similar to function above, but way simpler. Define pre (columns) and post (rows) populations and generate a dataframe
@@ -578,6 +607,19 @@ def prob_conn_diffori(v1_neurons, v1_connections, proofread=['minimum', None]):
     l4_boots = bootstrap_prob_tuned2tuned(v1_neurons, v1_connections, pre_layer='L4', proofread=proofread)
 
     return l23_boots, l4_boots
+
+def prob_conn_prepost(v1_neurons, v1_connections, proofread=['minimum', None]): 
+    """
+    Computes the connection probability between neurons as a 2D function, p(preori, postori) 
+
+    Parameters: requires the dataframe of neurons's properties, as well as the synapses' properties. 
+    """
+
+    #Extract bootstrapped stats
+    l23 = estimate_func_connprob_prepost(v1_neurons, v1_connections, pre_layer='L23', proofread=proofread)
+    l4  = estimate_func_connprob_prepost(v1_neurons, v1_connections, pre_layer='L4', proofread=proofread)
+
+    return l23, l4
 
 def cumul_dist(data, n_bins):
 
