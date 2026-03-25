@@ -316,7 +316,7 @@ args = parser.parse_args()
 
 def plot_figure(figname, generate_data=True):
 
-    filename = 'v1300_def_spfreq'
+    filename = 'v1300_def_spfreqcosonly'
 
     nexp = 10 
 
@@ -484,4 +484,4 @@ def plot_figure(figname, generate_data=True):
 
     fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
-plot_figure("fig6",  generate_data=False)
+plot_figure("fig6cosonly",  generate_data=True)

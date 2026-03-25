@@ -6,10 +6,14 @@ import torch
 
 import sys
 import os
+
+os.environ['USE_FREQ'] = 'true'
+
 sys.path.append(os.getcwd())
 import ccmodels.modelanalysis.sbi_utils as msbi
 import ccmodels.modelanalysis.utils as mut
 import ccmodels.utils.watermark as wtm
+import ccmodels.utils.distances as au
 
 from scipy.stats import skew
 
@@ -79,8 +83,21 @@ for sim in range(summary_stats.shape[0]):
 
 print(summary_stats.shape)
 
-        
-if sample_mode == 'kin':
+if au.using_spatial_freq():
+    #Train only for hEE, hEI, betas
+    params = torch.tensor(params[:, [4,5,6,7]])
+
+    summary_stats = torch.tensor(summary_stats)
+
+    hei0, heif = 50., 250.
+    hii0, hiif = 100., 600.
+    b230, b23f = 0.1, 0.7 
+    b40, b4f   = 0.1, 0.7 
+
+    prior_lowbound =  torch.tensor([hei0, hii0, b230, b40])
+    prior_highbound = torch.tensor([heif, hiif, b23f, b4f])
+
+elif sample_mode == 'kin':
     #Select parameters J,g,sE,sI,hEI,hII,kin, leaving out the two betas
     params = torch.tensor(params[:, [0,1,2,3,4,5,8]])
     summary_stats = torch.tensor(summary_stats)

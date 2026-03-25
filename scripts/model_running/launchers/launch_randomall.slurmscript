@@ -11,9 +11,14 @@
 # - Sample
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID normal randk150 no 150
 # - SBI 
-srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randk150 randk150_mini.sbi 150 
+#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_randk150 randk150_mini.sbi 150 
 
 # - Sample tuned
 #srun python scripts/model_running/launchers/random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh tunedk150 no 150
 # - SBI tuned 
 #srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID tunedinh sbi_tunedk150 tunedk150_mini.sbi 150 
+
+# - Spatial frequency 
+srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sfq no 150
+# - SBI 
+#srun python scripts/model_running/launchers/mini_random_parameters.py $SLURM_ARRAY_TASK_ID normal sbi_sfq sfq_mini.sbi 150

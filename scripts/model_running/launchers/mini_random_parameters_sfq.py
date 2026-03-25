@@ -2,6 +2,8 @@ import numpy as np
 import sys
 import os
 
+os.environ['USE_FREQ'] = 'true'
+
 import warnings
 
 sys.path.append(os.getcwd())
@@ -30,16 +32,13 @@ def compute_conn_prob(v1_neurons, v1_connections):
 
     #Get the data to be plotted 
     conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_diffori(v1_neurons, v1_connections)
+    conprob["L23"], conprob["L4"] = ste.prob_conn_prepost(v1_neurons, v1_connections)
     meandata = {}
     for layer in ["L23", "L4"]:
         p = conprob[layer]
-        #Normalize by p(delta=0), which is at index 3
-        p.loc[:, ["mean", "std"]] = p.loc[:, ["mean", "std"]] /p.loc[0, "mean"]
-        meandata[layer]  = p['mean'].values
+        meandata[layer] = p["mean"] / np.max(p["mean"])
 
-    return meandata 
-
+    return meandata
 
 units, connections, rates = loader.load_data(prepath=datafolder, orientation_only=True)
 connections = fl.remove_autapses(connections)
@@ -75,7 +74,7 @@ def dosim(pars):
         rates_sample = utl.format_synthetic_data_4conprob(units_sample, connections_sample, re, ri, rx)
         conprob = compute_conn_prob(units_sample, connections_sample)
     else:
-        trivial_conprob= np.array([1.,0.,0.,0.,0.])
+        trivial_conprob= np.array([0.]*8  + [1.] + [0.]*6)
         conprob = {'L23':trivial_conprob, 'L4':trivial_conprob}
 
     return tuning_curve, conprob, re
@@ -85,21 +84,26 @@ nsims = 1000
 n_experiments = 1
 
 if len(sbinet) < 5:
-    J = 4*np.random.rand(nsims)
-    g = 5*np.random.rand(nsims)
-    sigmaE = 7 + 5*np.random.rand(nsims)
-    sigmaI = 7 + 5*np.random.rand(nsims)
-    hEI = 50 + 100*np.random.rand(nsims)
-    hII = 100 + 400*np.random.rand(nsims)
-    b23 = 0.1 + 0.5*np.random.rand(nsims) 
-    b4  = 0.1 + 0.5*np.random.rand(nsims)     
+
+    best_pars = np.array([[9.98869781e+01, 4.66699005e+02, 2.98812389e-01, 1.46130979e-01]])
+    
+    unos = np.ones(nsims)
+
+    J      = 7.92474210e-01 * unos  
+    g      = 3.59854251e-01 * unos
+    sigmaE = 7.69989061e+00 * unos
+    sigmaI = 7.60365248e+00 * unos
+    hEI = 50 + 200*np.random.rand(nsims)
+    hII = 100 + 500*np.random.rand(nsims)
+    b23 = 0.1 + 0.6*np.random.rand(nsims) 
+    b4  = 0.1 + 0.6*np.random.rand(nsims)     
 
     if sample_mode == 'kin':
         kee = 30 + 570*np.random.rand(nsims)
     else:
-        kee = fixed_kee * np.ones(nsims)
+        kee = fixed_kee * unos 
 
-    header = wtm.add_metadata(extra="Using random betas, single run for each network. Sample mode = {sample_mode}")
+    header = wtm.add_metadata(extra="Using random betas, single run for each network. Using spatial frequency. Sample mode = {sample_mode}")
 else:
     nsims = 100 
     n_experiments = 10
@@ -121,8 +125,8 @@ else:
     #pL23 = 0.5 * (means_data['L23'][0] + means_data['L23'][-1]) 
     #pL4  = 0.5 * (means_data['L4'][0] + means_data['L4'][-1]) 
 
-    pL23 = means_data['L23'][-1] 
-    pL4  = means_data['L4'][-1] 
+    pL23 = means_data['L23'][0] 
+    pL4  = means_data['L4'][0] 
 
     pL23mid = means_data['L23'][2] 
     pL4mid  = means_data['L4'][2] 
@@ -159,7 +163,7 @@ else:
         J,g,sigmaE,sigmaI,hEI,hII,b23,b4 = np.transpose(posterior_samples) 
         kee = fixed_kee * np.ones(nsims)
 
-    header = wtm.add_metadata(extra=f"SBI simulation using network {sbinet} with sample mode {sample_mode}")
+    header = wtm.add_metadata(extra=f"SBI simulation using network {sbinet} with sample mode {sample_mode} and spatial frequency")
 
 
 np.savetxt(f"{datafolder}/model/simulations/{savefolder}/metadata{simid}", [], header=header)
