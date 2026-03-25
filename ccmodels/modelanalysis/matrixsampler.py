@@ -300,6 +300,8 @@ def sample_matrix(units, connections, k_ee, N, J, g, prepath='data', mode='norma
 
 def sample_units(N, neurons_per_pop, column_names):
 
+    print(neurons_per_pop)
+
     units_sampled = {'cell_type':[],'layer':[], 'pref_ori':[], 'tuning_type':[]}
 
     units_sampled['id'] = np.arange(N) 

@@ -25,7 +25,7 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 N = 3001
 kee = 150 
 nreps = 10 
-filename = "v1300_def_spfreq"
+filename = "v1300_def_spfreqnormal"
 
 def compute_conn_prob(v1_neurons, v1_connections):
 
@@ -44,11 +44,12 @@ def compute_conn_prob(v1_neurons, v1_connections):
 
 orionly= True
 local_connectivity = False 
-mode = 'cosine'
 if au.using_spatial_freq():
+    mode = 'normal'
     intmode = 'spfreq'
 else:
     intmode = 'normal'
+    mode = 'cosine'
 
 units, connections, rates = loader.load_data()
 connections = fl.remove_autapses(connections)
@@ -101,6 +102,8 @@ elif intmode=='tunedinh':
 elif intmode=='spfreq':
     best_pars = np.array([[7.92474210e-01, 3.59854251e-01, 7.69989061e+00, 7.60365248e+00, 9.98869781e+01, 4.66699005e+02, 2.98812389e-01, 1.46130979e-01]])
     best_pars[id,5] = 100 
+    #best_pars[id,6] = 0.51
+    #best_pars[id,7] = 0.17
     betas = [best_pars[id, 6], best_pars[id, 7], 0., 0., 0., 0.]
 
 for i in range(nreps):
