@@ -30,6 +30,9 @@ data/model/old_probs/
 sbi-logs/
 ccmodels/victor/
 
+#This file is too large and gives problems with git
+data/in_processing/functional_fits_nobounds_wsfq.csv
+
 images/*.pdf
 
 #For SLURM programs
