@@ -15,7 +15,7 @@ import ccmodels.dataanalysis.utils as utl
 import ccmodels.plotting.styles as sty 
 import ccmodels.plotting.color_reference as cr
 import ccmodels.plotting.utils as plotutils
-
+from matplotlib.lines import Line2D
 
 
 def show_image(ax, path2im):
@@ -24,26 +24,37 @@ def show_image(ax, path2im):
     ax.imshow(im)
 
 
-def example_tuning_curve(ax, v1_neurons, rates, error_rates, layer='L23'):
+def example_tuning_curve(ax, v1_neurons, rates, error_rates):
 
-    neurons_ids = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
+    neurons_ids = fl.filter_neurons(v1_neurons, tuning='tuned')
+    print(neurons_ids.loc[neurons_ids['layer']=='L4', 'id'].values[:15])
+    layers      = neurons_ids['layer']
     neurons_ids = neurons_ids['id']
 
-    ids = [8, 10, 11]
+    ids = [8, 10, 2]
 
 
-    for c,id in enumerate(ids):
+    for id in ids:
         #TODO do not shift here...
         rangle = rates[neurons_ids[id], :]
         rangle_err = error_rates[neurons_ids[id], :]
 
-        ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3])
-        ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3], ls='none', marker='o', ms=cr.ms)
-        ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.pal_extended[c+3], fmt='none') 
-        ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
-        ax.set_ylim(0,7)
-        ax.set_xlabel("θ")
-        ax.set_ylabel("Rate")
+        ax.plot(np.arange(8), rangle,  lw=1, color=cr.lcolor[layers[id]]) 
+        ax.plot(np.arange(8), rangle,  lw=1, color=cr.lcolor[layers[id]], ls='none', marker='o', ms=cr.ms)
+        ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.lcolor[layers[id]], fmt='none') 
+
+    legend_elements = [
+        Line2D([0], [0], color=cr.lcolor['L23'], label='L23'),
+        Line2D([0], [0], color=cr.lcolor['L4'], label='L4')
+    ]
+
+    ax.legend(handles=legend_elements)
+
+    ax.set_xticks([0, 4, 8], ['0', 'π/2', 'π'])
+    ax.set_ylim(0,8)
+    ax.set_xlabel("θ")
+    ax.set_ylabel("Rate")
+    ax.legend(handles=legend_elements, loc=(0.4, 0.7))
 
 
 def plot_tuning_curve(ax, units, rates):

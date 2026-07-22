@@ -28,17 +28,48 @@ fixed_kee = int(sys.argv[5])
 
 datafolder = "data"
 
-def compute_conn_prob(v1_neurons, v1_connections):
+def compute_prob_dif_layer(units, connections, layer):
+    p = np.zeros(15)
+    p_err = np.zeros(15)
 
-    #Get the data to be plotted 
-    conprob = {}
-    conprob["L23"], conprob["L4"] = ste.prob_conn_prepost(v1_neurons, v1_connections)
-    meandata = {}
-    for layer in ["L23", "L4"]:
-        p = conprob[layer]
-        meandata[layer] = p["mean"] / np.max(p["mean"])
+    ndif = np.zeros(15)
 
-    return meandata
+    for kpre in range(8):
+        pre_neurons  = fl.filter_neurons(units, layer=layer, tuning='tuned', proofread='ax_clean')
+        pre_neurons  = pre_neurons.loc[pre_neurons['pref_ori']==kpre, ['id']].rename(columns = lambda x : f"pre_{x}")
+        for kpost in range(8):
+
+            dif = kpre - kpost
+
+            post_neurons = fl.filter_neurons(units, layer='L23', tuning='tuned')
+            post_neurons = post_neurons.loc[post_neurons['pref_ori']==kpost, ['id']].rename(columns = lambda x : f"post_{x}")
+
+            pre_neurons['key'] = 1
+            post_neurons['key'] = 1
+            pairs = pre_neurons.merge(post_neurons, on='key')[['pre_id', 'post_id']]
+            selected_connections = fl.synapses_by_id(connections, pre_ids=pre_neurons['pre_id'], post_ids=post_neurons['post_id'], who='both')
+
+            p[dif + 7] += len(selected_connections) / len(pairs)
+            p_err[dif + 7] += np.sqrt(p[dif + 7] * (1 - p[dif + 7]) / len(pairs)) 
+            ndif[dif + 7] += 1
+
+    p /= ndif
+    p_err /= ndif
+
+    maxp = np.max(p) 
+    p /= maxp
+    p_err /= maxp
+
+    return p, p_err
+
+def compute_conn_prob(units, connections):
+    p = {}
+    p_err = {}
+    
+    for layer in ['L23', 'L4']:
+        p[layer], p_err[layer] = compute_prob_dif_layer(units, connections, layer)
+    
+    return p, p_err
 
 units, connections, rates = loader.load_data(prepath=datafolder, orientation_only=True)
 connections = fl.remove_autapses(connections)
@@ -52,8 +83,8 @@ N = 20 * fixed_kee + 1
 N_2save = 200
 
 def dosim(pars):
-    tuning_curve = np.zeros(8)
-    conprob      = np.zeros(8)
+    tuning_curve = np.zeros(15)
+    conprob      = np.zeros(15)
     J,g,sigmaE,sigmaI,hEI,hII,bL23,bL4,kee=pars 
 
     if sample_mode == 'kin':

@@ -10,7 +10,8 @@ lcolor = {
     "L4" :  pal[3],
     "L23_modelE" : pal[2], 
     "L23_modelI" : pal[1],
-    "Total" : "gray"
+    "Total" : "gray",
+    "Control" : pal[1]
 }
 
 

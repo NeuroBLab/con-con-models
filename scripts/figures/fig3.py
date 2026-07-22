@@ -48,8 +48,8 @@ def plot_dist_inputs(ax1, ax2, v1_neurons, v1_connections, rates):
     #ax1.scatter(centered_bins, h, color='k', s=cr.ms, zorder=3)
     ax1.set_xticks([-4, 0, 4], ["-π/2", "0", "π/2"])    
 
-    ax1.set_xlabel(r'$\hat \theta_\text{post} - \theta$')
-    ax1.set_ylabel("Syanpse frac.")
+    ax1.set_xlabel(r'$\hat \theta_\text{post} - \theta_\text{pre}$')
+    ax1.set_ylabel("Synapse frac.")
 
     ax1.set_ylim(0, 0.3)
 
@@ -106,9 +106,11 @@ def conn_prob_osi(ax, probmean, proberr):
         high_band = probmean[layer] + proberr[layer]
         c = cr.lcolor[layer]
 
-        ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
-        ax.plot(angles, probmean[layer], color = c, label = layer)
-        ax.scatter(angles, probmean[layer], color = cr.dotcolor[layer], s=cr.ms, zorder = 3)
+        #ax.fill_between(angles, low_band, high_band, color = c, alpha = 0.2)
+        #ax.plot(angles, probmean[layer], color = c, label = layer)
+        #ax.scatter(angles, probmean[layer], color = cr.dotcolor[layer], s=cr.ms, zorder = 3)
+
+        ax.errorbar(angles, probmean[layer], yerr = proberr[layer], color = c)
 
     #Then just adjust axes and put a legend
     ax.tick_params(axis='both', which='major')
@@ -173,13 +175,11 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
         prob    = prob_pref_ori[layer]
 
         xvals = np.arange(-3, 5) * np.pi / 8  
-        print(xvals)
-        print(prob)
-        print(prob * xvals**2)
         av  = np.dot(prob,  xvals**2)
         av2 = np.dot(prob,  xvals**4)
-        print('mse', av,  np.sqrt(av2 - av**2))
-        print(f'Neurons correctly predicted {layer},', prob[6])
+        print(layer)
+        print('mse', av,  np.sqrt((av2 - av**2)/nexperiments))
+        print(f'Neurons correctly predicted {layer},', prob[3])
 
         prob    = np.insert(prob_pref_ori[layer], 0, [0, 0, prob_pref_ori[layer][-1]])
         prob = np.append(prob, [0])
@@ -195,7 +195,20 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
         p2    = null_pref_ori[layer][3]
         p2err = null_pref_ori[layer + "_error"][3] * np.sqrt(nexperiments)
         st, pval = ttest_ind_from_stats(p1, p1err, nexperiments, p2, p2err, nexperiments)
-        print(f"Comparision test {layer} = ({st}, {pval})")
+        print(f"Comparision test {layer} = ({st}, {pval}); value = {p2}; original = {p1}")
+
+    prob    = null_pref_ori['Total']
+    prob    = np.insert(null_pref_ori['Total'], 0, [0, 0, prob_pref_ori['Total'][-1]])
+    prob = np.append(prob, [0])
+    ax.step(angles, prob, color=cr.lcolor['Control'], label='Control', zorder=1)
+
+    for layer in ['Total', 'L23', 'L4']:
+        prob    = null_pref_ori[layer]
+        av  = np.dot(prob,  xvals**2)
+        av2 = np.dot(prob,  xvals**4)
+        print(f"Control {layer}")
+        print('mse', av,  np.sqrt((av2 - av**2)/nexperiments))
+        print(f'Neurons correctly predicted {layer},', prob[3])
     print()
     print()
 
@@ -205,7 +218,7 @@ def tuning_prediction_performance(ax, matched_neurons, matched_connections, rate
     ax.set_xticks([0,4,8], ['-π/2', '0', 'π/2'])
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
 
-    ax.legend(loc="best")
+    ax.legend(loc=(0.1, 0.6), ncols=2)
 
 
 #Defining Parser

@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerTuple
 from scipy.stats import ttest_ind_from_stats, ttest_ind 
+import pandas as pd
 
 import sys
 import os 
@@ -24,22 +25,28 @@ import ccmodels.plotting.color_reference as cr
 
 def example_tuning_curve(ax, v1_neurons, rates, error_rates, layer='L23'):
 
-    neurons_ids = fl.filter_neurons(v1_neurons, layer=layer, tuning='tuned')
+    neurons_ids = fl.filter_neurons(v1_neurons, tuning='tuned')
+    layers      = neurons_ids['layer']
+    print(neurons_ids.loc[neurons_ids['layer']=='L4', 'id'].values[5:15])
     neurons_ids = neurons_ids['id']
 
-    ids = [8, 3, 11]
 
-    for c,id in enumerate(ids):
+    #ids = [8, 3, 11]
+    ids = [8, 3, 22]
+
+    for id in ids:
         rangle = rates[neurons_ids[id], :]
         rangle_err = error_rates[neurons_ids[id], :]
 
-        ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3])
-        ax.plot(np.arange(8), rangle,  lw=1, color=cr.pal_extended[c+3], ls='none', marker='o', ms=cr.ms)
-        ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.pal_extended[c+3], fmt='none') 
-        ax.set_xticks([0, 4, 8], ['0.01', '0.09', '0.17'])
-        ax.set_ylim(0,7)
-        ax.set_xlabel("k")
-        ax.set_ylabel("Rate")
+        ax.plot(np.arange(8), rangle,  lw=1, color=cr.lcolor[layers[id]])
+        ax.plot(np.arange(8), rangle,  lw=1, color=cr.lcolor[layers[id]], ls='none', marker='o', ms=cr.ms)
+        ax.errorbar(np.arange(8), rangle, yerr=rangle_err,  color=cr.lcolor[layers[id]], fmt='none') 
+
+    ax.set_xticks([0, 4, 8], ['0.01', '0.09', '0.17'])
+    ax.set_yticks([0, 5, 10])
+    ax.set_ylim(0,10)
+    ax.set_xlabel("k")
+    ax.set_ylabel("Rate")
 
 def plot_ratedist(ax, rates, re, ri):
     #bins = np.logspace(-2, 2, 50)
@@ -55,7 +62,7 @@ def plot_ratedist(ax, rates, re, ri):
 
     hist = hist / rates.size
 
-    ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', ls="--", markersize=cr.ms, zorder=3, label='data exc')
+    ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', ls="--", markersize=cr.ms, zorder=3, label='Data exc')
 
     ax.set_xlabel("Rate")
     ax.set_ylabel('Neuron frac.')
@@ -88,7 +95,7 @@ def spatial_selectivity_index(ax, rates, ssfe, ssfi):
     ax.plot(edges[::2], hist[::2], color=cr.lcolor['L23'], marker='o', ls="--", markersize=cr.ms, zorder=3, label='data exc')
 
 
-    ax.set_xlabel("SSF")
+    ax.set_xlabel("SSI")
     #ax.set_ylabel("Neuron frac.")
 
 
@@ -105,7 +112,7 @@ def compute_conn_prob(v1_neurons, v1_connections):
 
     return meandata
 
-def compute_prob_dif_layer(units, connections, layer):
+def compute_prob_dif_layerold(units, connections, layer):
     p = np.zeros(15)
     p_err = np.zeros(15)
 
@@ -126,14 +133,52 @@ def compute_prob_dif_layer(units, connections, layer):
             pairs = pre_neurons.merge(post_neurons, on='key')[['pre_id', 'post_id']]
             selected_connections = fl.synapses_by_id(connections, pre_ids=pre_neurons['pre_id'], post_ids=post_neurons['post_id'], who='both')
 
-            p[dif + 7] += len(selected_connections) / len(pairs)
-            p_err[dif + 7] += np.sqrt(p[dif + 7] * (1 - p[dif + 7]) / len(pairs)) 
-            ndif[dif + 7] += 1
+            if len(pairs) > 0:
+                p[dif + 7] += len(selected_connections) / len(pairs)
+                p_err[dif + 7] += np.sqrt(p[dif + 7] * (1 - p[dif + 7]) / len(pairs))
+                ndif[dif + 7] += 1
+            else:
+                trivial_conprob= np.array([0.]*8  + [1.] + [0.]*6)
+                return trivial_conprob, trivial_conprob
+
 
     p /= ndif
     p_err /= ndif
 
-    maxp = np.max(p) 
+    maxp = np.max(p)
+    p /= maxp
+    p_err /= maxp
+
+    return p, p_err
+
+def compute_prob_dif_layer(units, connections, layer):
+    #p = np.zeros(15)
+    #p_err = np.zeros(15)
+    p = np.zeros(8)
+    p_err = np.zeros(8)
+
+    pre_ids  = fl.filter_neurons(units, tuning='tuned', layer=layer, proofread='ax_clean')['id'].unique()
+    post_ids = fl.filter_neurons(units, tuning='tuned', layer="L23")['id'].unique()
+
+    conn_from_tunedpre = fl.synapses_by_id(connections, pre_ids=pre_ids, post_ids=post_ids, who='both')
+
+    units_pre  = units.loc[units['id'].isin(pre_ids),  ['id', 'pref_ori']].rename(columns=lambda x: f"pre_{x}")
+    units_post = units.loc[units['id'].isin(post_ids), ['id', 'pref_ori']].rename(columns=lambda x: f"post_{x}")
+
+    units_pre['key']  = 1
+    units_post['key'] = 1
+    pairs = units_pre.merge(units_post, on='key')[['pre_id', 'pre_pref_ori', 'post_id', 'post_pref_ori']]
+    #pairs['delta_ori'] = au.signed_dist_vectorized(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)    
+    pairs['delta_ori'] = au.unsigned_dist(pairs['pre_pref_ori'].values, pairs['post_pref_ori'].values)
+
+    n_potential_conns = pairs['delta_ori'].value_counts().sort_index()
+    #n_observed_conns  = conn_from_tunedpre['delta_ori'].value_counts().sort_index()
+    n_observed_conns  = conn_from_tunedpre['delta_ori'].abs().value_counts().sort_index()
+
+    p = n_observed_conns.values / n_potential_conns.values 
+    p_err = np.sqrt((p * (1 - p) / n_potential_conns.values))
+
+    maxp = np.max(p)
     p /= maxp
     p_err /= maxp
 
@@ -150,39 +195,29 @@ def compute_prob_dif(units, connections):
 
 
 def plot_prob_dif(axes, p, perr, pdata, pdataerr):
-    x = np.arange(-7, 8)
+    #x = np.arange(-7, 8)
+    x = np.arange(0, 8)
     for layer in ['L23', 'L4']:
 
-        axes[layer].plot(x, p[layer], color=cr.lcolor[layer], label='Model')
+        axes[layer].plot(x, p[layer], color=cr.lcolor[layer], label=f'Model {layer}')
 
         pmean = pdata[layer]
         pstd = pdataerr[layer] 
-        axes[layer].fill_between(x, pmean - pstd, pmean + pstd, color=cr.lcolor[layer], alpha = 0.3)
-        axes[layer].plot(x, pmean, color=cr.lcolor[layer], marker='o', ls="--", markersize=cr.ms, zorder=3, label='Data')
+        #axes[layer].fill_between(x, pmean - pstd, pmean + pstd, color=cr.lcolor[layer], alpha = 0.3)
+        #axes[layer].plot(x, pmean, color=cr.lcolor[layer], marker='o', ls="--", markersize=cr.ms, zorder=3, label='Data')
+        axes[layer].errorbar(x, pmean, yerr = pstd, color=cr.lcolor[layer], marker='o', ls="--", markersize=cr.ms, zorder=3, label=f'Data {layer}')
 
         #axes[layer].errorbar(x, p[layer], yerr = perr[layer], color=cr.lcolor[layer], label='Model')
         #axes[layer].errorbar(x, pdata[layer], yerr = pdataerr[layer], color=cr.lcolor[layer], marker='o', ls="--", markersize=cr.ms, zorder=3, label='Data')
 
-        axes[layer].set_xticks([-8, 0, 8], ['-0.17', '0', '0.17'])
-        axes['L23'].set_xlabel(r"Δk")
+        axes[layer].legend(loc=(0.15, 0.1), fontsize=8) 
+        axes[layer].set_ylim(0, 1)
+        #axes[layer].set_xticks([-8, 0, 8], ['-0.17', '0', '0.17'])
+        axes[layer].set_xticks([0, 8], ['0', '0.17'])
+        axes[layer].set_xlabel("|Δk|")
 
-    axes['L23'].set_ylabel(r"Prob. Conn.\n(Normalized)")
+    axes['L23'].set_ylabel("Prob. Conn.\n(Normalized)")
     
-def plot_probconn(axdata, axmodel, meandata):
-
-    #Plot it!
-    axes = {'data': axdata, 'model': axmodel}
-
-    for case in ['data', 'model']:
-        im = axes[case].imshow(meandata[case], vmin = 0., vmax = 1.0, extent = [0.01, 0.17, 0.01, 0.17], aspect='auto', origin='lower')
-
-        #Then just adjust axes and put a legend
-        axes[case].set_xlabel(r"$\hat k _\text{post}$")
-        axes[case].set_xticks([0.01, 0.09, 0.17], ['0.01', '0.09', '0.17'])
-        axes[case].set_yticks([0.01, 0.09, 0.17], ['0.01', '0.09', '0.17'])
-    
-    axes['data'].set_ylabel(r"$\hat k _\text{pre}$")
-    return im
 
 #def diff_emergent2target_prefori(ax, pref_ori, target_ori, color):
 def diff_emergent2target_prefori(ax, diff_ori, color, label):
@@ -200,11 +235,12 @@ def diff_emergent2target_prefori(ax, diff_ori, color, label):
 
     lines, = ax.step(bins[:-1]+0.5, hist, color=color, label=label)
 
+    ax.legend(loc=(0.2, 0.7), fontsize=8)
     ax.set_xlabel(r"$\hat k_\text{targt}- \hat k_\text{emerg}$")
     ax.set_ylabel('Neuron frac.')
     ax.set_xticks([-8, 0, 8], ['-0.17', '0.0', '0.17'])
-    ax.set_yticks([0, 0.2, 0.4])
-    ax.set_ylim(0., 0.41)
+    ax.set_yticks([0, 0.2, 0.4, 0.6])
+    ax.set_ylim(0., 0.61)
     
     return lines
 
@@ -215,13 +251,14 @@ def make_bar_plot(ax, cvsims, cvdata, title):
 
     x = np.arange(4)
 
+    print("Values of bars:", m)
+    print("Values of bars:", s)
+    print("Experiment: ", cvdata)
     ax.bar(x, m, color = cr.reshuf_color, edgecolor='k') 
     ax.errorbar(x, m, yerr = s, color = 'black', marker = 'none', ls='none') 
 
-    ax.axhline(cvdata, ls='--', color = 'gray', lw=1)
-    ax.text(x[1], cvdata + 0.005, "Experiment")
-
-    ax.axhline(m[0], ls='--', color = 'black')
+    ax.axhline(cvdata, ls='--', color = 'black', lw=1)
+    ax.text(0.5, cvdata + 0.0075, "Experiment")
 
     #for i in range(1, 4):
     #    tstat, pval = ttest_ind_from_stats(m[0], s[0], 10, m[i], s[i], 10, alternative='greater')
@@ -230,9 +267,25 @@ def make_bar_plot(ax, cvsims, cvdata, title):
     tstat, pval = ttest_ind_from_stats(m[2], s[2], 10, m[3], s[3], 10, alternative='two-sided')
     add_sig_bracket(ax, 2, 3, m[2], m[3], yerr1=s[2], yerr2=s[3], p=pval, level=0, fs=9, pad_frac=0.02, h_frac=0.03)
 
-    ax.tick_params(axis='x', labelrotation=20)
+    print("Original to all shuffle")
+    tstat, pval = ttest_ind_from_stats(m[0], s[0], 10, m[1], s[1], 10, alternative='two-sided')
+    print(pval)
+
+    print("Original to L23")
+    tstat, pval = ttest_ind_from_stats(m[0], s[0], 10, m[2], s[2], 10, alternative='two-sided')
+    print(pval)
+
+    print("Original to L4")
+    tstat, pval = ttest_ind_from_stats(m[0], s[0], 10, m[3], s[3], 10, alternative='two-sided')
+    print(pval)
+
+    print("all to L4")
+    tstat, pval = ttest_ind_from_stats(m[1], s[1], 10, m[3], s[3], 10, alternative='two-sided')
+    print(pval)
+
+    ax.tick_params(axis='x', labelrotation=25)
     ax.set_xticks(x, ['Original', 'All Reshf.', 'L23 Reshf.', 'L4 Reshf.'])
-    ax.set_ylabel("Circ. Var.")
+    ax.set_ylabel("SSI")
     ax.set_ylim(0,0.6)
 
     ax.set_title(title)
@@ -249,7 +302,7 @@ def p_to_stars(p):
         return 'n.s.'
 
 def add_sig_bracket(ax, x1, x2, y1, y2, yerr1=0.0, yerr2=0.0, p=1.0,
-                    level=0, pad_frac=0.03, h_frac=0.1, text_frac=-0.05,fs=11):
+                    level=0, pad_frac=0.03, h_frac=0.1, text_frac=-0.07,fs=11):
     """
     Draw a significance bracket between bars at x1 and x2.
     """
@@ -290,19 +343,19 @@ def plot_tuning_curve(ax, units, rates, re):
     #tcurve     = plotutils.shift(tcurve, with_symmetric=False)
     #tcurve_err = plotutils.shift(tcurve_err, with_symmetric=False)
     ax.fill_between(np.arange(15), tcurve - tcurve_err, tcurve + tcurve_err, color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
-    ax.plot(np.arange(15), tcurve, color=cr.dotcolor[layer], ls="none", marker='o', ms=cr.ms)
+    ax.plot(np.arange(15), tcurve, color=cr.lcolor[layer], ls="none", marker='o', ms=cr.ms, label=f'Data {layer}')
 
 
     rematrix = np.reshape(re, (-1, 8))
     prefs = np.argmax(rematrix, axis=1)
     tcurve     = np.mean(dutl.shift_multi(rematrix, prefs), axis=0) 
-    ax.plot(np.arange(15), tcurve, color=cr.lcolor[layer], label=layer)
+    ax.plot(np.arange(15), tcurve, color=cr.lcolor[layer], label=f'Model {layer}')
 
     ax.set_xticks([-1, 7, 16], ['-0.17', '0.0', '0.17'])
     ax.set_ylim(0, 10)
     ax.set_xlabel(r"$\hat k - k$")
     ax.set_ylabel("Rate")
-    ax.legend(loc='best')
+    ax.legend(loc=(0.1, 0.8), fontsize=8)
 
     return 
 
@@ -316,7 +369,7 @@ args = parser.parse_args()
 
 def plot_figure(figname, generate_data=True):
 
-    filename = 'v1300_def_spfreqcosonly'
+    filename = 'v1300_def_spfreqsbi'
 
     nexp = 10 
 
@@ -335,10 +388,10 @@ def plot_figure(figname, generate_data=True):
     sty.master_format()
     fig, axes = plt.subplot_mosaic(
     """
-    AB.CD
-    EFZGH
+    ABCD
+    EFGH
     """,
-    figsize=sty.two_col_size(height=8.), layout='constrained', width_ratios=[1., 1., 0.05, 1., 1.]) 
+    figsize=sty.two_col_size(height=8.5), layout='constrained', width_ratios=[1., 1., 1., 1.]) 
 
     colors = cr.reshuf_color 
     labels = ['Original', 'Reshuffled', 'L23 reshuffled', 'L4 reshuffled']
@@ -360,10 +413,11 @@ def plot_figure(figname, generate_data=True):
             allre = np.empty(0)
             allssfe = np.empty(0)
             allssfi = np.empty(0)
-            #probmean = {'L23' : np.zeros((8,8)), 'L4' : np.zeros((8,8))} 
-            #proberr = {'L23' : np.zeros((8,8)), 'L4' : np.zeros((8,8))} 
-            probmean = {'L23' : np.zeros(15), 'L4' : np.zeros(15)} 
-            proberr = {'L23' : np.zeros(15), 'L4' : np.zeros(15)} 
+
+            #probmean = {'L23' : np.zeros(15), 'L4' : np.zeros(15)} 
+            #proberr = {'L23' : np.zeros(15), 'L4' : np.zeros(15)} 
+            probmean = {'L23' : np.zeros(8), 'L4' : np.zeros(8)} 
+            proberr = {'L23' : np.zeros(8), 'L4' : np.zeros(8)} 
 
             for j in range(nexp):
                 if len(reshuffle_mode) > 1:
@@ -477,11 +531,11 @@ def plot_figure(figname, generate_data=True):
     #axes['A'].legend(handles=legend_handles, loc=(0.1, 0.55))
 
 
-    #axes2label = [axes[key] for key in 'ABCDEL']
-    #label_pos  = [-0.25, 1.05] * 6 
-    #sty.label_axes(axes2label, label_pos)
+    axes2label = [axes[key] for key in 'ABCDEFGH']
+    label_pos  = [-0.25, 1.1] * 8
+    sty.label_axes(axes2label, label_pos)
     
 
-    fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
+    #fig.savefig(f"{args.save_destination}/{figname}.pdf",  bbox_inches="tight")
 
-plot_figure("fig6cosonly",  generate_data=True)
+plot_figure("fig6sbi",  generate_data=False)

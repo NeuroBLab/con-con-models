@@ -174,7 +174,7 @@ def compute_errors(summary_data, folder_files, is_sbi):
 def plot_posterior_distrib(axes, posterior_samples, intervals, color, bw='ISJ'):
 
     #Plot with a different colormap to differentiate from rel error plots
-    labels = [r"$J$", r"$g$", r"$\theta$", r"$\sigma$", r"$I_E$", r"$I_I$", r"$\beta_{23}$", r"$\beta_{4}$"]
+    labels = [r"$J$", r"$g$", r"$\theta_E$", r"$\theta_I$", r"$I_E$", r"$I_I$", r"$\beta_{23}$", r"$\beta_{4}$"]
 
     #A plot for each parameter
     for param in range(len(axes)):

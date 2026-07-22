@@ -12,6 +12,7 @@ import ccmodels.dataanalysis.filters as fl
 import ccmodels.dataanalysis.currents as curr
 import ccmodels.dataanalysis.statistics_extraction as ste
 import ccmodels.dataanalysis.utils as dutl
+import ccmodels.modelanalysis.utils as mutl
 
 
 import ccmodels.plotting.styles as sty 
@@ -19,6 +20,8 @@ import ccmodels.plotting.color_reference as cr
 import ccmodels.plotting.utils as plotutils
 
 import ccmodels.utils.angleutils as au
+
+from scipy.stats import ttest_ind_from_stats, wilcoxon, mannwhitneyu
 
 
 #Get a simple tuning curve from the neuron with the selected id.  
@@ -37,26 +40,43 @@ def example_tuning_curve(ax, rates, rates_err, id):
     ax.set_ylabel("Rate")
 
 #Plot an example current to the postsynaptic neuron with the selected id
-def example_current(ax, v1_neurons, connections, vij, rates, rates_err, id):
+"""
+def example_current(ax, ax_cv, v1_neurons, connections, vij, rates, rates_err, id):
 
     currents = {}
     currents_err = {}
+    cvds = {}
     
     #Get the presynaptic filtering and compute the current 
     pre_ids = fl.filter_neurons(v1_neurons, layer='L23', tuning='matched', proofread='minimum')
     ptroots = connections.loc[connections['post_id'] == id, 'pre_id']
-    print('prepts L23, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id']) 
     print('prepts L23, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id'].nunique()) 
     currents['L23'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
     currents_err['L23'] = curr.get_currents_subset(v1_neurons, vij, rates_err, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
 
+    cvds['L23'] = []
+    for i in pre_ids['id'].values: 
+        c = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=[i], shift=False)
+        if c.sum() > 0:
+            cvo, cvd = mutl.compute_circular_variance(c, orionly=True)
+            cvds['L23'].append(cvd[0])
+
+        c = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=ptroots, shift=False)
+
+
     #Then repeat for the other layer
     pre_ids = fl.filter_neurons(v1_neurons, layer='L4', tuning='matched', proofread='minimum')
     ptroots = connections.loc[connections['post_id'] == id, 'pre_id']
-    print('prepts L4, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id']) 
     print('prepts L4, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id'].nunique()) 
     currents['L4'] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
     currents_err['L4'] = curr.get_currents_subset(v1_neurons, vij, rates_err, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
+
+    cvds['L4'] = []
+    for i in pre_ids['id'].values: 
+        c = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=[i], shift=False)
+        if c.sum() > 0:
+            cvo, cvd = mutl.compute_circular_variance(c, orionly=True)
+            cvds['L4'].append(cvd[0])
 
     #And the total current
     pre_ids = fl.filter_neurons(v1_neurons, tuning='matched', proofread='minimum')
@@ -64,6 +84,16 @@ def example_current(ax, v1_neurons, connections, vij, rates, rates_err, id):
     currents_err['Total'] = curr.get_currents_subset(v1_neurons, vij, rates_err, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
     maxcurr = np.max(currents['Total'])
 
+    cvds['Total'] = []
+    for i in pre_ids['id'].values: 
+        c = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=[i], shift=False)
+        if c.sum() > 0:
+            cvo, cvd = mutl.compute_circular_variance(c, orionly=True)
+            cvds['Total'].append(cvd[0])
+
+
+    bins = np.linspace(0, 1, 10)
+    bins_centered = 0.5*(bins[1:] + bins[:-1])
 
     #For each one of the computed things, just plot it
     for layer in currents:
@@ -73,11 +103,75 @@ def example_current(ax, v1_neurons, connections, vij, rates, rates_err, id):
         shiftcur_err = plotutils.shift(currents_err[layer] )
         ax.errorbar(np.arange(9), shiftcur, yerr=shiftcur_err, color=cr.lcolor[layer])
 
+        hist, _ = np.histogram(cvds[layer], bins, density=False, weights=np.ones(len(cvds[layer]))/len(cvds[layer]))
+        ax_cv.step(bins_centered, hist, color = cr.lcolor[layer])
+
 
     ax.set_xticks([0, 4, 8], [0, 'π/2', 'π'])
     ax.set_yticks([0, 0.55, 1])
     ax.set_xlabel("θ")
     ax.set_ylabel("Synap. curr.")
+
+    ax_cv.set_xticks([0, 0.5, 1])
+    ax_cv.set_xlabel("Circ. Var")
+    ax_cv.set_ylabel("Current frac.")
+"""
+
+def example_current(ax, ax_cv, v1_neurons, connections, vij, rates, rates_err, id):
+
+    currents = {}
+    currents_err = {}
+    cvds = {}
+    cvds_err = {}
+    
+    layers = ['Total', 'L23', 'L4']
+
+    #Total layer must be done first to get the total current
+    for layer in layers: 
+
+        #Compute the currents
+        if layer != "Total":
+            pre_ids = fl.filter_neurons(v1_neurons, layer=layer, tuning='matched', proofread='minimum')
+        else:
+            pre_ids = fl.filter_neurons(v1_neurons, tuning='matched', proofread='minimum')
+
+        ptroots = connections.loc[connections['post_id'] == id, 'pre_id']
+        print(f'prepts {layer}, ', pre_ids.loc[pre_ids.index.isin(ptroots), 'pt_root_id'].nunique()) 
+        currents[layer] = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
+        currents_err[layer] = curr.get_currents_subset(v1_neurons, vij, rates_err, post_ids=[id], pre_ids=pre_ids['id'], shift=False)[0]
+
+        if layer == "Total":
+            maxcurr = np.max(currents[layer])
+
+        #Get their associated circular variance
+        c = curr.get_currents_subset(v1_neurons, vij, rates, post_ids=[id], pre_ids=ptroots, shift=False)
+        cvo, cvd = mutl.compute_circular_variance(c, orionly=True)
+        cvds[layer] = np.mean(cvd)
+        cvds_err[layer] = np.std(cvd) / np.sqrt(np.size(c))
+
+    #To list sorted as layers
+    barpos = {'Total': 2, 'L23': 0, 'L4':1} 
+
+
+    #For each one of the computed things, just plot it
+    for layer in layers:
+        currents[layer]     = currents[layer] / maxcurr
+        currents_err[layer] = currents_err[layer] / maxcurr
+        shiftcur = plotutils.shift(currents[layer] )
+        shiftcur_err = plotutils.shift(currents_err[layer] )
+        ax.errorbar(np.arange(9), shiftcur, yerr=shiftcur_err, color=cr.lcolor[layer])
+
+        ax_cv.bar(barpos[layer], cvds[layer], yerr=cvds_err[layer], color=cr.lcolor[layer], edgecolor='k')
+
+
+    ax.set_xticks([0, 4, 8], [0, 'π/2', 'π'])
+    ax.set_yticks([0, 0.55, 1])
+    ax.set_xlabel("θ")
+    ax.set_ylabel("Synap. curr.")
+
+    ax_cv.set_xticks([0,1,2], ['L2/3', 'L4', 'Total'])
+    ax_cv.set_yticks([0, 0.15, 0.3])
+    ax_cv.set_ylabel("Circ. Var")
 
 def show_image(ax, path2im):
     im = Image.open("images/" + path2im)
@@ -99,6 +193,11 @@ def plot_currents(axes, units, rates, vij):
     #To store the results...
     avgcurrent = {}
     stdcurrent = {}
+    ncurrent   = {}
+
+    avgcvd = {}
+    stdcvd = {}
+    ncvd   = {}
 
     #We will need the maximum total current to normalize
     current = curr.get_currents_subset(units, vij, rates, post_ids=post['id'], pre_ids=pre["Total"]['id'], shift=True)
@@ -109,6 +208,7 @@ def plot_currents(axes, units, rates, vij):
     x = np.arange(9)
 
     legendlabel = ["L2/3", 'L4', "Total"]
+    cvd4test = {}
 
     #Now for each one of the layers,
     for i,layer in enumerate(['L23', 'L4', "Total"]):
@@ -119,7 +219,8 @@ def plot_currents(axes, units, rates, vij):
         current = curr.get_currents_subset(units, vij, rates, post_ids=post['id'], pre_ids=pre_layer['id'], shift=True)
 
         #Get the mean and its error
-        n = np.sqrt(current.shape[0])
+        ncurrent[layer] = current.shape[0]
+        n = np.sqrt(ncurrent[layer])
         avgcurrent[layer] = np.mean(current, axis=0)
         stdcurrent[layer] = np.std(current, axis=0) / n
 
@@ -128,29 +229,66 @@ def plot_currents(axes, units, rates, vij):
         stdcurrent[layer] = plotutils.shift(stdcurrent[layer] / maxcur)
 
         #Plot 
-        axes[0].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer], color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
-        axes[0].plot(x, avgcurrent[layer], color=cr.lcolor[layer], label=legendlabel[i])     
-        axes[0].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
-
+        #axes[0].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer], color=cr.lcolor[layer], alpha=0.5, edgecolor=None)
+        #axes[0].plot(x, avgcurrent[layer], color=cr.lcolor[layer], label=legendlabel[i])     
+        #axes[0].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
+        axes[0].errorbar(x, avgcurrent[layer], yerr=stdcurrent[layer], color=cr.lcolor[layer]) 
         #Get the normalization for each curve
         maxcurlayer = np.max(avgcurrent[layer])
         avgcurrent[layer] = avgcurrent[layer] / maxcurlayer 
         stdcurrent[layer] = stdcurrent[layer] / maxcurlayer 
 
         #Replot the normalized thing
-        axes[1].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer],color=cr.lcolor[layer], alpha=0.5, edgecolor=None) 
-        axes[1].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
-        axes[1].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
+        #axes[1].fill_between(x, avgcurrent[layer] - stdcurrent[layer], avgcurrent[layer] + stdcurrent[layer],color=cr.lcolor[layer], alpha=0.5, edgecolor=None) 
+        #axes[1].plot(x, avgcurrent[layer], color=cr.lcolor[layer])     
+        #axes[1].plot(x, avgcurrent[layer], color=cr.dotcolor[layer], ms=cr.ms, ls='none', marker='o')
+        axes[1].errorbar(x, avgcurrent[layer], yerr=stdcurrent[layer], color=cr.lcolor[layer])
+
+        
+        #Plot Circ Var
+        existing_cur = current[current.sum(axis=1) > 0, :]
+        cvo, cvd = mutl.compute_circular_variance(existing_cur, orionly=True)
+        cvd4test[layer] = cvd
+        avgcvd[layer] = cvd.mean()
+        stdcvd[layer] = cvd.std()
+        ncvd[layer] = cvd.shape[0]
+
+        bins = np.linspace(0, 1, 30)
+        bins_centered = 0.5*(bins[1:] + bins[:-1])
+        hist, _ = np.histogram(cvd, bins, density=False, weights=np.ones(len(cvd))/len(cvd))
+        axes[2].step(bins_centered, hist, color = cr.lcolor[layer])
+
+        #Store mean, std and variance from the currents to do the testing later
+        ncurrent[layer] = current.shape[0]
+        avgcurrent[layer] = np.mean(current)
+        stdcurrent[layer] = np.std(current) 
+
 
     axes[0].set_ylim(0, 1.05)
-    axes[0].legend(loc=(0.02, 0.55), ncols=3, fontsize=9)
+    #axes[0].legend(loc=(0.02, 0.55), ncols=3, fontsize=9)
 
-    for ax in axes:
+    print("Testtttt")
+    print(avgcvd, stdcvd,  ncvd)
+    print(avgcurrent)
+    test = ttest_ind_from_stats(avgcurrent['L23'], stdcurrent['L23'], ncurrent['L23'], avgcurrent['L4'], stdcurrent['L4'], ncurrent['L4'], alternative='less')
+    print("Test result, ", test.pvalue)
+
+    test = ttest_ind_from_stats(avgcvd['L23'], stdcvd['L23'], ncvd['L23'], avgcvd['L4'], stdcvd['L4'], ncvd['L4'], alternative='greater')
+    print("Test result, ", test.pvalue)
+
+    test = mannwhitneyu(cvd4test['L23'], cvd4test['L4'])
+    print("Wilcoxon rank result, ", test.pvalue)
+
+
+    for ax in (axes[0], axes[1]):
         ax.set_xticks([0, 4, 8], ['-π/2', 0, 'π/2'])
         ax.set_xlabel(r"$\theta - \hat \theta_\text{post}$")
 
     axes[0].set_ylabel("Synap. curr.")
     axes[1].set_ylabel("Synap. curr.\n(Normalized)")
+
+    axes[2].set_xticks([0, 0.5, 1])
+    axes[2].set_xlabel("Circ. Var")
 
 def compute_error_prediction(units, connections, rates, vij, nreps = 1000):
 
@@ -332,17 +470,18 @@ def plot_figure(figname):
 
 
     sty.master_format()
-    fig = plt.figure(figsize=sty.two_col_size(ratio=1.9), layout='constrained')
+    fig = plt.figure(figsize=sty.two_col_size(ratio=1.5), layout='constrained')
     #ghostax = fig.add_axes([0,0,1,1])
     
     #ghostax.axis('off')
 
     axes = fig.subplot_mosaic(
         [['T', 'T', 'T',  'T'],
-         ['X', 'A1','B1', 'C'],
-         ['X', 'A2','B2', 'L']],
-         height_ratios=[0.6, 1, 1],
-          width_ratios=[1.1, 1,1,1]
+         ['X', 'A1','B1', 'C1'],
+         ['X', 'A2','B2', 'C2'], 
+         ['X', 'A3','B3', 'L']],
+         height_ratios=[0.7, 1, 1, 1],
+          width_ratios=[1.2, 1,1,1]
     )
 
     #USe the upper space for titles
@@ -357,28 +496,28 @@ def plot_figure(figname):
     id = units['id'].values[selected_unit] 
 
     axes['X'].set_axis_off()
-    axes['X'].text(0.1, 0.9, f"nucleus_id:\n{units['nucleus_id'].values[selected_unit]}", fontsize=10)
+    axes['X'].text(0.05, 0.9, f"nucleus_id:{units['nucleus_id'].values[selected_unit]}", fontsize=10)
     print("pt_root_id ", units['pt_root_id'].values[selected_unit])
 
     #show_image(axes["X"], "example_neuron_cut.png")
     example_tuning_curve(axes['A1'], rates, rates_err, id)
-    example_current(axes['A2'], matched_neurons, matched_connections, vij, rates, rates_err, id)
-    plot_currents([axes['B1'], axes['B2']], matched_neurons, rates, vij)
+    example_current(axes['A2'], axes['A3'], matched_neurons, matched_connections, vij, rates, rates_err, id)
+    plot_currents([axes['B1'], axes['B2'], axes['B3']], matched_neurons, rates, vij)
 
 
     #plot_sampling_current(axes['B1'], axes['B2'], matched_neurons, matched_connections, rates)
 
     #prediction_shuffling_control(axes['C'], axes['L'], matched_neurons, matched_connections, rates, vij)
     error, error_shuffled, error_signed = compute_error_prediction(matched_neurons, matched_connections, rates, vij)
-    plot_error_prediction(axes['C'], error, error_shuffled) 
-    plot_error_prediction_dist(axes['L'], error_signed)
+    plot_error_prediction(axes['C1'], error, error_shuffled) 
+    plot_error_prediction_dist(axes['C2'], error_signed)
 
-    #axes['L'].set_axis_off()
-    #handles, labels = axes['B1'].get_legend_handles_labels()
-    #axes['L'].legend(handles, labels, loc=(0., 0.5), handlelength=1.2)
+    axes['L'].set_axis_off() 
+    handles, labels = axes['B1'].get_legend_handles_labels()
+    axes['L'].legend(handles, labels, loc=(0., 0.5), handlelength=1.2)
 
-    axes2label = [axes[k] for k in ['A1', 'B1', 'C']]
-    label_pos  = [[0.1, 0.95]] * 3 
+    axes2label = [axes[k] for k in ['X', 'A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2']]
+    label_pos  = [[0.05, 0.95]] * len(axes2label) 
     sty.label_axes(axes2label, label_pos)
     fig.savefig(f"{args.save_destination}/{figname}",  bbox_inches="tight")
 

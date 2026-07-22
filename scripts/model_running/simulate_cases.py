@@ -25,7 +25,7 @@ import ccmodels.dataanalysis.statistics_extraction as ste
 N = 3001
 kee = 150 
 nreps = 10 
-filename = "v1300_def_spfreqcosonly"
+filename = "v1300_def_spfreqsbi"
 
 def compute_conn_prob(v1_neurons, v1_connections):
 
@@ -100,10 +100,8 @@ elif intmode=='tunedinh':
 
     betas = [best_pars[id, 6], best_pars[id, 7], best_pars[id, 6], best_pars[id, 6], best_pars[id, 6], best_pars[id, 7]]
 elif intmode=='spfreq':
-    best_pars = np.array([[7.92474210e-01, 3.59854251e-01, 7.69989061e+00, 7.60365248e+00, 9.98869781e+01, 4.66699005e+02, 2.98812389e-01, 1.46130979e-01]])
-    best_pars[id,5] = 300 
-    #best_pars[id,6] = 0.51
-    #best_pars[id,7] = 0.17
+    #Definitive from the SBI!! :)
+    best_pars = np.array([[7.92474210e-01, 3.59854251e-01, 7.69989061e+00, 7.60365248e+00, 9.88969339e+01, 4.95952155e+02, 3.46708306e-01, 5.32602891e-01]])
     betas = [best_pars[id, 6], best_pars[id, 7], 0., 0., 0., 0.]
 
 for i in range(nreps):
